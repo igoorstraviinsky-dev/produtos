@@ -1,0 +1,451 @@
+openapi: 3.1.0
+info:
+  title: B2B Stock Gateway API
+  version: 0.2.0
+servers:
+  - url: http://localhost:3000
+paths:
+  /api/v1/products:
+    get:
+      summary: List products for an authenticated B2B company
+      tags:
+        - Products
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authorized product list
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - meta
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  meta:
+                    type: object
+                    required:
+                      - source
+                    properties:
+                      source:
+                        type: string
+                        enum: [cache, upstream]
+        '401':
+          description: Missing or invalid credential
+        '403':
+          description: Company inactive or key revoked
+        '429':
+          description: Rate limit exceeded
+        '503':
+          description: Remote catalog unavailable and no valid cache exists
+  /api/v1/my-inventory:
+    get:
+      summary: List the authenticated partner inventory
+      tags:
+        - Partner Inventory
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Effective partner inventory
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - meta
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PartnerInventoryItem'
+                  meta:
+                    type: object
+                    required:
+                      - count
+                      - companyId
+                    properties:
+                      count:
+                        type: integer
+                      companyId:
+                        type: string
+        '401':
+          description: Missing or invalid credential
+        '403':
+          description: Company inactive or key revoked
+        '429':
+          description: Rate limit exceeded
+  /api/v1/my-inventory/{productId}:
+    put:
+      summary: Update the authenticated partner stock for one product
+      tags:
+        - Partner Inventory
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - customStockQuantity
+              properties:
+                customStockQuantity:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: Partner stock updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PartnerInventoryItem'
+        '401':
+          description: Missing or invalid credential
+        '403':
+          description: Company inactive or key revoked
+        '404':
+          description: Product not found in master catalog
+  /api/internal/webhooks/supabase-sync:
+    post:
+      summary: Synchronize the local master catalog from Supabase
+      tags:
+        - Internal Webhooks
+      security:
+        - webhookSecret: []
+      responses:
+        '200':
+          description: Master catalog synchronized
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - syncedCount
+                      - updatedAt
+                    properties:
+                      syncedCount:
+                        type: integer
+                      updatedAt:
+                        type: string
+                        format: date-time
+        '401':
+          description: Invalid webhook secret
+  /api/internal/admin/companies:
+    get:
+      summary: List companies for the Super Admin dashboard
+      tags:
+        - Internal Admin
+      security:
+        - adminToken: []
+      responses:
+        '200':
+          description: Company list with API key counters
+    post:
+      summary: Create a company from the Super Admin dashboard
+      tags:
+        - Internal Admin
+      security:
+        - adminToken: []
+      responses:
+        '201':
+          description: Company created
+  /api/internal/admin/companies/{companyId}:
+    patch:
+      summary: Update the selected company settings
+      tags:
+        - Internal Admin
+      security:
+        - adminToken: []
+      parameters:
+        - in: path
+          name: companyId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Company updated
+        '404':
+          description: Company not found
+  /api/internal/admin/companies/{companyId}/api-keys:
+    get:
+      summary: List API keys for a specific company
+      tags:
+        - Internal Admin
+      security:
+        - adminToken: []
+      parameters:
+        - in: path
+          name: companyId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: API key list
+  /api/internal/admin/companies/{companyId}/status:
+    patch:
+      summary: Activate or deactivate a company from the internal admin panel
+      tags:
+        - Internal Admin
+      security:
+        - adminToken: []
+      parameters:
+        - in: path
+          name: companyId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Company status updated
+  /api/internal/admin/companies/{companyId}/inventory:
+    get:
+      summary: List the master catalog with the custom stock for one company
+      tags:
+        - Internal Admin
+      security:
+        - adminToken: []
+      parameters:
+        - in: path
+          name: companyId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Company inventory for the Super Admin
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - meta
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PartnerInventoryItem'
+                  meta:
+                    type: object
+                    required:
+                      - count
+                      - companyId
+                      - companyName
+                    properties:
+                      count:
+                        type: integer
+                      companyId:
+                        type: string
+                      companyName:
+                        type: string
+  /api/internal/admin/companies/{companyId}/inventory/{productId}:
+    put:
+      summary: Update the custom stock for a company and product
+      tags:
+        - Internal Admin
+      security:
+        - adminToken: []
+      parameters:
+        - in: path
+          name: companyId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - customStockQuantity
+              properties:
+                customStockQuantity:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: Company inventory updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PartnerInventoryItem'
+        '404':
+          description: Company or product not found
+  /api/internal/admin/api-keys:
+    post:
+      summary: Issue a new API key from the internal admin panel
+      tags:
+        - Internal Admin
+      security:
+        - adminToken: []
+      responses:
+        '201':
+          description: API key issued
+  /api/internal/admin/api-keys/{apiKeyId}/revoke:
+    patch:
+      summary: Revoke an API key from the internal admin panel
+      tags:
+        - Internal Admin
+      security:
+        - adminToken: []
+      parameters:
+        - in: path
+          name: apiKeyId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: API key revoked
+  /admin/companies:
+    post:
+      summary: Create a company
+      tags:
+        - Admin
+      responses:
+        '201':
+          description: Company created
+    get:
+      summary: List companies
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: Company list
+  /admin/companies/{companyId}/status:
+    patch:
+      summary: Activate or deactivate a company
+      tags:
+        - Admin
+      parameters:
+        - in: path
+          name: companyId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Company status updated
+  /admin/api-keys:
+    post:
+      summary: Issue a new API key
+      tags:
+        - Admin
+      responses:
+        '201':
+          description: API key issued
+  /admin/api-keys/{apiKeyId}/revoke:
+    patch:
+      summary: Revoke an API key
+      tags:
+        - Admin
+      parameters:
+        - in: path
+          name: apiKeyId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: API key revoked
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API key
+    adminToken:
+      type: apiKey
+      in: header
+      name: x-admin-token
+    webhookSecret:
+      type: apiKey
+      in: header
+      name: x-webhook-secret
+  schemas:
+    Product:
+      type: object
+      required:
+        - id
+        - sku
+        - name
+        - availableQuantity
+      properties:
+        id:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        availableQuantity:
+          type: number
+        price:
+          type: number
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    PartnerInventoryItem:
+      type: object
+      required:
+        - productId
+        - sku
+        - name
+        - masterStock
+        - effectiveStockQuantity
+        - updatedAt
+      properties:
+        productId:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        masterStock:
+          type: integer
+        customStockQuantity:
+          type: integer
+          nullable: true
+        effectiveStockQuantity:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time

@@ -1,0 +1,574 @@
+import { startTransition, useEffect, useMemo, useState } from "react";
+
+import { CompanyCardsDashboard } from "./components/CompanyCardsDashboard";
+import { CompanyDetailPage } from "./components/CompanyDetailPage";
+import { Modal } from "./components/Modal";
+import { Field, StatCard } from "./components/ui";
+import { ApiError, api } from "./lib/api";
+import type {
+  AdminInventoryItem,
+  ApiKeySummary,
+  Company,
+  IssuedApiKey
+} from "./types";
+
+type AsyncState = "idle" | "loading" | "success" | "error";
+type AppPage = "dashboard" | "company";
+type CompanyTab = "settings" | "inventory";
+
+function getRouteState(pathname: string) {
+  const match = pathname.match(/^\/empresas\/([^/]+)$/);
+  if (match) {
+    return {
+      page: "company" as const,
+      companyId: decodeURIComponent(match[1])
+    };
+  }
+
+  return {
+    page: "dashboard" as const,
+    companyId: ""
+  };
+}
+
+function formatApiError(error: unknown) {
+  if (error instanceof ApiError) {
+    return `${error.message}${error.code ? ` (${error.code})` : ""}`;
+  }
+
+  return error instanceof Error ? error.message : "Erro inesperado";
+}
+
+function createInventoryDrafts(items: AdminInventoryItem[]) {
+  return Object.fromEntries(
+    items.map((item) => [
+      item.productId,
+      String(item.customStockQuantity ?? item.effectiveStockQuantity)
+    ])
+  );
+}
+
+function App() {
+  const initialRoute = getRouteState(window.location.pathname);
+  const [currentPage, setCurrentPage] = useState<AppPage>(initialRoute.page);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(initialRoute.companyId);
+  const [activeTab, setActiveTab] = useState<CompanyTab>("settings");
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([]);
+  const [inventory, setInventory] = useState<AdminInventoryItem[]>([]);
+  const [companiesState, setCompaniesState] = useState<AsyncState>("idle");
+  const [apiKeysState, setApiKeysState] = useState<AsyncState>("idle");
+  const [inventoryState, setInventoryState] = useState<AsyncState>("idle");
+  const [healthState, setHealthState] = useState<AsyncState>("idle");
+  const [feedback, setFeedback] = useState("");
+  const [createCompanyOpen, setCreateCompanyOpen] = useState(false);
+  const [issueKeyOpen, setIssueKeyOpen] = useState(false);
+  const [createdKey, setCreatedKey] = useState<IssuedApiKey | null>(null);
+  const [newCompany, setNewCompany] = useState({ legalName: "", externalCode: "" });
+  const [rateLimitValue, setRateLimitValue] = useState("100");
+  const [companyForm, setCompanyForm] = useState({ legalName: "", isActive: true });
+  const [companyActionId, setCompanyActionId] = useState("");
+  const [keyActionId, setKeyActionId] = useState("");
+  const [savingInventoryId, setSavingInventoryId] = useState("");
+  const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
+
+  const selectedCompany =
+    companies.find((company) => company.id === selectedCompanyId) ?? null;
+
+  const activeCompanies = useMemo(
+    () => companies.filter((company) => company.isActive).length,
+    [companies]
+  );
+  const totalActiveKeys = useMemo(
+    () => companies.reduce((total, company) => total + company.activeKeyCount, 0),
+    [companies]
+  );
+
+  function syncCompanyForm(company: Company | null) {
+    setCompanyForm({
+      legalName: company?.legalName ?? "",
+      isActive: company?.isActive ?? true
+    });
+  }
+
+  async function refreshHealth() {
+    setHealthState("loading");
+
+    try {
+      await api.getHealth();
+      setHealthState("success");
+    } catch {
+      setHealthState("error");
+    }
+  }
+
+  async function refreshCompanies(preferredCompanyId?: string) {
+    setCompaniesState("loading");
+
+    try {
+      const nextCompanies = await api.listCompanies();
+      setCompanies(nextCompanies);
+      setCompaniesState("success");
+
+      const nextSelectedCompanyId =
+        preferredCompanyId && nextCompanies.some((company) => company.id === preferredCompanyId)
+          ? preferredCompanyId
+          : selectedCompanyId && nextCompanies.some((company) => company.id === selectedCompanyId)
+            ? selectedCompanyId
+            : nextCompanies[0]?.id ?? "";
+
+      if (currentPage === "company" && nextSelectedCompanyId) {
+        setSelectedCompanyId(nextSelectedCompanyId);
+      }
+    } catch (error) {
+      setCompaniesState("error");
+      setFeedback(formatApiError(error));
+    }
+  }
+
+  async function refreshCompanyDetail(companyId: string) {
+    setApiKeysState("loading");
+    setInventoryState("loading");
+
+    try {
+      const [nextApiKeys, nextInventory] = await Promise.all([
+        api.listCompanyApiKeys(companyId),
+        api.listCompanyInventory(companyId)
+      ]);
+
+      setApiKeys(nextApiKeys);
+      setInventory(nextInventory.data);
+      setInventoryDrafts(createInventoryDrafts(nextInventory.data));
+      setApiKeysState("success");
+      setInventoryState("success");
+    } catch (error) {
+      setApiKeysState("error");
+      setInventoryState("error");
+      setFeedback(formatApiError(error));
+    }
+  }
+
+  function openDashboard() {
+    window.history.pushState({}, "", "/");
+    setCurrentPage("dashboard");
+    setSelectedCompanyId("");
+    setApiKeys([]);
+    setInventory([]);
+    setInventoryDrafts({});
+  }
+
+  function openCompany(companyId: string) {
+    window.history.pushState({}, "", `/empresas/${encodeURIComponent(companyId)}`);
+    setCurrentPage("company");
+    setSelectedCompanyId(companyId);
+    setActiveTab("settings");
+  }
+
+  useEffect(() => {
+    void refreshHealth();
+    void refreshCompanies(initialRoute.companyId || undefined);
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const route = getRouteState(window.location.pathname);
+      setCurrentPage(route.page);
+      setSelectedCompanyId(route.companyId);
+      setActiveTab("settings");
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    syncCompanyForm(selectedCompany);
+  }, [selectedCompany]);
+
+  useEffect(() => {
+    if (currentPage === "company" && selectedCompanyId) {
+      void refreshCompanyDetail(selectedCompanyId);
+    }
+  }, [currentPage, selectedCompanyId]);
+
+  async function handleCreateCompany(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    try {
+      const company = await api.createCompany(newCompany);
+      setCreateCompanyOpen(false);
+      setNewCompany({ legalName: "", externalCode: "" });
+      setFeedback("Empresa criada com sucesso.");
+      await refreshCompanies(company.id);
+      openCompany(company.id);
+    } catch (error) {
+      setFeedback(formatApiError(error));
+    }
+  }
+
+  async function handleSaveCompany() {
+    if (!selectedCompany) {
+      return;
+    }
+
+    const legalName = companyForm.legalName.trim();
+    if (!legalName) {
+      setFeedback("Informe um nome valido para a empresa.");
+      return;
+    }
+
+    setCompanyActionId(selectedCompany.id);
+
+    try {
+      const updatedCompany = await api.updateCompany(selectedCompany.id, {
+        legalName,
+        isActive: companyForm.isActive
+      });
+
+      setCompanies((currentCompanies) =>
+        currentCompanies.map((company) =>
+          company.id === updatedCompany.id ? updatedCompany : company
+        )
+      );
+      syncCompanyForm(updatedCompany);
+      setFeedback("Configuracoes da empresa atualizadas.");
+    } catch (error) {
+      setFeedback(formatApiError(error));
+    } finally {
+      setCompanyActionId("");
+    }
+  }
+
+  async function handleIssueKey(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedCompanyId) {
+      return;
+    }
+
+    try {
+      const issuedKey = await api.issueApiKey(selectedCompanyId, Number(rateLimitValue));
+      setIssueKeyOpen(false);
+      setRateLimitValue("100");
+      setCreatedKey(issuedKey);
+      setFeedback("Nova chave gerada com sucesso.");
+      await refreshCompanies(selectedCompanyId);
+      await refreshCompanyDetail(selectedCompanyId);
+    } catch (error) {
+      setFeedback(formatApiError(error));
+    }
+  }
+
+  async function handleRevokeKey(apiKeyId: string) {
+    if (!selectedCompanyId) {
+      return;
+    }
+
+    setKeyActionId(apiKeyId);
+
+    try {
+      await api.revokeApiKey(apiKeyId);
+      setFeedback("Chave revogada imediatamente.");
+      await refreshCompanies(selectedCompanyId);
+      await refreshCompanyDetail(selectedCompanyId);
+    } catch (error) {
+      setFeedback(formatApiError(error));
+    } finally {
+      setKeyActionId("");
+    }
+  }
+
+  async function handleSaveInventory(productId: string) {
+    if (!selectedCompanyId) {
+      return;
+    }
+
+    const nextQuantity = Number(inventoryDrafts[productId] ?? "");
+    if (!Number.isInteger(nextQuantity) || nextQuantity < 0) {
+      setFeedback("Informe uma quantidade inteira e nao negativa.");
+      return;
+    }
+
+    setSavingInventoryId(productId);
+
+    try {
+      const updatedItem = await api.updateCompanyInventory(selectedCompanyId, productId, {
+        customStockQuantity: nextQuantity
+      });
+
+      setInventory((currentInventory) =>
+        currentInventory.map((item) => (item.productId === productId ? updatedItem : item))
+      );
+      setInventoryDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [productId]: String(
+          updatedItem.customStockQuantity ?? updatedItem.effectiveStockQuantity
+        )
+      }));
+      setFeedback(`Estoque salvo para o produto ${updatedItem.sku}.`);
+    } catch (error) {
+      setFeedback(formatApiError(error));
+    } finally {
+      setSavingInventoryId("");
+    }
+  }
+
+  async function handleCopyCreatedKey() {
+    if (!createdKey) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(createdKey.plaintextKey);
+    setFeedback("Chave copiada para a area de transferencia.");
+  }
+
+  return (
+    <div className="relative overflow-hidden">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.2),_transparent_42%),radial-gradient(circle_at_top_right,_rgba(250,204,21,0.2),_transparent_32%)]" />
+      <div className="mx-auto flex min-h-screen max-w-[1500px] flex-col gap-8 px-4 py-6 sm:px-6 lg:px-10">
+        <header className="rounded-[2rem] border border-white/60 bg-white/80 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-700">
+                Super Admin
+                <span className="h-2 w-2 rounded-full bg-cyan-500" />
+              </div>
+              <h1 className="mt-4 font-display text-4xl tracking-tight text-slate-950 sm:text-5xl">
+                Dashboard operacional de parceiros
+              </h1>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
+                Visualize todas as empresas cadastradas, ajuste configuracoes criticas e
+                administre o estoque isolado de cada parceiro a partir de uma unica
+                interface.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={openDashboard}
+                  className={[
+                    "rounded-full px-4 py-2 text-sm font-semibold transition",
+                    currentPage === "dashboard"
+                      ? "bg-slate-950 text-white"
+                      : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                  ].join(" ")}
+                >
+                  Dashboard
+                </button>
+                {selectedCompany ? (
+                  <button
+                    type="button"
+                    onClick={() => openCompany(selectedCompany.id)}
+                    className={[
+                      "rounded-full px-4 py-2 text-sm font-semibold transition",
+                      currentPage === "company"
+                        ? "bg-cyan-600 text-white"
+                        : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                    ].join(" ")}
+                  >
+                    Visao da empresa
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <StatCard
+                label="Empresas"
+                value={String(companies.length).padStart(2, "0")}
+                caption={`${activeCompanies} ativas`}
+              />
+              <StatCard
+                label="Chaves ativas"
+                value={String(totalActiveKeys).padStart(2, "0")}
+                caption="Integracoes liberadas"
+              />
+              <StatCard
+                label="API local"
+                value={healthState === "success" ? "On" : "Off"}
+                caption={healthState === "success" ? "localhost:3000" : "verificar backend"}
+              />
+            </div>
+          </div>
+        </header>
+
+        {feedback ? (
+          <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950">
+            {feedback}
+          </div>
+        ) : null}
+
+        {currentPage === "dashboard" ? (
+          <CompanyCardsDashboard
+            companies={companies}
+            companiesState={companiesState}
+            onOpenCreate={() => setCreateCompanyOpen(true)}
+            onOpenCompany={(companyId) => {
+              startTransition(() => {
+                openCompany(companyId);
+              });
+            }}
+          />
+        ) : null}
+
+        {currentPage === "company" && selectedCompany ? (
+          <CompanyDetailPage
+            company={selectedCompany}
+            activeTab={activeTab}
+            apiKeys={apiKeys}
+            inventory={inventory}
+            apiKeysState={apiKeysState}
+            inventoryState={inventoryState}
+            keyActionId={keyActionId}
+            savingInventoryId={savingInventoryId}
+            companyForm={companyForm}
+            inventoryDrafts={inventoryDrafts}
+            onBack={openDashboard}
+            onChangeTab={setActiveTab}
+            onCompanyFormChange={(patch) =>
+              setCompanyForm((current) => ({
+                ...current,
+                ...patch
+              }))
+            }
+            onSaveCompany={() => {
+              if (!companyActionId) {
+                void handleSaveCompany();
+              }
+            }}
+            onOpenIssueKey={() => setIssueKeyOpen(true)}
+            onRevokeKey={(apiKeyId) => {
+              void handleRevokeKey(apiKeyId);
+            }}
+            onInventoryDraftChange={(productId, value) =>
+              setInventoryDrafts((currentDrafts) => ({
+                ...currentDrafts,
+                [productId]: value
+              }))
+            }
+            onSaveInventory={(productId) => {
+              void handleSaveInventory(productId);
+            }}
+          />
+        ) : null}
+      </div>
+
+      <Modal
+        open={createCompanyOpen}
+        title="Cadastrar nova empresa"
+        description="Registre uma nova company no banco de controle local."
+        onClose={() => setCreateCompanyOpen(false)}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => setCreateCompanyOpen(false)}
+              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              form="create-company-form"
+              className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              Criar empresa
+            </button>
+          </>
+        }
+      >
+        <form id="create-company-form" className="space-y-4" onSubmit={handleCreateCompany}>
+          <Field
+            label="Razao social"
+            value={newCompany.legalName}
+            onChange={(value) => setNewCompany((current) => ({ ...current, legalName: value }))}
+            placeholder="Ex.: Distribuidora Atlas"
+          />
+          <Field
+            label="Codigo externo"
+            value={newCompany.externalCode}
+            onChange={(value) =>
+              setNewCompany((current) => ({ ...current, externalCode: value }))
+            }
+            placeholder="Ex.: atlas-b2b"
+          />
+        </form>
+      </Modal>
+
+      <Modal
+        open={issueKeyOpen}
+        title="Gerar nova API key"
+        description={`Empresa selecionada: ${selectedCompany?.legalName ?? "nenhuma"}`}
+        onClose={() => setIssueKeyOpen(false)}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => setIssueKeyOpen(false)}
+              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              form="issue-key-form"
+              className="rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+            >
+              Gerar chave
+            </button>
+          </>
+        }
+      >
+        <form id="issue-key-form" className="space-y-4" onSubmit={handleIssueKey}>
+          <Field
+            label="Rate limit por minuto"
+            type="number"
+            value={rateLimitValue}
+            onChange={setRateLimitValue}
+            placeholder="100"
+          />
+        </form>
+      </Modal>
+
+      <Modal
+        open={Boolean(createdKey)}
+        title="Copie esta chave agora, ela nao sera exibida novamente"
+        description="A aplicacao salva apenas o hash criptografado no banco local. Guarde a chave em um local seguro."
+        onClose={() => setCreatedKey(null)}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => setCreatedKey(null)}
+              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+            >
+              Fechar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void handleCopyCreatedKey();
+              }}
+              className="rounded-full bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-500"
+            >
+              Copiar chave
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Exiba essa chave apenas para o cliente certo. Depois de fechar este alerta,
+            so o prefixo continuara visivel no painel.
+          </div>
+          <div className="rounded-[1.5rem] border border-slate-200 bg-slate-950 p-4 text-slate-50">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Plaintext key</p>
+            <pre className="mt-3 overflow-auto text-sm leading-7 text-cyan-300">
+              {createdKey?.plaintextKey}
+            </pre>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+export default App;

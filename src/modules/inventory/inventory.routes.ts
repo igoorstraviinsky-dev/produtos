@@ -1,0 +1,44 @@
+import { FastifyPluginAsync, preHandlerHookHandler } from "fastify";
+
+import { InventoryService } from "./inventory.service";
+import { updateMyInventorySchema } from "./inventory.schemas";
+
+type InventoryRoutesOptions = {
+  authMiddleware: preHandlerHookHandler;
+  rateLimitMiddleware: preHandlerHookHandler;
+  inventoryService: InventoryService;
+};
+
+export const inventoryRoutes: FastifyPluginAsync<InventoryRoutesOptions> = async (
+  app,
+  options
+) => {
+  app.get(
+    "/my-inventory",
+    {
+      preHandler: [options.authMiddleware, options.rateLimitMiddleware]
+    },
+    async (request, reply) => {
+      const response = await options.inventoryService.listMyInventory(request.auth.companyId);
+      return reply.status(200).send(response);
+    }
+  );
+
+  app.put(
+    "/my-inventory/:productId",
+    {
+      preHandler: [options.authMiddleware, options.rateLimitMiddleware]
+    },
+    async (request, reply) => {
+      const params = request.params as { productId: string };
+      const payload = updateMyInventorySchema.parse(request.body);
+      const response = await options.inventoryService.updateMyInventory(
+        request.auth.companyId,
+        params.productId,
+        payload.customStockQuantity
+      );
+
+      return reply.status(200).send(response);
+    }
+  );
+};
