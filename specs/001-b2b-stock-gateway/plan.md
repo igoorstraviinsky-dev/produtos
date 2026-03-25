@@ -1,14 +1,15 @@
 # Implementation Plan: B2B Stock Gateway
 
 **Branch**: `001-b2b-stock-gateway` | **Date**: 2026-03-24 | **Spec**: [spec.md](C:\Users\goohf\Desktop\parceiros\specs\001-b2b-stock-gateway\spec.md)  
-**Input**: Updated feature specification for the Super Admin dashboard and per-company inventory management
+**Input**: Updated feature specification for partner-facing inventory read/write routes plus the existing Super Admin dashboard and per-company inventory management
 
 ## Summary
 
-Evolve the current frontend into a true Super Admin workspace and extend the backend
-admin surface so internal operators can navigate companies as first-class clients,
-manage their settings and API keys in context, and edit company-specific stock
-directly through authenticated internal admin routes without using partner API keys.
+Preserve the Super Admin workspace while formalizing the public B2B inventory
+surface that partners use autonomously. The backend must expose authenticated
+read/write routes under `/api/v1/my-inventory`, derive `companyId` exclusively
+from the validated credential context, and persist stock updates atomically in
+PostgreSQL without leaking cross-tenant access.
 
 ## Technical Context
 

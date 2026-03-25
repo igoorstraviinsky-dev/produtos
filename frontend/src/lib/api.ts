@@ -3,6 +3,8 @@ import type {
   AdminInventoryResponse,
   ApiKeySummary,
   Company,
+  CostSettings,
+  CostSettingsHistoryEntry,
   HealthResponse,
   IssuedApiKey,
   Product,
@@ -152,6 +154,29 @@ export const api = {
     const response = await request<ApiEnvelope<Product[]>>("/admin/products", {
       admin: true
     });
+    return response.data;
+  },
+  async getCostSettings() {
+    const response = await request<ApiEnvelope<CostSettings>>("/api/internal/admin/cost-settings", {
+      admin: true
+    });
+    return response.data;
+  },
+  async updateCostSettings(payload: Partial<Omit<CostSettings, "updatedAt">>) {
+    const response = await request<ApiEnvelope<CostSettings>>("/api/internal/admin/cost-settings", {
+      method: "PATCH",
+      admin: true,
+      body: payload
+    });
+    return response.data;
+  },
+  async listCostSettingsHistory() {
+    const response = await request<ApiEnvelope<CostSettingsHistoryEntry[]>>(
+      "/api/internal/admin/cost-settings/history",
+      {
+        admin: true
+      }
+    );
     return response.data;
   },
   async updateInventoryProduct(

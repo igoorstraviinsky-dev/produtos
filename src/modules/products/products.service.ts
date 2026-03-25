@@ -1,11 +1,13 @@
 import { FastifyBaseLogger } from "fastify";
 
 import { AppEnv } from "../../config/env";
+import { ControlPlaneRepository } from "../../lib/postgres";
 import { ProductGateway, ProductRecord } from "../../lib/supabase";
 import { ProductCacheStore } from "../../lib/redis";
 import { AppError } from "../../middleware/error-handler";
 import { buildProductsCacheKey } from "../../utils/cache-keys";
 import { ProductsResponse } from "./products.schemas";
+import { calculateProductCost } from "./cost-calculator";
 
 type ProductCacheEntry = {
   cachedAt: string;
@@ -16,6 +18,7 @@ type ProductsServiceOptions = {
   env: AppEnv;
   cacheStore: ProductCacheStore;
   productGateway: ProductGateway;
+  controlPlane: ControlPlaneRepository;
   logger?: FastifyBaseLogger;
 };
 
@@ -26,6 +29,7 @@ export class ProductsService {
     const cacheKey = buildProductsCacheKey();
     const now = Date.now();
     const cachedEntry = await this.options.cacheStore.get<ProductCacheEntry>(cacheKey);
+    const costSettings = await this.options.controlPlane.getCostSettings();
 
     if (cachedEntry && this.isFresh(cachedEntry, now)) {
       this.options.logger?.info(
@@ -35,7 +39,7 @@ export class ProductsService {
         "serving products from fresh cache"
       );
       return {
-        data: cachedEntry.data,
+        data: cachedEntry.data.map((product) => this.enrichProduct(product, costSettings)),
         meta: {
           source: "cache",
           count: cachedEntry.data.length
@@ -62,7 +66,7 @@ export class ProductsService {
       );
 
       return {
-        data: products,
+        data: products.map((product) => this.enrichProduct(product, costSettings)),
         meta: {
           source: "upstream",
           count: products.length
@@ -78,7 +82,7 @@ export class ProductsService {
           "serving stale products cache after upstream failure"
         );
         return {
-          data: cachedEntry.data,
+          data: cachedEntry.data.map((product) => this.enrichProduct(product, costSettings)),
           meta: {
             source: "cache",
             stale: true,
@@ -111,5 +115,15 @@ export class ProductsService {
         this.options.env.PRODUCTS_CACHE_STALE_SECONDS) *
         1000
     );
+  }
+
+  private enrichProduct(product: ProductRecord, costSettings: Awaited<ReturnType<ControlPlaneRepository["getCostSettings"]>>) {
+    const costBreakdown = calculateProductCost(product, costSettings);
+
+    return {
+      ...product,
+      costFinal: costBreakdown.finalCost,
+      costBreakdown
+    };
   }
 }

@@ -26,3 +26,21 @@ export const issueApiKeySchema = z.object({
 export const updateAdminInventorySchema = z.object({
   customStockQuantity: z.number().int().nonnegative()
 });
+
+export const updateCostSettingsSchema = z
+  .object({
+    silverPricePerGram: z.number().nonnegative().optional(),
+    zonaFrancaRatePercent: z.number().nonnegative().optional(),
+    transportFee: z.number().nonnegative().optional(),
+    dollarRate: z.number().positive().optional()
+  })
+  .refine(
+    (payload) =>
+      payload.silverPricePerGram !== undefined ||
+      payload.zonaFrancaRatePercent !== undefined ||
+      payload.transportFee !== undefined ||
+      payload.dollarRate !== undefined,
+    {
+      message: "At least one cost setting must be provided"
+    }
+  );

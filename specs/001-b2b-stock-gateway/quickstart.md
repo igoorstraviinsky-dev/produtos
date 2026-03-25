@@ -61,7 +61,7 @@ Apply the remote Supabase catalog migration for `products`.
 
 ### Partner inventory update
 
-1. Call `PUT /api/v1/my-inventory/:productId` with a new `customStockQuantity`.
+1. Call `PATCH /api/v1/my-inventory/:productId` with a new `custom_stock_quantity`.
 2. Confirm only the authenticated company sees the new quantity on the next read.
 3. Confirm another company still sees its own isolated quantity.
 

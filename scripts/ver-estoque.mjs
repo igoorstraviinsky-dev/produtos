@@ -143,8 +143,14 @@ async function main() {
   console.table(
     products.map((product) => ({
       nome: product.name,
+      numero_serie: product.serialNumber,
       sku_serie: product.sku,
+      categoria: product.category,
+      subcategoria: product.subcategory,
+      material: product.baseMaterial,
+      pureza: product.purity,
       estoque: product.availableQuantity,
+      status: product.status,
       preco: product.price,
       updated_at: product.updatedAt
     }))

@@ -4,6 +4,7 @@ import {
   createCompanySchema,
   issueApiKeySchema,
   updateAdminInventorySchema,
+  updateCostSettingsSchema,
   updateCompanySchema,
   updateCompanyStatusSchema
 } from "./admin.schemas";
@@ -15,6 +16,40 @@ type AdminRoutesOptions = {
 };
 
 export const adminRoutes: FastifyPluginAsync<AdminRoutesOptions> = async (app, options) => {
+  app.get(
+    "/cost-settings",
+    {
+      preHandler: options.adminGuard
+    },
+    async (_request, reply) => {
+      const settings = await options.adminService.getCostSettings();
+      return reply.send(settings);
+    }
+  );
+
+  app.patch(
+    "/cost-settings",
+    {
+      preHandler: options.adminGuard
+    },
+    async (request, reply) => {
+      const payload = updateCostSettingsSchema.parse(request.body);
+      const settings = await options.adminService.updateCostSettings(payload);
+      return reply.send(settings);
+    }
+  );
+
+  app.get(
+    "/cost-settings/history",
+    {
+      preHandler: options.adminGuard
+    },
+    async (_request, reply) => {
+      const history = await options.adminService.listCostSettingsHistory();
+      return reply.send(history);
+    }
+  );
+
   app.get(
     "/companies",
     {

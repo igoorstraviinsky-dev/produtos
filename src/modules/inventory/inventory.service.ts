@@ -49,7 +49,11 @@ export class InventoryService {
     );
 
     if (!updatedInventory) {
-      throw new AppError(404, "PRODUCT_NOT_FOUND", "Product was not found in the master catalog");
+      throw new AppError(
+        404,
+        "PRODUCT_NOT_FOUND_IN_INVENTORY",
+        "Produto nao encontrado no seu inventario"
+      );
     }
 
     return {

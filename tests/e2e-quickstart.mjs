@@ -155,9 +155,86 @@ async function main() {
     assert(apiKeyId, "API key id was not returned");
     assert(plaintextKey, "Plaintext API key was not returned");
 
+    const issueInventoryApiKey = await requestJson(baseUrl, "POST", "/admin/api-keys", {
+      headers: adminHeaders,
+      body: {
+        companyId,
+        rateLimitPerMinute: 10
+      }
+    });
+    logResponse("issue-inventory-api-key", issueInventoryApiKey);
+    assert(issueInventoryApiKey.status === 201, "Inventory API key issuance failed");
+
+    const inventoryPlaintextKey = issueInventoryApiKey.body?.data?.plaintextKey;
+    assert(inventoryPlaintextKey, "Inventory plaintext API key was not returned");
+
     const bearerHeaders = {
       authorization: `Bearer ${plaintextKey}`
     };
+    const inventoryBearerHeaders = {
+      authorization: `Bearer ${inventoryPlaintextKey}`
+    };
+
+    const partnerInventoryBeforeUpdate = await requestJson(
+      baseUrl,
+      "GET",
+      "/api/v1/my-inventory",
+      {
+        headers: inventoryBearerHeaders
+      }
+    );
+    logResponse("my-inventory-before-update", partnerInventoryBeforeUpdate);
+    assert(partnerInventoryBeforeUpdate.status === 200, "Partner inventory read failed");
+    assert(
+      Array.isArray(partnerInventoryBeforeUpdate.body?.data) &&
+        partnerInventoryBeforeUpdate.body.data.length > 0,
+      "Partner inventory should return at least one product"
+    );
+
+    const inventoryProductId = partnerInventoryBeforeUpdate.body.data[0].productId;
+    const nextCustomStockQuantity =
+      Number(partnerInventoryBeforeUpdate.body.data[0].effectiveStockQuantity ?? 0) + 3;
+
+    const partnerInventoryUpdate = await requestJson(
+      baseUrl,
+      "PATCH",
+      `/api/v1/my-inventory/${inventoryProductId}`,
+      {
+        headers: inventoryBearerHeaders,
+        body: {
+          custom_stock_quantity: nextCustomStockQuantity
+        }
+      }
+    );
+    logResponse("my-inventory-update", partnerInventoryUpdate);
+    assert(partnerInventoryUpdate.status === 200, "Partner inventory update failed");
+    assert(
+      partnerInventoryUpdate.body?.data?.customStockQuantity === nextCustomStockQuantity,
+      "Partner inventory update did not persist the custom quantity"
+    );
+
+    const partnerInventoryAfterUpdate = await requestJson(
+      baseUrl,
+      "GET",
+      "/api/v1/my-inventory",
+      {
+        headers: inventoryBearerHeaders
+      }
+    );
+    logResponse("my-inventory-after-update", partnerInventoryAfterUpdate);
+    assert(
+      partnerInventoryAfterUpdate.status === 200,
+      "Partner inventory read after update failed"
+    );
+
+    const updatedPartnerProduct = partnerInventoryAfterUpdate.body?.data?.find(
+      (item) => item.productId === inventoryProductId
+    );
+    assert(updatedPartnerProduct, "Updated partner inventory product was not returned");
+    assert(
+      updatedPartnerProduct.customStockQuantity === nextCustomStockQuantity,
+      "Partner inventory GET did not return the saved custom quantity"
+    );
 
     const firstProductsCall = await requestJson(baseUrl, "GET", "/api/v1/products", {
       headers: bearerHeaders
@@ -257,6 +334,10 @@ async function main() {
     const finalSummary = {
       companyId,
       apiKeyId,
+      inventoryApiKeyId: issueInventoryApiKey.body?.data?.apiKeyId,
+      inventoryProductId,
+      partnerInventoryInitialCount: partnerInventoryBeforeUpdate.body?.meta?.count,
+      partnerInventoryUpdatedQuantity: updatedPartnerProduct.customStockQuantity,
       firstCallSource: firstProductsCall.body?.meta?.source,
       secondCallSource: secondProductsCall.body?.meta?.source,
       productCountFirstCall: firstProductsCall.body?.meta?.count,

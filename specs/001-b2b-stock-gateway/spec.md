@@ -4,7 +4,7 @@
 **Created**: 2026-03-23  
 **Updated**: 2026-03-24  
 **Status**: Draft  
-**Input**: User description: "Upgrade do painel para um verdadeiro Super Admin, com cards de empresas, visao detalhada por empresa, configuracoes, gerenciamento de API keys e edicao direta do estoque de qualquer empresa sem precisar de API key no frontend administrativo."
+**Input**: User description: "Criar as rotas B2B de leitura e escrita do estoque isolado por empresa em `/api/v1/my-inventory`, garantindo isolamento por token/API key, atualizacao atomica e validacao E2E do fluxo de leitura + escrita."
 
 ## User Scenarios & Testing *(mandatory)*
 

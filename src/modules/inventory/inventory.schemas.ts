@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const updateMyInventorySchema = z.object({
-  customStockQuantity: z.number().int().nonnegative()
+  custom_stock_quantity: z.number().int().nonnegative()
 });
 
 export type MyInventoryItem = {

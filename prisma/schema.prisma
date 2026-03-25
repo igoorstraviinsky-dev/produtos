@@ -47,6 +47,33 @@ model MasterProduct {
   @@map("master_products")
 }
 
+model CostSettings {
+  id                     String   @id @default("default")
+  silverPricePerGram     Float    @default(1) @map("silver_price_per_gram")
+  zonaFrancaRatePercent  Float    @default(6) @map("zona_franca_rate_percent")
+  transportFee           Float    @default(0.1) @map("transport_fee")
+  dollarRate             Float    @default(5) @map("dollar_rate")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("cost_settings")
+}
+
+model CostSettingsHistory {
+  id                            String   @id @default(uuid()) @db.Uuid
+  previousSilverPricePerGram    Float    @map("previous_silver_price_per_gram")
+  nextSilverPricePerGram        Float    @map("next_silver_price_per_gram")
+  previousZonaFrancaRatePercent Float    @map("previous_zona_franca_rate_percent")
+  nextZonaFrancaRatePercent     Float    @map("next_zona_franca_rate_percent")
+  previousTransportFee          Float    @map("previous_transport_fee")
+  nextTransportFee              Float    @map("next_transport_fee")
+  previousDollarRate            Float    @map("previous_dollar_rate")
+  nextDollarRate                Float    @map("next_dollar_rate")
+  changedFields                 String   @map("changed_fields")
+  createdAt                     DateTime @default(now()) @map("created_at")
+
+  @@map("cost_settings_history")
+}
+
 model CompanyInventory {
   id                  String        @id @default(uuid()) @db.Uuid
   companyId           String        @map("company_id") @db.Uuid

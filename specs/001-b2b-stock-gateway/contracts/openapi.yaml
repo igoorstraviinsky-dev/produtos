@@ -82,7 +82,7 @@ paths:
         '429':
           description: Rate limit exceeded
   /api/v1/my-inventory/{productId}:
-    put:
+    patch:
       summary: Update the authenticated partner stock for one product
       tags:
         - Partner Inventory
@@ -101,9 +101,9 @@ paths:
             schema:
               type: object
               required:
-                - customStockQuantity
+                - custom_stock_quantity
               properties:
-                customStockQuantity:
+                custom_stock_quantity:
                   type: integer
                   minimum: 0
       responses:
@@ -123,7 +123,7 @@ paths:
         '403':
           description: Company inactive or key revoked
         '404':
-          description: Product not found in master catalog
+          description: Product not found in the authenticated partner inventory
   /api/internal/webhooks/supabase-sync:
     post:
       summary: Synchronize the local master catalog from Supabase
@@ -173,6 +173,64 @@ paths:
       responses:
         '201':
           description: Company created
+  /api/internal/admin/cost-settings:
+    get:
+      summary: Read the persisted cost settings used in product pricing
+      tags:
+        - Internal Admin
+      security:
+        - adminToken: []
+      responses:
+        '200':
+          description: Current cost settings
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CostSettings'
+  /api/internal/admin/cost-settings/history:
+    get:
+      summary: List the full history of persisted cost setting changes
+      tags:
+        - Internal Admin
+      security:
+        - adminToken: []
+      responses:
+        '200':
+          description: Cost setting history
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CostSettingsHistoryEntry'
+    patch:
+      summary: Update the persisted cost settings used by the API cost calculation
+      tags:
+        - Internal Admin
+      security:
+        - adminToken: []
+      responses:
+        '200':
+          description: Updated cost settings
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CostSettings'
   /api/internal/admin/companies/{companyId}:
     patch:
       summary: Update the selected company settings
@@ -406,16 +464,209 @@ components:
         - id
         - sku
         - name
+        - serialNumber
         - availableQuantity
       properties:
         id:
           type: string
         sku:
           type: string
+        numero_serie:
+          type: string
         name:
           type: string
+        nome:
+          type: string
+        serialNumber:
+          type: string
+        description:
+          type: string
+          nullable: true
+        descricao:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        categoria:
+          type: string
+          nullable: true
+        subcategory:
+          type: string
+          nullable: true
+        subcategoria:
+          type: string
+          nullable: true
+        baseMaterial:
+          type: string
+          nullable: true
+        material_base:
+          type: string
+          nullable: true
+        purity:
+          type: string
+          nullable: true
+        pureza:
+          type: string
+          nullable: true
+        weightGrams:
+          oneOf:
+            - type: string
+            - type: number
+          nullable: true
+        peso_gramas:
+          oneOf:
+            - type: string
+            - type: number
+          nullable: true
+        bathType:
+          type: string
+          nullable: true
+        tipo_banho:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        bronzeImageKey:
+          type: string
+          nullable: true
+        s3_key_bronze:
+          type: string
+          nullable: true
+        silverImageKey:
+          type: string
+          nullable: true
+        s3_key_silver:
+          type: string
+          nullable: true
+        supplierCode:
+          type: string
+          nullable: true
+        supplier_code:
+          type: string
+          nullable: true
+        fiscalCode:
+          type: string
+          nullable: true
+        fiscal_code:
+          type: string
+          nullable: true
+        categoryId:
+          type: string
+          nullable: true
+        category_id:
+          type: string
+          nullable: true
+        productType:
+          type: string
+          nullable: true
+        tipo:
+          type: string
+          nullable: true
+        typeId:
+          type: string
+          nullable: true
+        type_id:
+          type: string
+          nullable: true
+        subcategoryId:
+          type: string
+          nullable: true
+        subcategory_id:
+          type: string
+          nullable: true
+        blingProductId:
+          type: string
+          nullable: true
+        bling_product_id:
+          type: string
+          nullable: true
+        blingLastSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+        bling_last_sync_at:
+          type: string
+          format: date-time
+          nullable: true
+        laborRateId:
+          type: string
+          nullable: true
+        labor_rate_id:
+          type: string
+          nullable: true
+        laborRateLabel:
+          type: string
+          nullable: true
+        labor_rate_label:
+          type: string
+          nullable: true
+        laborCost:
+          oneOf:
+            - type: string
+            - type: number
+          nullable: true
+        labor_cost:
+          oneOf:
+            - type: string
+            - type: number
+          nullable: true
+        sizeOptionId:
+          type: string
+          nullable: true
+        size_option_id:
+          type: string
+          nullable: true
+        sizeLabel:
+          type: string
+          nullable: true
+        size_label:
+          type: string
+          nullable: true
+        colorOptionId:
+          type: string
+          nullable: true
+        color_option_id:
+          type: string
+          nullable: true
+        colorLabel:
+          type: string
+          nullable: true
+        color_label:
+          type: string
+          nullable: true
         availableQuantity:
           type: number
+        available_quantity:
+          type: number
+          nullable: true
+        stock_quantity:
+          type: number
+          nullable: true
+        ncm:
+          type: string
+          nullable: true
+        laborRateTableId:
+          type: string
+          nullable: true
+        labor_rate_table_id:
+          type: string
+          nullable: true
+        laborRateTableName:
+          type: string
+          nullable: true
+        labor_rate_table_name:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
         price:
           type: number
           nullable: true
@@ -423,6 +674,97 @@ components:
           type: string
           format: date-time
           nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        costFinal:
+          type: number
+        costBreakdown:
+          $ref: '#/components/schemas/ProductCostBreakdown'
+    ProductCostBreakdown:
+      type: object
+      required:
+        - laborCostUsd
+        - laborCostBrl
+        - silverCost
+        - r1
+        - r2
+        - r3
+        - finalCost
+      properties:
+        laborCostUsd:
+          type: number
+        laborCostBrl:
+          type: number
+        silverCost:
+          type: number
+        r1:
+          type: number
+        r2:
+          type: number
+        r3:
+          type: number
+        finalCost:
+          type: number
+    CostSettings:
+      type: object
+      required:
+        - silverPricePerGram
+        - zonaFrancaRatePercent
+        - transportFee
+        - dollarRate
+        - updatedAt
+      properties:
+        silverPricePerGram:
+          type: number
+        zonaFrancaRatePercent:
+          type: number
+        transportFee:
+          type: number
+        dollarRate:
+          type: number
+        updatedAt:
+          type: string
+          format: date-time
+    CostSettingsHistoryEntry:
+      type: object
+      required:
+        - id
+        - changedFields
+        - previous
+        - next
+        - createdAt
+      properties:
+        id:
+          type: string
+        changedFields:
+          type: array
+          items:
+            type: string
+        previous:
+          $ref: '#/components/schemas/CostSettingsHistorySnapshot'
+        next:
+          $ref: '#/components/schemas/CostSettingsHistorySnapshot'
+        createdAt:
+          type: string
+          format: date-time
+    CostSettingsHistorySnapshot:
+      type: object
+      required:
+        - silverPricePerGram
+        - zonaFrancaRatePercent
+        - transportFee
+        - dollarRate
+      properties:
+        silverPricePerGram:
+          type: number
+        zonaFrancaRatePercent:
+          type: number
+        transportFee:
+          type: number
+        dollarRate:
+          type: number
     PartnerInventoryItem:
       type: object
       required:

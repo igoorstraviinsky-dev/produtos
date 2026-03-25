@@ -47,8 +47,12 @@ describe("Products integration", () => {
 
     assert.equal(firstResponse.statusCode, 200);
     assert.equal(firstResponse.json().meta.source, "upstream");
+    assert.equal(firstResponse.json().data[0].serialNumber, "SKU-001");
+    assert.equal(firstResponse.json().data[0].baseMaterial, "Prata 925");
+    assert.equal(firstResponse.json().data[0].costFinal, 56.15);
     assert.equal(secondResponse.statusCode, 200);
     assert.equal(secondResponse.json().meta.source, "cache");
+    assert.equal(secondResponse.json().data[0].costBreakdown.finalCost, 56.15);
   });
 
   it("falls back to stale cache on upstream failure", async () => {
@@ -79,10 +83,72 @@ describe("Products integration", () => {
         {
           id: "prod-stale",
           sku: "SKU-STALE",
+          numero_serie: "SKU-STALE",
           name: "Produto Cache",
+          nome: "Produto Cache",
+          serialNumber: "SKU-STALE",
+          description: "Descricao cache",
+          descricao: "Descricao cache",
+          category: "Categoria cache",
+          categoria: "Categoria cache",
+          subcategory: "Subcategoria cache",
+          subcategoria: "Subcategoria cache",
+          baseMaterial: "Prata 925",
+          material_base: "Prata 925",
+          purity: "925",
+          pureza: "925",
+          weightGrams: "1.0",
+          peso_gramas: "1.0",
+          bathType: null,
+          tipo_banho: null,
+          status: "AVAILABLE",
+          bronzeImageKey: null,
+          s3_key_bronze: null,
+          silverImageKey: null,
+          s3_key_silver: null,
+          supplierCode: null,
+          supplier_code: null,
+          fiscalCode: null,
+          fiscal_code: null,
+          categoryId: null,
+          category_id: null,
+          productType: "Prata 925",
+          tipo: "Prata 925",
+          typeId: null,
+          type_id: null,
+          subcategoryId: null,
+          subcategory_id: null,
+          blingProductId: null,
+          bling_product_id: null,
+          blingLastSyncAt: null,
+          bling_last_sync_at: null,
+          laborRateId: null,
+          labor_rate_id: null,
+          laborRateLabel: null,
+          labor_rate_label: null,
+          laborCost: null,
+          labor_cost: null,
+          sizeOptionId: null,
+          size_option_id: null,
+          sizeLabel: null,
+          size_label: null,
+          colorOptionId: null,
+          color_option_id: null,
+          colorLabel: null,
+          color_label: null,
           availableQuantity: 1,
+          available_quantity: null,
+          stock_quantity: 1,
+          ncm: null,
+          laborRateTableId: null,
+          labor_rate_table_id: null,
+          laborRateTableName: null,
+          labor_rate_table_name: null,
+          createdAt: "2026-03-23T00:00:00.000Z",
+          created_at: "2026-03-23T00:00:00.000Z",
           price: 5,
-          updatedAt: "2026-03-23T00:00:00.000Z"
+          updatedAt: "2026-03-23T00:00:00.000Z",
+          updated_at: "2026-03-23T00:00:00.000Z"
         }
       ]
     });
@@ -99,5 +165,6 @@ describe("Products integration", () => {
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.json().meta.stale, true);
+    assert.equal(response.json().data[0].costFinal, 5.8);
   });
 });

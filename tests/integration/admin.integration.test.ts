@@ -74,4 +74,59 @@ describe("Admin integration", () => {
     assert.equal(revokeResponse.statusCode, 200);
     assert.equal(revokeResponse.json().data.isRevoked, true);
   });
+
+  it("reads and updates persisted cost settings for product cost calculation", async () => {
+    const { app } = await createTestApp({
+      env: {
+        ADMIN_TOKEN: "secret-token"
+      }
+    });
+    appsToClose.push(app);
+
+    const initialResponse = await app.inject({
+      method: "GET",
+      url: "/api/internal/admin/cost-settings",
+      headers: {
+        "x-admin-token": "secret-token"
+      }
+    });
+
+    assert.equal(initialResponse.statusCode, 200);
+    assert.equal(initialResponse.json().data.dollarRate, 5);
+
+    const updateResponse = await app.inject({
+      method: "PATCH",
+      url: "/api/internal/admin/cost-settings",
+      headers: {
+        "x-admin-token": "secret-token"
+      },
+      payload: {
+        silverPricePerGram: 1.25,
+        zonaFrancaRatePercent: 7,
+        transportFee: 0.25,
+        dollarRate: 5.5
+      }
+    });
+
+    assert.equal(updateResponse.statusCode, 200);
+    assert.equal(updateResponse.json().data.silverPricePerGram, 1.25);
+    assert.equal(updateResponse.json().data.dollarRate, 5.5);
+
+    const historyResponse = await app.inject({
+      method: "GET",
+      url: "/api/internal/admin/cost-settings/history",
+      headers: {
+        "x-admin-token": "secret-token"
+      }
+    });
+
+    assert.equal(historyResponse.statusCode, 200);
+    assert.equal(historyResponse.json().data.length, 1);
+    assert.deepEqual(historyResponse.json().data[0].changedFields.sort(), [
+      "dollarRate",
+      "silverPricePerGram",
+      "transportFee",
+      "zonaFrancaRatePercent"
+    ]);
+  });
 });

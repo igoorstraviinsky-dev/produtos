@@ -115,13 +115,15 @@ export async function buildApp(overrides?: Partial<AppDependencies>): Promise<Fa
 
   const productsService = new ProductsService({
     cacheStore: dependencies.productCache,
+    controlPlane: dependencies.controlPlane,
     env,
     productGateway: dependencies.productGateway,
     logger: app.log
   });
   const productsAdminService = new ProductsAdminService(
     dependencies.productGateway,
-    dependencies.productCache
+    dependencies.productCache,
+    dependencies.controlPlane
   );
   const adminService = new AdminService(dependencies.controlPlane, env.API_KEY_PEPPER);
   const inventoryService = new InventoryService(dependencies.controlPlane);

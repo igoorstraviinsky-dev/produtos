@@ -24,7 +24,7 @@ export const inventoryRoutes: FastifyPluginAsync<InventoryRoutesOptions> = async
     }
   );
 
-  app.put(
+  app.patch(
     "/my-inventory/:productId",
     {
       preHandler: [options.authMiddleware, options.rateLimitMiddleware]
@@ -35,7 +35,7 @@ export const inventoryRoutes: FastifyPluginAsync<InventoryRoutesOptions> = async
       const response = await options.inventoryService.updateMyInventory(
         request.auth.companyId,
         params.productId,
-        payload.customStockQuantity
+        payload.custom_stock_quantity
       );
 
       return reply.status(200).send(response);

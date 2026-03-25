@@ -1,7 +1,8 @@
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 
 import { CompanyCardsDashboard } from "./components/CompanyCardsDashboard";
 import { CompanyDetailPage } from "./components/CompanyDetailPage";
+import { CostCalculatorPage } from "./components/CostCalculatorPage";
 import { Modal } from "./components/Modal";
 import { Field, StatCard } from "./components/ui";
 import { ApiError, api } from "./lib/api";
@@ -9,14 +10,23 @@ import type {
   AdminInventoryItem,
   ApiKeySummary,
   Company,
-  IssuedApiKey
+  IssuedApiKey,
+  CostSettingsHistoryEntry,
+  Product
 } from "./types";
 
 type AsyncState = "idle" | "loading" | "success" | "error";
-type AppPage = "dashboard" | "company";
+type AppPage = "dashboard" | "company" | "costs";
 type CompanyTab = "settings" | "inventory";
 
 function getRouteState(pathname: string) {
+  if (pathname === "/custos") {
+    return {
+      page: "costs" as const,
+      companyId: ""
+    };
+  }
+
   const match = pathname.match(/^\/empresas\/([^/]+)$/);
   if (match) {
     return {
@@ -56,11 +66,19 @@ function App() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([]);
   const [inventory, setInventory] = useState<AdminInventoryItem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [companiesState, setCompaniesState] = useState<AsyncState>("idle");
   const [apiKeysState, setApiKeysState] = useState<AsyncState>("idle");
   const [inventoryState, setInventoryState] = useState<AsyncState>("idle");
+  const [productsState, setProductsState] = useState<AsyncState>("idle");
+  const [costSettingsState, setCostSettingsState] = useState<AsyncState>("idle");
+  const [costSettingsSaveState, setCostSettingsSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [costHistoryState, setCostHistoryState] = useState<AsyncState>("idle");
   const [healthState, setHealthState] = useState<AsyncState>("idle");
   const [feedback, setFeedback] = useState("");
+  const [costHistoryOpen, setCostHistoryOpen] = useState(false);
   const [createCompanyOpen, setCreateCompanyOpen] = useState(false);
   const [issueKeyOpen, setIssueKeyOpen] = useState(false);
   const [createdKey, setCreatedKey] = useState<IssuedApiKey | null>(null);
@@ -71,6 +89,14 @@ function App() {
   const [keyActionId, setKeyActionId] = useState("");
   const [savingInventoryId, setSavingInventoryId] = useState("");
   const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
+  const [costHistoryEntries, setCostHistoryEntries] = useState<CostSettingsHistoryEntry[]>([]);
+  const [costVariables, setCostVariables] = useState({
+    silverPricePerGram: "1.00",
+    zonaFrancaRatePercent: "6",
+    transportFee: "0.10",
+    dollarRate: "5.00"
+  });
+  const lastPersistedCostVariablesRef = useRef("");
 
   const selectedCompany =
     companies.find((company) => company.id === selectedCompanyId) ?? null;
@@ -148,6 +174,53 @@ function App() {
     }
   }
 
+  async function refreshProducts() {
+    setProductsState("loading");
+
+    try {
+      const nextProducts = await api.listInventoryProducts();
+      setProducts(nextProducts);
+      setProductsState("success");
+    } catch (error) {
+      setProductsState("error");
+      setFeedback(formatApiError(error));
+    }
+  }
+
+  async function refreshCostSettings() {
+    setCostSettingsState("loading");
+
+    try {
+      const settings = await api.getCostSettings();
+      const nextVariables = {
+        silverPricePerGram: String(settings.silverPricePerGram),
+        zonaFrancaRatePercent: String(settings.zonaFrancaRatePercent),
+        transportFee: String(settings.transportFee),
+        dollarRate: String(settings.dollarRate)
+      };
+      setCostVariables(nextVariables);
+      lastPersistedCostVariablesRef.current = JSON.stringify(nextVariables);
+      setCostSettingsState("success");
+      setCostSettingsSaveState("idle");
+    } catch (error) {
+      setCostSettingsState("error");
+      setFeedback(formatApiError(error));
+    }
+  }
+
+  async function refreshCostSettingsHistory() {
+    setCostHistoryState("loading");
+
+    try {
+      const history = await api.listCostSettingsHistory();
+      setCostHistoryEntries(history);
+      setCostHistoryState("success");
+    } catch (error) {
+      setCostHistoryState("error");
+      setFeedback(formatApiError(error));
+    }
+  }
+
   function openDashboard() {
     window.history.pushState({}, "", "/");
     setCurrentPage("dashboard");
@@ -155,6 +228,17 @@ function App() {
     setApiKeys([]);
     setInventory([]);
     setInventoryDrafts({});
+  }
+
+  function openCosts() {
+    window.history.pushState({}, "", "/custos");
+    setCurrentPage("costs");
+    setSelectedCompanyId("");
+  }
+
+  function openCostHistory() {
+    setCostHistoryOpen(true);
+    void refreshCostSettingsHistory();
   }
 
   function openCompany(companyId: string) {
@@ -189,7 +273,85 @@ function App() {
     if (currentPage === "company" && selectedCompanyId) {
       void refreshCompanyDetail(selectedCompanyId);
     }
+    if (currentPage === "costs") {
+      void refreshCostSettings();
+      void refreshProducts();
+    }
   }, [currentPage, selectedCompanyId]);
+
+  async function handleSaveCostSettings(options?: { silent?: boolean }) {
+    try {
+      setCostSettingsSaveState("saving");
+      const settings = await api.updateCostSettings({
+        silverPricePerGram: Number(costVariables.silverPricePerGram),
+        zonaFrancaRatePercent: Number(costVariables.zonaFrancaRatePercent),
+        transportFee: Number(costVariables.transportFee),
+        dollarRate: Number(costVariables.dollarRate)
+      });
+
+      setCostVariables({
+        silverPricePerGram: String(settings.silverPricePerGram),
+        zonaFrancaRatePercent: String(settings.zonaFrancaRatePercent),
+        transportFee: String(settings.transportFee),
+        dollarRate: String(settings.dollarRate)
+      });
+      lastPersistedCostVariablesRef.current = JSON.stringify({
+        silverPricePerGram: String(settings.silverPricePerGram),
+        zonaFrancaRatePercent: String(settings.zonaFrancaRatePercent),
+        transportFee: String(settings.transportFee),
+        dollarRate: String(settings.dollarRate)
+      });
+      if (!options?.silent) {
+        setFeedback("Parametros de custo salvos e publicados na API.");
+      }
+      setCostSettingsSaveState("saved");
+      await refreshProducts();
+      if (costHistoryOpen) {
+        await refreshCostSettingsHistory();
+      }
+    } catch (error) {
+      setCostSettingsSaveState("error");
+      setFeedback(formatApiError(error));
+    }
+  }
+
+  const autoSaveCostSettings = useEffectEvent(async () => {
+    await handleSaveCostSettings({
+      silent: true
+    });
+  });
+
+  useEffect(() => {
+    if (currentPage !== "costs" || costSettingsState !== "success") {
+      return;
+    }
+
+    const nextSignature = JSON.stringify(costVariables);
+    if (nextSignature === lastPersistedCostVariablesRef.current) {
+      return;
+    }
+
+    const hasInvalidValue = Object.values(costVariables).some((value) => {
+      const normalized = value.replace(",", ".").trim();
+      if (!normalized) {
+        return true;
+      }
+
+      const parsed = Number(normalized);
+      return !Number.isFinite(parsed) || parsed < 0;
+    });
+
+    if (hasInvalidValue) {
+      return;
+    }
+
+    setCostSettingsSaveState("saving");
+    const timeoutId = window.setTimeout(() => {
+      void autoSaveCostSettings();
+    }, 700);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [autoSaveCostSettings, costSettingsState, costVariables, currentPage]);
 
   async function handleCreateCompany(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -353,6 +515,18 @@ function App() {
                 >
                   Dashboard
                 </button>
+                <button
+                  type="button"
+                  onClick={openCosts}
+                  className={[
+                    "rounded-full px-4 py-2 text-sm font-semibold transition",
+                    currentPage === "costs"
+                      ? "bg-amber-500 text-slate-950"
+                      : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                  ].join(" ")}
+                >
+                  Custos
+                </button>
                 {selectedCompany ? (
                   <button
                     type="button"
@@ -409,6 +583,28 @@ function App() {
           />
         ) : null}
 
+        {currentPage === "costs" ? (
+          <CostCalculatorPage
+            products={products}
+            productsState={productsState}
+            costSettingsState={costSettingsState}
+            costSettingsSaveState={costSettingsSaveState}
+            variables={costVariables}
+            onVariableChange={(field, value) =>
+              setCostVariables((current) => ({
+                ...current,
+                [field]: value
+              }))
+            }
+            onOpenHistory={() => {
+              openCostHistory();
+            }}
+            onRefresh={() => {
+              void refreshProducts();
+            }}
+          />
+        ) : null}
+
         {currentPage === "company" && selectedCompany ? (
           <CompanyDetailPage
             company={selectedCompany}
@@ -450,6 +646,77 @@ function App() {
           />
         ) : null}
       </div>
+
+      <Modal
+        open={costHistoryOpen}
+        title="Historico das variaveis de custo"
+        description="Veja todas as alteracoes automaticas ou manuais de dolar, transporte, taxa ZF e prata internacional."
+        onClose={() => setCostHistoryOpen(false)}
+      >
+        <div className="space-y-4">
+          {costHistoryState === "loading" ? (
+            <p className="text-sm text-slate-500">Carregando historico...</p>
+          ) : null}
+          {costHistoryState === "error" ? (
+            <p className="text-sm text-rose-600">Nao foi possivel carregar o historico.</p>
+          ) : null}
+          {costHistoryState === "success" && costHistoryEntries.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhuma alteracao registrada ainda.</p>
+          ) : null}
+          {costHistoryEntries.length > 0 ? (
+            <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+              {costHistoryEntries.map((entry) => (
+                <article
+                  key={entry.id}
+                  className="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4"
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap gap-2">
+                      {entry.changedFields.map((field) => (
+                        <span
+                          key={field}
+                          className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-800"
+                        >
+                          {field}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs font-medium text-slate-500">
+                      {new Date(entry.createdAt).toLocaleString("pt-BR")}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Antes
+                      </p>
+                      <div className="mt-3 space-y-2 text-sm text-slate-700">
+                        <p>Prata: {entry.previous.silverPricePerGram}</p>
+                        <p>Taxa ZF: {entry.previous.zonaFrancaRatePercent}</p>
+                        <p>Transporte: {entry.previous.transportFee}</p>
+                        <p>Dolar: {entry.previous.dollarRate}</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                        Depois
+                      </p>
+                      <div className="mt-3 space-y-2 text-sm text-emerald-900">
+                        <p>Prata: {entry.next.silverPricePerGram}</p>
+                        <p>Taxa ZF: {entry.next.zonaFrancaRatePercent}</p>
+                        <p>Transporte: {entry.next.transportFee}</p>
+                        <p>Dolar: {entry.next.dollarRate}</p>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </Modal>
 
       <Modal
         open={createCompanyOpen}

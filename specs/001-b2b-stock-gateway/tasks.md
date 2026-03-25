@@ -147,6 +147,27 @@ inventory through the internal admin routes only.
 
 ---
 
+## Phase 8: Partner Inventory Write API
+
+**Goal**: Expose public authenticated inventory read/write routes so each B2B
+partner can read and update only its own isolated stock.
+
+**Independent Test**: Authenticate with a valid API key, call
+`GET /api/v1/my-inventory`, then `PATCH /api/v1/my-inventory/:productId` and
+confirm the new quantity persists only for that partner.
+
+### Tests for Partner Inventory Write API
+
+- [X] T048 [P] [US5] Extend the E2E validation flow for partner inventory read/write in `tests/e2e-quickstart.mjs`
+- [X] T049 [P] [US5] Align the public inventory OpenAPI contract and quickstart steps in `specs/001-b2b-stock-gateway/contracts/openapi.yaml` and `specs/001-b2b-stock-gateway/quickstart.md`
+
+### Implementation for Partner Inventory Write API
+
+- [X] T050 [US5] Update the public inventory schema and route method to `PATCH` with `custom_stock_quantity` in `src/modules/inventory/inventory.schemas.ts` and `src/modules/inventory/inventory.routes.ts`
+- [X] T051 [US5] Harden the inventory write path with transactional persistence and tenant-scoped 404 behavior in `src/lib/postgres.ts` and `src/modules/inventory/inventory.service.ts`
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

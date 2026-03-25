@@ -1,6 +1,7 @@
 import {
   ControlPlaneRepository,
   CreateCompanyInput,
+  UpdateCostSettingsInput,
   UpdateCompanyInput
 } from "../../lib/postgres";
 import { AppError } from "../../middleware/error-handler";
@@ -160,6 +161,58 @@ export class AdminService {
         companyId,
         companyName: company.legalName
       }
+    };
+  }
+
+  async getCostSettings() {
+    const settings = await this.controlPlane.getCostSettings();
+
+    return {
+      data: {
+        silverPricePerGram: settings.silverPricePerGram,
+        zonaFrancaRatePercent: settings.zonaFrancaRatePercent,
+        transportFee: settings.transportFee,
+        dollarRate: settings.dollarRate,
+        updatedAt: settings.updatedAt.toISOString()
+      }
+    };
+  }
+
+  async updateCostSettings(input: UpdateCostSettingsInput) {
+    const settings = await this.controlPlane.updateCostSettings(input);
+
+    return {
+      data: {
+        silverPricePerGram: settings.silverPricePerGram,
+        zonaFrancaRatePercent: settings.zonaFrancaRatePercent,
+        transportFee: settings.transportFee,
+        dollarRate: settings.dollarRate,
+        updatedAt: settings.updatedAt.toISOString()
+      }
+    };
+  }
+
+  async listCostSettingsHistory() {
+    const history = await this.controlPlane.listCostSettingsHistory();
+
+    return {
+      data: history.map((entry) => ({
+        id: entry.id,
+        changedFields: entry.changedFields,
+        previous: {
+          silverPricePerGram: entry.previousSilverPricePerGram,
+          zonaFrancaRatePercent: entry.previousZonaFrancaRatePercent,
+          transportFee: entry.previousTransportFee,
+          dollarRate: entry.previousDollarRate
+        },
+        next: {
+          silverPricePerGram: entry.nextSilverPricePerGram,
+          zonaFrancaRatePercent: entry.nextZonaFrancaRatePercent,
+          transportFee: entry.nextTransportFee,
+          dollarRate: entry.nextDollarRate
+        },
+        createdAt: entry.createdAt.toISOString()
+      }))
     };
   }
 }

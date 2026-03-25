@@ -36,6 +36,13 @@ class FakeControlPlaneRepository {
     this.apiKeys = new Map();
     this.masterProducts = new Map();
     this.companyInventory = new Map();
+    this.costSettings = {
+      silverPricePerGram: 1,
+      zonaFrancaRatePercent: 6,
+      transportFee: 0.1,
+      dollarRate: 5,
+      updatedAt: new Date()
+    };
   }
 
   buildCompanySnapshot(company) {
@@ -197,6 +204,23 @@ class FakeControlPlaneRepository {
     return this.masterProducts.get(productId) ?? null;
   }
 
+  async getCostSettings() {
+    return this.costSettings;
+  }
+
+  async updateCostSettings(input) {
+    this.costSettings = {
+      silverPricePerGram: input.silverPricePerGram ?? this.costSettings.silverPricePerGram,
+      zonaFrancaRatePercent:
+        input.zonaFrancaRatePercent ?? this.costSettings.zonaFrancaRatePercent,
+      transportFee: input.transportFee ?? this.costSettings.transportFee,
+      dollarRate: input.dollarRate ?? this.costSettings.dollarRate,
+      updatedAt: new Date()
+    };
+
+    return this.costSettings;
+  }
+
   async listEffectiveInventoryByCompany(companyId) {
     return [...this.masterProducts.values()]
       .sort((left, right) => left.name.localeCompare(right.name))
@@ -287,6 +311,24 @@ class FakeProductGateway {
 
     return this.products;
   }
+
+  async updateProduct(input) {
+    const product = this.products.find((item) => item.id === input.id);
+    if (!product) {
+      throw new Error("Product not found");
+    }
+
+    const updated = {
+      ...product,
+      sku: input.sku,
+      name: input.name,
+      serialNumber: input.sku,
+      availableQuantity: input.availableQuantity
+    };
+
+    this.products = this.products.map((item) => (item.id === input.id ? updated : item));
+    return updated;
+  }
 }
 
 async function createTestApp(options = {}) {
@@ -301,7 +343,37 @@ async function createTestApp(options = {}) {
         id: "prod-1",
         sku: "SKU-001",
         name: "Produto 1",
+        serialNumber: "SKU-001",
+        description: null,
+        category: null,
+        subcategory: null,
+        baseMaterial: null,
+        purity: null,
+        weightGrams: "10.5",
+        bathType: null,
+        status: null,
+        bronzeImageKey: null,
+        silverImageKey: null,
+        supplierCode: null,
+        fiscalCode: null,
+        categoryId: null,
+        productType: null,
+        typeId: null,
+        subcategoryId: null,
+        blingProductId: null,
+        blingLastSyncAt: null,
+        laborRateId: null,
+        laborRateLabel: null,
+        laborCost: null,
+        sizeOptionId: null,
+        sizeLabel: null,
+        colorOptionId: null,
+        colorLabel: null,
         availableQuantity: 10,
+        ncm: null,
+        laborRateTableId: null,
+        laborRateTableName: null,
+        createdAt: null,
         price: 99.9,
         updatedAt: "2026-03-23T00:00:00.000Z"
       }
@@ -394,18 +466,49 @@ const cases = [
     fn: async () => {
       const env = createTestEnv();
       const cacheStore = new FakeProductCacheStore();
+      const controlPlane = new FakeControlPlaneRepository();
       const productGateway = new FakeProductGateway([
         {
           id: "prod-1",
           sku: "SKU-001",
           name: "Produto 1",
+          serialNumber: "SKU-001",
+          description: null,
+          category: null,
+          subcategory: null,
+          baseMaterial: null,
+          purity: null,
+          weightGrams: "5.5",
+          bathType: null,
+          status: null,
+          bronzeImageKey: null,
+          silverImageKey: null,
+          supplierCode: null,
+          fiscalCode: null,
+          categoryId: null,
+          productType: null,
+          typeId: null,
+          subcategoryId: null,
+          blingProductId: null,
+          blingLastSyncAt: null,
+          laborRateId: null,
+          laborRateLabel: null,
+          laborCost: null,
+          sizeOptionId: null,
+          sizeLabel: null,
+          colorOptionId: null,
+          colorLabel: null,
           availableQuantity: 5,
+          ncm: null,
+          laborRateTableId: null,
+          laborRateTableName: null,
+          createdAt: null,
           price: 10,
           updatedAt: "2026-03-23T00:00:00.000Z"
         }
       ]);
 
-      const service = new ProductsService({ env, cacheStore, productGateway });
+      const service = new ProductsService({ env, cacheStore, productGateway, controlPlane });
       const firstResponse = await service.listProducts();
       const secondResponse = await service.listProducts();
 
@@ -421,6 +524,7 @@ const cases = [
         PRODUCTS_CACHE_STALE_SECONDS: 300
       });
       const cacheStore = new FakeProductCacheStore();
+      const controlPlane = new FakeControlPlaneRepository();
       const productGateway = new FakeProductGateway([]);
 
       await cacheStore.set(buildProductsCacheKey(), {
@@ -430,7 +534,37 @@ const cases = [
             id: "prod-1",
             sku: "SKU-001",
             name: "Produto 1",
+            serialNumber: "SKU-001",
+            description: null,
+            category: null,
+            subcategory: null,
+            baseMaterial: null,
+            purity: null,
+            weightGrams: "5.5",
+            bathType: null,
+            status: null,
+            bronzeImageKey: null,
+            silverImageKey: null,
+            supplierCode: null,
+            fiscalCode: null,
+            categoryId: null,
+            productType: null,
+            typeId: null,
+            subcategoryId: null,
+            blingProductId: null,
+            blingLastSyncAt: null,
+            laborRateId: null,
+            laborRateLabel: null,
+            laborCost: null,
+            sizeOptionId: null,
+            sizeLabel: null,
+            colorOptionId: null,
+            colorLabel: null,
             availableQuantity: 5,
+            ncm: null,
+            laborRateTableId: null,
+            laborRateTableName: null,
+            createdAt: null,
             price: 10,
             updatedAt: "2026-03-23T00:00:00.000Z"
           }
@@ -439,7 +573,7 @@ const cases = [
 
       productGateway.error = new Error("Supabase unavailable");
 
-      const service = new ProductsService({ env, cacheStore, productGateway });
+      const service = new ProductsService({ env, cacheStore, productGateway, controlPlane });
       const response = await service.listProducts();
 
       assert.equal(response.meta.source, "cache");
@@ -803,6 +937,7 @@ const cases = [
       assert.ok(openApiDocument.paths["/api/v1/my-inventory"]);
       assert.ok(openApiDocument.paths["/api/v1/my-inventory"].get);
       assert.ok(openApiDocument.paths["/api/v1/my-inventory/{productId}"]);
+      assert.ok(openApiDocument.paths["/api/v1/my-inventory/{productId}"].patch);
       assert.ok(openApiDocument.paths["/api/internal/webhooks/supabase-sync"]);
       assert.ok(openApiDocument.paths["/api/internal/admin/companies"]);
       assert.ok(openApiDocument.paths["/api/internal/admin/companies/{companyId}"]);
@@ -814,6 +949,64 @@ const cases = [
           "/api/internal/admin/companies/{companyId}/inventory/{productId}"
         ]
       );
+    }
+  }
+  ,
+  {
+    name: "Partner inventory update uses PATCH and snake_case payload",
+    fn: async () => {
+      const { app, controlPlane, env } = await createTestApp();
+      try {
+        const company = controlPlane.seedCompany({
+          legalName: "Empresa Parceira",
+          externalCode: "empresa-parceira"
+        });
+        const apiKey = "b2b_inventory_patch_key";
+
+        controlPlane.seedApiKey({
+          companyId: company.id,
+          keyPrefix: deriveApiKeyPrefix(apiKey),
+          keyHash: hashApiKey(apiKey, env.API_KEY_PEPPER),
+          rateLimitPerMinute: 20
+        });
+
+        await controlPlane.replaceMasterProducts([
+          {
+            id: "prod-patch-1",
+            sku: "PATCH-001",
+            name: "Produto Patch",
+            masterStock: 12,
+            updatedAt: new Date("2026-03-24T00:00:00.000Z")
+          }
+        ]);
+
+        const patchResponse = await app.inject({
+          method: "PATCH",
+          url: "/api/v1/my-inventory/prod-patch-1",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          },
+          payload: {
+            custom_stock_quantity: 7
+          }
+        });
+
+        assert.equal(patchResponse.statusCode, 200);
+        assert.equal(patchResponse.json().data.customStockQuantity, 7);
+
+        const getResponse = await app.inject({
+          method: "GET",
+          url: "/api/v1/my-inventory",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          }
+        });
+
+        assert.equal(getResponse.statusCode, 200);
+        assert.equal(getResponse.json().data[0].customStockQuantity, 7);
+      } finally {
+        await app.close();
+      }
     }
   }
 ];
