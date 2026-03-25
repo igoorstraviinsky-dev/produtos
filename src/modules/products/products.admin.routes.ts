@@ -12,6 +12,17 @@ export const productsAdminRoutes: FastifyPluginAsync<ProductsAdminRoutesOptions>
   app,
   options
 ) => {
+  app.post(
+    "/products/sync",
+    {
+      preHandler: options.adminGuard
+    },
+    async (_request, reply) => {
+      const syncResult = await options.productsAdminService.syncMasterCatalog();
+      return reply.send(syncResult);
+    }
+  );
+
   app.get(
     "/products",
     {

@@ -22,6 +22,7 @@ type CompanyDetailPageProps = {
   inventoryState: "idle" | "loading" | "success" | "error";
   keyActionId: string;
   savingInventoryId: string;
+  syncingCatalog: boolean;
   companyForm: {
     legalName: string;
     isActive: boolean;
@@ -35,6 +36,7 @@ type CompanyDetailPageProps = {
   deletingCompany: boolean;
   onOpenIssueKey: () => void;
   onRevokeKey: (apiKeyId: string) => void;
+  onSyncCatalog: () => void;
   onInventoryDraftChange: (productId: string, value: string) => void;
   onSaveInventory: (productId: string) => void;
 };
@@ -49,6 +51,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
     inventoryState,
     keyActionId,
     savingInventoryId,
+    syncingCatalog,
     companyForm,
     inventoryDrafts,
     onBack,
@@ -59,6 +62,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
     deletingCompany,
     onOpenIssueKey,
     onRevokeKey,
+    onSyncCatalog,
     onInventoryDraftChange,
     onSaveInventory
   } = props;
@@ -278,17 +282,27 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
 
       {activeTab === "inventory" ? (
         <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="border-b border-slate-200 pb-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">
-              Estoque da Empresa
-            </p>
-            <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-950">
-              Catalogo mestre com quantidade customizada
-            </h3>
-            <p className="mt-2 text-sm text-slate-600">
-              Edite apenas o estoque isolado dessa empresa. O catalogo principal continua
-              preservado.
-            </p>
+          <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">
+                Estoque da Empresa
+              </p>
+              <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-950">
+                Catalogo mestre com quantidade customizada
+              </h3>
+              <p className="mt-2 text-sm text-slate-600">
+                Edite apenas o estoque isolado dessa empresa. O catalogo principal continua
+                preservado.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={syncingCatalog}
+              onClick={onSyncCatalog}
+              className="inline-flex items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 px-5 py-3 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+            >
+              {syncingCatalog ? "Sincronizando..." : "Sincronizar catalogo"}
+            </button>
           </div>
 
           {inventoryState === "loading" ? (
@@ -297,10 +311,22 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
 
           {inventory.length === 0 && inventoryState !== "loading" ? (
             <div className="mt-6">
-              <EmptyState
-                title="Sem produtos sincronizados"
-                description="Sincronize o catalogo mestre primeiro para habilitar o estoque por empresa."
-              />
+              <div className="space-y-4">
+                <EmptyState
+                  title="Sem produtos sincronizados"
+                  description="Sincronize o catalogo mestre primeiro para habilitar o estoque por empresa."
+                />
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    disabled={syncingCatalog}
+                    onClick={onSyncCatalog}
+                    className="inline-flex items-center justify-center rounded-full bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {syncingCatalog ? "Sincronizando..." : "Sincronizar agora"}
+                  </button>
+                </div>
+              </div>
             </div>
           ) : null}
 

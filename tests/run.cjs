@@ -907,6 +907,17 @@ const cases = [
 
         assert.equal(syncResponse.statusCode, 200);
 
+        const adminSyncResponse = await app.inject({
+          method: "POST",
+          url: "/api/internal/admin/products/sync",
+          headers: {
+            "x-admin-token": "secret-token"
+          }
+        });
+
+        assert.equal(adminSyncResponse.statusCode, 200);
+        assert.equal(adminSyncResponse.json().data.syncedCount, 1);
+
         const inventoryResponse = await app.inject({
           method: "GET",
           url: `/api/internal/admin/companies/${companyId}/inventory`,

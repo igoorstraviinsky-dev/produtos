@@ -225,9 +225,19 @@ export const api = {
     return response.data;
   },
   async listInventoryProducts() {
-    const response = await request<ApiEnvelope<Product[]>>("/admin/products", {
+    const response = await request<ApiEnvelope<Product[]>>("/api/internal/admin/products", {
       admin: true
     });
+    return response.data;
+  },
+  async syncMasterCatalog() {
+    const response = await request<ApiEnvelope<{ syncedCount: number; updatedAt: string }>>(
+      "/api/internal/admin/products/sync",
+      {
+        method: "POST",
+        admin: true
+      }
+    );
     return response.data;
   },
   async getCostSettings() {
@@ -257,11 +267,14 @@ export const api = {
     productId: string,
     payload: { sku: string; name: string; availableQuantity: number }
   ) {
-    const response = await request<ApiEnvelope<Product>>(`/admin/products/${productId}`, {
-      method: "PATCH",
-      admin: true,
-      body: payload
-    });
+    const response = await request<ApiEnvelope<Product>>(
+      `/api/internal/admin/products/${productId}`,
+      {
+        method: "PATCH",
+        admin: true,
+        body: payload
+      }
+    );
     return response.data;
   },
   getProducts(apiKey: string) {

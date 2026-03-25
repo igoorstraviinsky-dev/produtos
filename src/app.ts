@@ -168,6 +168,12 @@ export async function buildApp(overrides?: Partial<AppDependencies>): Promise<Fa
     productsAdminService
   });
 
+  await app.register(productsAdminRoutes, {
+    prefix: "/api/internal/admin",
+    adminGuard,
+    productsAdminService
+  });
+
   await app.register(webhooksRoutes, {
     prefix: "/api/internal",
     webhookGuard,

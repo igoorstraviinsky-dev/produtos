@@ -99,6 +99,7 @@ function App() {
   const [deletingCompanyId, setDeletingCompanyId] = useState("");
   const [keyActionId, setKeyActionId] = useState("");
   const [savingInventoryId, setSavingInventoryId] = useState("");
+  const [syncCatalogState, setSyncCatalogState] = useState<"idle" | "syncing">("idle");
   const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
   const [costHistoryEntries, setCostHistoryEntries] = useState<CostSettingsHistoryEntry[]>([]);
   const [costVariables, setCostVariables] = useState({
@@ -108,6 +109,7 @@ function App() {
     dollarRate: "5.00"
   });
   const lastPersistedCostVariablesRef = useRef("");
+  const autoSyncedCompanyIdsRef = useRef<Set<string>>(new Set());
 
   const selectedCompany =
     companies.find((company) => company.id === selectedCompanyId) ?? null;
@@ -267,6 +269,32 @@ function App() {
     }
   }
 
+  async function handleSyncMasterCatalog(options?: { silent?: boolean; companyId?: string }) {
+    setSyncCatalogState("syncing");
+
+    try {
+      const syncResult = await api.syncMasterCatalog();
+
+      if (options?.companyId) {
+        await refreshCompanyDetail(options.companyId);
+      }
+
+      if (currentPage === "costs") {
+        await refreshProducts();
+      }
+
+      if (!options?.silent) {
+        setFeedback(
+          `Catalogo mestre sincronizado com sucesso. ${syncResult.syncedCount} produto(s) atualizados.`
+        );
+      }
+    } catch (error) {
+      setFeedback(formatApiError(error));
+    } finally {
+      setSyncCatalogState("idle");
+    }
+  }
+
   async function refreshCostSettings() {
     setCostSettingsState("loading");
 
@@ -376,6 +404,38 @@ function App() {
       void refreshProducts();
     }
   }, [currentPage, selectedCompanyId]);
+
+  useEffect(() => {
+    if (
+      authState !== "authenticated" ||
+      currentPage !== "company" ||
+      activeTab !== "inventory" ||
+      !selectedCompanyId ||
+      inventoryState !== "success" ||
+      inventory.length > 0 ||
+      syncCatalogState === "syncing"
+    ) {
+      return;
+    }
+
+    if (autoSyncedCompanyIdsRef.current.has(selectedCompanyId)) {
+      return;
+    }
+
+    autoSyncedCompanyIdsRef.current.add(selectedCompanyId);
+    void handleSyncMasterCatalog({
+      silent: true,
+      companyId: selectedCompanyId
+    });
+  }, [
+    activeTab,
+    authState,
+    currentPage,
+    inventory.length,
+    inventoryState,
+    selectedCompanyId,
+    syncCatalogState
+  ]);
 
   async function handleSaveCostSettings(options?: { silent?: boolean }) {
     try {
@@ -803,6 +863,7 @@ function App() {
             inventoryState={inventoryState}
             keyActionId={keyActionId}
             savingInventoryId={savingInventoryId}
+            syncingCatalog={syncCatalogState === "syncing"}
             companyForm={companyForm}
             inventoryDrafts={inventoryDrafts}
             onBack={openDashboard}
@@ -827,6 +888,11 @@ function App() {
             onOpenIssueKey={() => setIssueKeyOpen(true)}
             onRevokeKey={(apiKeyId) => {
               void handleRevokeKey(apiKeyId);
+            }}
+            onSyncCatalog={() => {
+              void handleSyncMasterCatalog({
+                companyId: selectedCompany.id
+              });
             }}
             onInventoryDraftChange={(productId, value) =>
               setInventoryDrafts((currentDrafts) => ({
