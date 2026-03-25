@@ -13,6 +13,7 @@ EMAIL=""
 DB_NAME="b2b_gateway"
 DB_USER="produtos"
 DB_PASSWORD=""
+APP_PORT="3000"
 SKIP_CERTBOT="false"
 
 usage() {
@@ -21,11 +22,13 @@ Uso:
   sudo bash deploy/ubuntu/install.sh \
     --domain app.seudominio.com \
     --email ops@seudominio.com \
+    --app-port 3000 \
     --db-password 'senha-db-forte'
 
 Opcoes:
   --domain            DNS publico apontando para a VPS
   --email             Email do Let's Encrypt
+  --app-port          Porta local do backend Fastify (default: 3000)
   --db-password       Senha do usuario PostgreSQL local
   --app-dir           Caminho do projeto na VPS (default: repo atual)
   --env-file          Caminho do .env.production (default: <app-dir>/.env.production)
@@ -68,6 +71,10 @@ parse_args() {
         ;;
       --db-password)
         DB_PASSWORD="$2"
+        shift 2
+        ;;
+      --app-port)
+        APP_PORT="$2"
         shift 2
         ;;
       --db-name)
@@ -226,6 +233,7 @@ ensure_required_env() {
   [[ -n "${DB_PASSWORD}" ]] || fail "Informe --db-password para criar o PostgreSQL local."
   [[ -n "${DOMAIN}" ]] || fail "Informe --domain."
   [[ -n "${EMAIL}" ]] || fail "Informe --email."
+  [[ "${APP_PORT}" =~ ^[0-9]+$ ]] || fail "--app-port deve ser numerico."
   [[ -n "${api_key_pepper}" && "${api_key_pepper}" != "generate-a-long-secret-value" ]] || \
     upsert_env_var "${ENV_FILE}" "API_KEY_PEPPER" "$(generate_secret)"
   [[ -n "${webhook_secret}" && "${webhook_secret}" != "generate-a-long-secret-value" ]] || \
@@ -236,7 +244,7 @@ ensure_required_env() {
     upsert_env_var "${ENV_FILE}" "ADMIN_SESSION_SECRET" "$(generate_secret)"
 
   upsert_env_var "${ENV_FILE}" "NODE_ENV" "production"
-  upsert_env_var "${ENV_FILE}" "PORT" "3000"
+  upsert_env_var "${ENV_FILE}" "PORT" "${APP_PORT}"
   upsert_env_var "${ENV_FILE}" "DATABASE_URL" "postgresql://${DB_USER}:${DB_PASSWORD}@127.0.0.1:5432/${DB_NAME}"
   upsert_env_var "${ENV_FILE}" "REDIS_URL" "redis://127.0.0.1:6379"
   upsert_env_var "${ENV_FILE}" "ADMIN_USERNAME" ""
@@ -251,6 +259,18 @@ ensure_required_env() {
     fail "Preencha SUPABASE_URL em ${ENV_FILE}."
   [[ -n "${supabase_key}" && "${supabase_key}" != "your-service-role-key" ]] || \
     fail "Preencha SUPABASE_SERVICE_ROLE_KEY em ${ENV_FILE}."
+}
+
+ensure_backend_port_available() {
+  if systemctl list-unit-files | grep -q '^produtos-api.service'; then
+    systemctl stop produtos-api.service >/dev/null 2>&1 || true
+  fi
+
+  if ss -ltnp "( sport = :${APP_PORT} )" | grep -q LISTEN; then
+    log "Porta ${APP_PORT} ja esta em uso:"
+    ss -ltnp "( sport = :${APP_PORT} )" || true
+    fail "Libere a porta ${APP_PORT} ou rode o instalador com --app-port em outra porta."
+  fi
 }
 
 ensure_postgres_db() {
@@ -329,6 +349,7 @@ install_nginx_config() {
     "${APP_DIR}/deploy/ubuntu/templates/nginx-produtos.conf.template" \
     "${nginx_file}" \
     DOMAIN "${DOMAIN}" \
+    APP_PORT "${APP_PORT}" \
     FRONTEND_DIST_DIR "${APP_DIR}/frontend/dist"
 
   ln -sf "${nginx_file}" /etc/nginx/sites-enabled/produtos.conf
@@ -387,6 +408,7 @@ main() {
   build_application
   run_migrations
   fix_permissions
+  ensure_backend_port_available
   install_systemd_service
   install_nginx_config
   ensure_dns_points_to_server

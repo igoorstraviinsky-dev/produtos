@@ -63,6 +63,17 @@ O instalador valida esse apontamento antes de chamar o `certbot`.
 sudo bash deploy/ubuntu/install.sh \
   --domain app.seudominio.com \
   --email ops@seudominio.com \
+  --app-port 3000 \
+  --db-password 'uma-senha-forte-para-o-postgres'
+```
+
+Se a sua VPS ja tiver outra aplicacao ocupando a `3000`, rode em outra porta:
+
+```bash
+sudo bash deploy/ubuntu/install.sh \
+  --domain app.seudominio.com \
+  --email ops@seudominio.com \
+  --app-port 3100 \
   --db-password 'uma-senha-forte-para-o-postgres'
 ```
 
