@@ -68,5 +68,5 @@ Fluxo resumido:
 
 1. configure o DNS para apontar para a VPS
 2. preencha [`.env.production.example`](C:\Users\goohf\Desktop\parceiros\.env.production.example)
-3. rode o instalador com dominio, email, usuario admin, senha admin e senha do PostgreSQL
+3. rode o instalador com dominio, email e senha do PostgreSQL
 4. entre no painel com o token salvo em `ADMIN_TOKEN`

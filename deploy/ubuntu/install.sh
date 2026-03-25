@@ -10,8 +10,6 @@ FRONTEND_ENV_FILE="${APP_DIR}/frontend/.env.production"
 APP_USER="produtos"
 DOMAIN=""
 EMAIL=""
-ADMIN_USER=""
-ADMIN_PASSWORD=""
 DB_NAME="b2b_gateway"
 DB_USER="produtos"
 DB_PASSWORD=""
@@ -23,15 +21,11 @@ Uso:
   sudo bash deploy/ubuntu/install.sh \
     --domain app.seudominio.com \
     --email ops@seudominio.com \
-    --admin-user admin \
-    --admin-password 'senha-forte' \
     --db-password 'senha-db-forte'
 
 Opcoes:
   --domain            DNS publico apontando para a VPS
   --email             Email do Let's Encrypt
-  --admin-user        Usuario do Basic Auth do painel admin
-  --admin-password    Senha do Basic Auth do painel admin
   --db-password       Senha do usuario PostgreSQL local
   --app-dir           Caminho do projeto na VPS (default: repo atual)
   --env-file          Caminho do .env.production (default: <app-dir>/.env.production)
@@ -67,11 +61,9 @@ parse_args() {
         shift 2
         ;;
       --admin-user)
-        ADMIN_USER="$2"
         shift 2
         ;;
       --admin-password)
-        ADMIN_PASSWORD="$2"
         shift 2
         ;;
       --db-password)
@@ -149,7 +141,6 @@ ensure_base_packages() {
     postgresql \
     postgresql-contrib \
     redis-server \
-    apache2-utils \
     dnsutils
 }
 
@@ -235,9 +226,6 @@ ensure_required_env() {
   [[ -n "${DB_PASSWORD}" ]] || fail "Informe --db-password para criar o PostgreSQL local."
   [[ -n "${DOMAIN}" ]] || fail "Informe --domain."
   [[ -n "${EMAIL}" ]] || fail "Informe --email."
-  [[ -n "${ADMIN_USER}" ]] || fail "Informe --admin-user."
-  [[ -n "${ADMIN_PASSWORD}" ]] || fail "Informe --admin-password."
-
   [[ -n "${api_key_pepper}" && "${api_key_pepper}" != "generate-a-long-secret-value" ]] || \
     upsert_env_var "${ENV_FILE}" "API_KEY_PEPPER" "$(generate_secret)"
   [[ -n "${webhook_secret}" && "${webhook_secret}" != "generate-a-long-secret-value" ]] || \
@@ -333,20 +321,14 @@ install_systemd_service() {
 }
 
 install_nginx_config() {
-  local admin_token
-  admin_token="$(read_env_value "${ENV_FILE}" "ADMIN_TOKEN")"
   local nginx_file="/etc/nginx/sites-available/produtos.conf"
-  local auth_file="/etc/nginx/.produtos-admin.htpasswd"
 
   mkdir -p /var/www/certbot
-  htpasswd -bc "${auth_file}" "${ADMIN_USER}" "${ADMIN_PASSWORD}" >/dev/null
 
   render_template \
     "${APP_DIR}/deploy/ubuntu/templates/nginx-produtos.conf.template" \
     "${nginx_file}" \
     DOMAIN "${DOMAIN}" \
-    ADMIN_AUTH_FILE "${auth_file}" \
-    ADMIN_TOKEN "${admin_token}" \
     FRONTEND_DIST_DIR "${APP_DIR}/frontend/dist"
 
   ln -sf "${nginx_file}" /etc/nginx/sites-enabled/produtos.conf
@@ -412,7 +394,7 @@ main() {
 
   log "Instalacao concluida"
   log "Painel admin: https://${DOMAIN}/"
-  log "Login do painel: token unico definido em ADMIN_TOKEN no arquivo ${ENV_FILE}"
+  log "Login do painel: tela interna da aplicacao usando o token definido em ADMIN_TOKEN no arquivo ${ENV_FILE}"
   log "API publica: https://${DOMAIN}/api/v1/products"
   log "Webhook interno: https://${DOMAIN}/api/internal/webhooks/supabase-sync"
 }

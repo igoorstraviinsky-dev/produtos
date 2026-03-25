@@ -44,33 +44,22 @@ server {
     }
 
     location ^~ /api/internal/admin/ {
-        auth_basic "Produtos Admin";
-        auth_basic_user_file __ADMIN_AUTH_FILE__;
-
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
-        proxy_set_header X-Admin-Token "__ADMIN_TOKEN__";
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     location ^~ /admin/ {
-        auth_basic "Produtos Admin";
-        auth_basic_user_file __ADMIN_AUTH_FILE__;
-
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
-        proxy_set_header X-Admin-Token "__ADMIN_TOKEN__";
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     location / {
-        auth_basic "Produtos Admin";
-        auth_basic_user_file __ADMIN_AUTH_FILE__;
-
         root __FRONTEND_DIST_DIR__;
         try_files $uri $uri/ /index.html;
     }

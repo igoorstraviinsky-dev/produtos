@@ -9,7 +9,6 @@ Este projeto pode rodar em uma VPS Ubuntu 24.04 usando:
 
 No fluxo atual de producao:
 
-- o `nginx` protege o painel com `Basic Auth`
 - o painel abre uma tela de login propria
 - esse login usa um token unico definido em `ADMIN_TOKEN`
 - o backend assina uma sessao administrativa para as chamadas seguintes
@@ -28,9 +27,7 @@ O script [install.sh](/C:/Users/goohf/Desktop/parceiros/deploy/ubuntu/install.sh
 - aplica migracoes do Prisma
 - cria o service `produtos-api.service`
 - publica o frontend no `nginx`
-- protege o painel admin com Basic Auth
 - prepara o painel para login por token administrativo
-- injeta `X-Admin-Token` via `nginx` nas rotas administrativas internas
 - valida DNS
 - emite SSL via Let's Encrypt
 
@@ -66,8 +63,6 @@ O instalador valida esse apontamento antes de chamar o `certbot`.
 sudo bash deploy/ubuntu/install.sh \
   --domain app.seudominio.com \
   --email ops@seudominio.com \
-  --admin-user admin \
-  --admin-password 'uma-senha-forte' \
   --db-password 'uma-senha-forte-para-o-postgres'
 ```
 
@@ -75,15 +70,15 @@ sudo bash deploy/ubuntu/install.sh \
 
 - `/api/v1/*`: publico para os clientes B2B
 - `/api/internal/webhooks/*`: liberado, protegido pelo `INTERNAL_WEBHOOK_SECRET`
-- `/admin/*`: protegido por Basic Auth no Nginx e `X-Admin-Token` injetado
-- `/api/internal/admin/*`: protegido por Basic Auth no Nginx e `X-Admin-Token` injetado
-- `/`: frontend admin protegido por Basic Auth
+- `/admin/*`: protegido pela sessao criada na tela de login do painel
+- `/api/internal/admin/*`: protegido pela sessao criada na tela de login do painel
+- `/`: frontend admin servido sem popup de navegador
 
 ## Como entrar no painel
 
 1. acesse `https://seu-dominio/`
-2. passe pelo `Basic Auth` do Nginx usando `--admin-user` e `--admin-password`
-3. na tela de login do painel, use o token salvo em `ADMIN_TOKEN`
+2. a propria aplicacao vai exibir a tela de login do painel
+3. use o token salvo em `ADMIN_TOKEN`
 
 Esse token pode ser o que voce preencheu em `.env.production` ou o gerado automaticamente pelo instalador.
 
@@ -100,7 +95,7 @@ sudo systemctl reload nginx
 
 ## Observacoes importantes
 
-- O painel admin atual e servido como frontend estatico. Em producao, a protecao administrativa fica no `nginx`.
+- O painel admin atual e servido como frontend estatico.
 - O `VITE_ADMIN_TOKEN` nao precisa ser embutido no frontend de producao.
 - O backend continua validando `ADMIN_TOKEN` para criar a sessao do painel.
 - O backend continua ouvindo em `127.0.0.1:3000`, e o acesso externo deve passar pelo `nginx`.
