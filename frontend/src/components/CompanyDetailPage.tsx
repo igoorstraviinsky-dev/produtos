@@ -31,6 +31,8 @@ type CompanyDetailPageProps = {
   onChangeTab: (tab: "settings" | "inventory") => void;
   onCompanyFormChange: (patch: Partial<{ legalName: string; isActive: boolean }>) => void;
   onSaveCompany: () => void;
+  onDeleteCompany: () => void;
+  deletingCompany: boolean;
   onOpenIssueKey: () => void;
   onRevokeKey: (apiKeyId: string) => void;
   onInventoryDraftChange: (productId: string, value: string) => void;
@@ -53,6 +55,8 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
     onChangeTab,
     onCompanyFormChange,
     onSaveCompany,
+    onDeleteCompany,
+    deletingCompany,
     onOpenIssueKey,
     onRevokeKey,
     onInventoryDraftChange,
@@ -188,6 +192,14 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                 className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 Salvar configuracoes
+              </button>
+              <button
+                type="button"
+                disabled={deletingCompany}
+                onClick={onDeleteCompany}
+                className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                {deletingCompany ? "Excluindo..." : "Excluir empresa"}
               </button>
             </div>
           </section>

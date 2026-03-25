@@ -118,6 +118,7 @@ export interface ControlPlaneRepository {
   listCompanies(): Promise<CompanyRecord[]>;
   updateCompany(companyId: string, input: UpdateCompanyInput): Promise<CompanyRecord | null>;
   updateCompanyStatus(companyId: string, isActive: boolean): Promise<CompanyRecord | null>;
+  deleteCompany(companyId: string): Promise<CompanyRecord | null>;
   findCompanyById(companyId: string): Promise<CompanyRecord | null>;
   listApiKeysByCompany(companyId: string): Promise<ApiKeyRecord[]>;
   createApiKey(input: CreateApiKeyInput): Promise<ApiKeyRecord>;
@@ -336,6 +337,30 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
     return this.updateCompany(companyId, {
       isActive
     });
+  }
+
+  async deleteCompany(companyId: string) {
+    const company = await this.prisma.company
+      .delete({
+        where: {
+          id: companyId
+        },
+        include: {
+          _count: {
+            select: {
+              apiKeys: true
+            }
+          },
+          apiKeys: {
+            select: {
+              isRevoked: true
+            }
+          }
+        }
+      })
+      .catch(() => null);
+
+    return company ? mapCompany(company) : null;
   }
 
   async findCompanyById(companyId: string) {

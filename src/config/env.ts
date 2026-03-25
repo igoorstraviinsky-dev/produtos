@@ -14,7 +14,10 @@ const envSchema = z.object({
   PRODUCTS_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(60),
   PRODUCTS_CACHE_STALE_SECONDS: z.coerce.number().int().nonnegative().default(300),
   WEBSOCKET_AUTH_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
-  ADMIN_TOKEN: z.string().optional().transform((value) => value?.trim() || undefined)
+  ADMIN_TOKEN: z.string().optional().transform((value) => value?.trim() || undefined),
+  ADMIN_USERNAME: z.string().optional().transform((value) => value?.trim() || undefined),
+  ADMIN_PASSWORD: z.string().optional().transform((value) => value?.trim() || undefined),
+  ADMIN_SESSION_SECRET: z.string().optional().transform((value) => value?.trim() || undefined)
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

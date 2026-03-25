@@ -50,6 +50,26 @@ export class AdminService {
     return company;
   }
 
+  async deleteCompany(companyId: string) {
+    const company = await this.controlPlane.deleteCompany(companyId);
+    if (!company) {
+      throw new AppError(404, "COMPANY_NOT_FOUND", "Company was not found");
+    }
+
+    return {
+      data: {
+        id: company.id,
+        legalName: company.legalName,
+        externalCode: company.externalCode,
+        isActive: company.isActive,
+        apiKeyCount: company.apiKeyCount,
+        activeKeyCount: company.activeKeyCount,
+        createdAt: company.createdAt,
+        updatedAt: company.updatedAt
+      }
+    };
+  }
+
   async listCompanyApiKeys(companyId: string) {
     const company = await this.controlPlane.findCompanyById(companyId);
     if (!company) {

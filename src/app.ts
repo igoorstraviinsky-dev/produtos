@@ -22,6 +22,7 @@ import {
 import { AppError, registerErrorHandler } from "./middleware/error-handler";
 import { createRateLimitMiddleware } from "./middleware/rate-limit.middleware";
 import { AdminService } from "./modules/admin/admin.service";
+import { AdminAuthService } from "./modules/admin/admin-auth.service";
 import { adminRoutes } from "./modules/admin/admin.routes";
 import { ApiKeyService } from "./modules/auth/api-key.service";
 import { createAuthMiddleware } from "./modules/auth/auth.middleware";
@@ -49,16 +50,10 @@ type AppDependencies = {
   productGateway: ProductGateway;
 };
 
-function createAdminGuard(env: AppEnv) {
+function createAdminGuard(adminAuthService: AdminAuthService) {
   return async (request: FastifyRequest, _reply: FastifyReply) => {
-    if (!env.ADMIN_TOKEN) {
-      return;
-    }
-
-    const adminToken = request.headers["x-admin-token"];
-    if (adminToken !== env.ADMIN_TOKEN) {
-      throw new AppError(401, "INVALID_ADMIN_TOKEN", "Invalid admin token");
-    }
+    const session = adminAuthService.readSessionFromRequest(request.headers);
+    request.adminSession = session.admin;
   };
 }
 
@@ -104,7 +99,8 @@ export async function buildApp(overrides?: Partial<AppDependencies>): Promise<Fa
   const apiKeyService = new ApiKeyService(dependencies.controlPlane, env.API_KEY_PEPPER);
   const authMiddleware = createAuthMiddleware(apiKeyService);
   const rateLimitMiddleware = createRateLimitMiddleware(dependencies.rateLimitCounter);
-  const adminGuard = createAdminGuard(env);
+  const adminAuthService = new AdminAuthService(env);
+  const adminGuard = createAdminGuard(adminAuthService);
   const webhookGuard = createWebhookGuard(env);
   const realtimeHub = new RealtimeHub({
     server: app.server,
@@ -155,13 +151,15 @@ export async function buildApp(overrides?: Partial<AppDependencies>): Promise<Fa
   await app.register(adminRoutes, {
     prefix: "/admin",
     adminGuard,
-    adminService
+    adminService,
+    adminAuthService
   });
 
   await app.register(adminRoutes, {
     prefix: "/api/internal/admin",
     adminGuard,
-    adminService
+    adminService,
+    adminAuthService
   });
 
   await app.register(productsAdminRoutes, {

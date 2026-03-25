@@ -1,6 +1,7 @@
 import { FastifyPluginAsync, preHandlerHookHandler } from "fastify";
 
 import {
+  adminLoginSchema,
   createCompanySchema,
   issueApiKeySchema,
   updateAdminInventorySchema,
@@ -8,14 +9,37 @@ import {
   updateCompanySchema,
   updateCompanyStatusSchema
 } from "./admin.schemas";
+import { AdminAuthService } from "./admin-auth.service";
 import { AdminService } from "./admin.service";
 
 type AdminRoutesOptions = {
   adminGuard: preHandlerHookHandler;
   adminService: AdminService;
+  adminAuthService: AdminAuthService;
 };
 
 export const adminRoutes: FastifyPluginAsync<AdminRoutesOptions> = async (app, options) => {
+  app.get("/session/config", async (_request, reply) => {
+    return reply.send({
+      data: options.adminAuthService.getSessionConfig()
+    });
+  });
+
+  app.post("/session/login", async (request, reply) => {
+    const payload = adminLoginSchema.parse(request.body);
+    const session = options.adminAuthService.login(payload);
+    return reply.send({
+      data: session
+    });
+  });
+
+  app.get("/session/me", async (request, reply) => {
+    const session = options.adminAuthService.readSessionFromRequest(request.headers);
+    return reply.send({
+      data: session
+    });
+  });
+
   app.get(
     "/cost-settings",
     {
@@ -83,6 +107,18 @@ export const adminRoutes: FastifyPluginAsync<AdminRoutesOptions> = async (app, o
       const payload = updateCompanySchema.parse(request.body);
       const company = await options.adminService.updateCompany(params.companyId, payload);
       return reply.send({ data: company });
+    }
+  );
+
+  app.delete(
+    "/companies/:companyId",
+    {
+      preHandler: options.adminGuard
+    },
+    async (request, reply) => {
+      const params = request.params as { companyId: string };
+      const deletedCompany = await options.adminService.deleteCompany(params.companyId);
+      return reply.send(deletedCompany);
     }
   );
 

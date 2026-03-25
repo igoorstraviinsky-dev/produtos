@@ -1,4 +1,6 @@
 import type {
+  AdminSession,
+  AdminSessionConfig,
   AdminInventoryItem,
   AdminInventoryResponse,
   ApiKeySummary,
@@ -29,6 +31,31 @@ type ApiErrorPayload = {
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_TOKEN ?? "";
+const ADMIN_SESSION_STORAGE_KEY = "parceiros.admin.session";
+
+function getStoredAdminSessionToken() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return window.localStorage.getItem(ADMIN_SESSION_STORAGE_KEY) ?? "";
+}
+
+function setStoredAdminSessionToken(token: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, token);
+}
+
+function clearStoredAdminSessionToken() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -43,11 +70,16 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}) {
+  const adminSessionToken = options.admin ? getStoredAdminSessionToken() : "";
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? "GET",
     headers: {
       ...(options.body ? { "content-type": "application/json" } : {}),
-      ...(options.admin && ADMIN_TOKEN ? { "x-admin-token": ADMIN_TOKEN } : {}),
+      ...(options.admin && adminSessionToken
+        ? { authorization: `Bearer ${adminSessionToken}` }
+        : {}),
+      ...(options.admin && !adminSessionToken && ADMIN_TOKEN ? { "x-admin-token": ADMIN_TOKEN } : {}),
       ...(options.apiKey ? { authorization: `Bearer ${options.apiKey}` } : {})
     },
     body: options.body ? JSON.stringify(options.body) : undefined
@@ -69,6 +101,38 @@ async function request<T>(path: string, options: RequestOptions = {}) {
 }
 
 export const api = {
+  hasStoredAdminSession() {
+    return Boolean(getStoredAdminSessionToken());
+  },
+  clearAdminSession() {
+    clearStoredAdminSessionToken();
+  },
+  async getAdminSessionConfig() {
+    const response = await request<ApiEnvelope<AdminSessionConfig>>(
+      "/api/internal/admin/session/config"
+    );
+    return response.data;
+  },
+  async loginAdmin(payload: { username?: string; password: string }) {
+    const response = await request<ApiEnvelope<AdminSession>>("/api/internal/admin/session/login", {
+      method: "POST",
+      body: payload
+    });
+
+    if (response.data.token) {
+      setStoredAdminSessionToken(response.data.token);
+    } else {
+      clearStoredAdminSessionToken();
+    }
+
+    return response.data;
+  },
+  async getAdminSession() {
+    const response = await request<ApiEnvelope<AdminSession>>("/api/internal/admin/session/me", {
+      admin: true
+    });
+    return response.data;
+  },
   getHealth() {
     return request<HealthResponse>("/health");
   },
@@ -93,6 +157,16 @@ export const api = {
         method: "PATCH",
         admin: true,
         body: payload
+      }
+    );
+    return response.data;
+  },
+  async deleteCompany(companyId: string) {
+    const response = await request<ApiEnvelope<Company>>(
+      `/api/internal/admin/companies/${companyId}`,
+      {
+        method: "DELETE",
+        admin: true
       }
     );
     return response.data;

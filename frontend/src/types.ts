@@ -136,6 +136,25 @@ export type CostSettingsHistoryEntry = {
   createdAt: string;
 };
 
+export type AdminLoginMode = "credentials" | "token" | "open";
+
+export type AdminSessionConfig = {
+  requiresAuth: boolean;
+  loginMode: AdminLoginMode;
+  usernameHint: string | null;
+  sessionTtlSeconds: number;
+};
+
+export type AdminSession = {
+  token: string | null;
+  expiresAt: string | null;
+  admin: {
+    username: string;
+    displayName: string;
+    loginMode: AdminLoginMode;
+  };
+};
+
 export type ProductsResponse = {
   data: Product[];
   meta: {

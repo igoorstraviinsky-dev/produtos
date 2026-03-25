@@ -3,10 +3,13 @@ import { startTransition, useEffect, useEffectEvent, useMemo, useRef, useState }
 import { CompanyCardsDashboard } from "./components/CompanyCardsDashboard";
 import { CompanyDetailPage } from "./components/CompanyDetailPage";
 import { CostCalculatorPage } from "./components/CostCalculatorPage";
+import { LoginPage } from "./components/LoginPage";
 import { Modal } from "./components/Modal";
 import { Field, StatCard } from "./components/ui";
 import { ApiError, api } from "./lib/api";
 import type {
+  AdminSession,
+  AdminSessionConfig,
   AdminInventoryItem,
   ApiKeySummary,
   Company,
@@ -18,6 +21,7 @@ import type {
 type AsyncState = "idle" | "loading" | "success" | "error";
 type AppPage = "dashboard" | "company" | "costs";
 type CompanyTab = "settings" | "inventory";
+type AuthState = "checking" | "authenticated" | "unauthenticated";
 
 function getRouteState(pathname: string) {
   if (pathname === "/custos") {
@@ -60,6 +64,12 @@ function createInventoryDrafts(items: AdminInventoryItem[]) {
 
 function App() {
   const initialRoute = getRouteState(window.location.pathname);
+  const [authState, setAuthState] = useState<AuthState>("checking");
+  const [sessionConfig, setSessionConfig] = useState<AdminSessionConfig | null>(null);
+  const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
+  const [loginState, setLoginState] = useState<"idle" | "loading" | "error">("idle");
+  const [loginFeedback, setLoginFeedback] = useState("");
+  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [currentPage, setCurrentPage] = useState<AppPage>(initialRoute.page);
   const [selectedCompanyId, setSelectedCompanyId] = useState(initialRoute.companyId);
   const [activeTab, setActiveTab] = useState<CompanyTab>("settings");
@@ -86,6 +96,7 @@ function App() {
   const [rateLimitValue, setRateLimitValue] = useState("100");
   const [companyForm, setCompanyForm] = useState({ legalName: "", isActive: true });
   const [companyActionId, setCompanyActionId] = useState("");
+  const [deletingCompanyId, setDeletingCompanyId] = useState("");
   const [keyActionId, setKeyActionId] = useState("");
   const [savingInventoryId, setSavingInventoryId] = useState("");
   const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
@@ -115,6 +126,39 @@ function App() {
       legalName: company?.legalName ?? "",
       isActive: company?.isActive ?? true
     });
+  }
+
+  async function bootstrapAdminSession() {
+    setAuthState("checking");
+
+    try {
+      const config = await api.getAdminSessionConfig();
+      setSessionConfig(config);
+
+      if (!config.requiresAuth && !api.hasStoredAdminSession()) {
+        const openSession = await api.getAdminSession();
+        setAdminSession(openSession);
+        setAuthState("authenticated");
+        return;
+      }
+
+      if (!api.hasStoredAdminSession()) {
+        setAdminSession(null);
+        setAuthState("unauthenticated");
+        return;
+      }
+
+      const session = await api.getAdminSession();
+      setAdminSession(session);
+      setAuthState("authenticated");
+    } catch (error) {
+      api.clearAdminSession();
+      setAdminSession(null);
+      setAuthState("unauthenticated");
+      if (error instanceof ApiError && error.status !== 401) {
+        setFeedback(formatApiError(error));
+      }
+    }
   }
 
   async function refreshHealth() {
@@ -150,6 +194,42 @@ function App() {
       setCompaniesState("error");
       setFeedback(formatApiError(error));
     }
+  }
+
+  async function handleAdminLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoginState("loading");
+    setLoginFeedback("");
+
+    try {
+      const session = await api.loginAdmin({
+        username: loginForm.username,
+        password: loginForm.password
+      });
+
+      setAdminSession(session);
+      setLoginForm((current) => ({
+        ...current,
+        password: ""
+      }));
+      setAuthState("authenticated");
+      setLoginState("idle");
+      setFeedback("Sessao administrativa iniciada.");
+    } catch (error) {
+      setLoginState("error");
+      setLoginFeedback(formatApiError(error));
+    }
+  }
+
+  function handleAdminLogout() {
+    api.clearAdminSession();
+    setAdminSession(null);
+    setAuthState(sessionConfig?.requiresAuth ? "unauthenticated" : "authenticated");
+    setCompanies([]);
+    setApiKeys([]);
+    setInventory([]);
+    setProducts([]);
+    setFeedback("");
   }
 
   async function refreshCompanyDetail(companyId: string) {
@@ -250,7 +330,7 @@ function App() {
 
   useEffect(() => {
     void refreshHealth();
-    void refreshCompanies(initialRoute.companyId || undefined);
+    void bootstrapAdminSession();
   }, []);
 
   useEffect(() => {
@@ -270,6 +350,24 @@ function App() {
   }, [selectedCompany]);
 
   useEffect(() => {
+    if (sessionConfig?.loginMode === "credentials" && sessionConfig.usernameHint) {
+      setLoginForm((current) =>
+        current.username ? current : { ...current, username: sessionConfig.usernameHint ?? "" }
+      );
+    }
+  }, [sessionConfig]);
+
+  useEffect(() => {
+    if (authState === "authenticated") {
+      void refreshCompanies(initialRoute.companyId || undefined);
+    }
+  }, [authState]);
+
+  useEffect(() => {
+    if (authState !== "authenticated") {
+      return;
+    }
+
     if (currentPage === "company" && selectedCompanyId) {
       void refreshCompanyDetail(selectedCompanyId);
     }
@@ -322,7 +420,7 @@ function App() {
   });
 
   useEffect(() => {
-    if (currentPage !== "costs" || costSettingsState !== "success") {
+    if (authState !== "authenticated" || currentPage !== "costs" || costSettingsState !== "success") {
       return;
     }
 
@@ -398,6 +496,33 @@ function App() {
       setFeedback(formatApiError(error));
     } finally {
       setCompanyActionId("");
+    }
+  }
+
+  async function handleDeleteCompany() {
+    if (!selectedCompany) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Tem certeza que deseja excluir a empresa "${selectedCompany.legalName}"? Essa acao remove as API keys e o estoque isolado dela.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingCompanyId(selectedCompany.id);
+
+    try {
+      await api.deleteCompany(selectedCompany.id);
+      setFeedback(`Empresa ${selectedCompany.legalName} excluida com sucesso.`);
+      await refreshCompanies();
+      openDashboard();
+    } catch (error) {
+      setFeedback(formatApiError(error));
+    } finally {
+      setDeletingCompanyId("");
     }
   }
 
@@ -483,6 +608,53 @@ function App() {
     setFeedback("Chave copiada para a area de transferencia.");
   }
 
+  if (authState === "checking") {
+    return (
+      <div className="relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_38%),radial-gradient(circle_at_bottom_right,_rgba(250,204,21,0.18),_transparent_28%)]" />
+        <div className="mx-auto flex min-h-screen max-w-5xl items-center justify-center px-4 py-10">
+          <div className="rounded-[2rem] border border-white/60 bg-white/85 px-10 py-12 text-center shadow-[0_25px_80px_rgba(15,23,42,0.10)] backdrop-blur">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-700">
+              Super Admin
+            </p>
+            <h1 className="mt-4 font-display text-4xl tracking-tight text-slate-950">
+              Validando sessao
+            </h1>
+            <p className="mt-3 text-sm text-slate-600">
+              Estamos conferindo o acesso administrativo e a disponibilidade da API local.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (authState !== "authenticated") {
+    return (
+      <LoginPage
+        config={sessionConfig}
+        username={loginForm.username}
+        password={loginForm.password}
+        loginState={loginState}
+        errorMessage={loginFeedback}
+        healthState={healthState}
+        onUsernameChange={(value) =>
+          setLoginForm((current) => ({
+            ...current,
+            username: value
+          }))
+        }
+        onPasswordChange={(value) =>
+          setLoginForm((current) => ({
+            ...current,
+            password: value
+          }))
+        }
+        onSubmit={handleAdminLogin}
+      />
+    );
+  }
+
   return (
     <div className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.2),_transparent_42%),radial-gradient(circle_at_top_right,_rgba(250,204,21,0.2),_transparent_32%)]" />
@@ -542,6 +714,22 @@ function App() {
                   </button>
                 ) : null}
               </div>
+              {adminSession ? (
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+                    Sessao: <span className="font-semibold text-slate-950">{adminSession.admin.displayName}</span>
+                  </div>
+                  {sessionConfig?.requiresAuth ? (
+                    <button
+                      type="button"
+                      onClick={handleAdminLogout}
+                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+                    >
+                      Sair
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
@@ -630,6 +818,12 @@ function App() {
                 void handleSaveCompany();
               }
             }}
+            onDeleteCompany={() => {
+              if (!deletingCompanyId) {
+                void handleDeleteCompany();
+              }
+            }}
+            deletingCompany={deletingCompanyId === selectedCompany.id}
             onOpenIssueKey={() => setIssueKeyOpen(true)}
             onRevokeKey={(apiKeyId) => {
               void handleRevokeKey(apiKeyId);

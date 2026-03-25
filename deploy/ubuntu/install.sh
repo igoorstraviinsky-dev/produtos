@@ -226,9 +226,11 @@ ensure_required_env() {
   local api_key_pepper
   local webhook_secret
   local admin_token
+  local admin_session_secret
   api_key_pepper="$(read_env_value "${ENV_FILE}" "API_KEY_PEPPER")"
   webhook_secret="$(read_env_value "${ENV_FILE}" "INTERNAL_WEBHOOK_SECRET")"
   admin_token="$(read_env_value "${ENV_FILE}" "ADMIN_TOKEN")"
+  admin_session_secret="$(read_env_value "${ENV_FILE}" "ADMIN_SESSION_SECRET")"
 
   [[ -n "${DB_PASSWORD}" ]] || fail "Informe --db-password para criar o PostgreSQL local."
   [[ -n "${DOMAIN}" ]] || fail "Informe --domain."
@@ -242,11 +244,15 @@ ensure_required_env() {
     upsert_env_var "${ENV_FILE}" "INTERNAL_WEBHOOK_SECRET" "$(generate_secret)"
   [[ -n "${admin_token}" && "${admin_token}" != "generate-a-long-secret-value" ]] || \
     upsert_env_var "${ENV_FILE}" "ADMIN_TOKEN" "$(generate_secret)"
+  [[ -n "${admin_session_secret}" && "${admin_session_secret}" != "generate-a-long-secret-value" ]] || \
+    upsert_env_var "${ENV_FILE}" "ADMIN_SESSION_SECRET" "$(generate_secret)"
 
   upsert_env_var "${ENV_FILE}" "NODE_ENV" "production"
   upsert_env_var "${ENV_FILE}" "PORT" "3000"
   upsert_env_var "${ENV_FILE}" "DATABASE_URL" "postgresql://${DB_USER}:${DB_PASSWORD}@127.0.0.1:5432/${DB_NAME}"
   upsert_env_var "${ENV_FILE}" "REDIS_URL" "redis://127.0.0.1:6379"
+  upsert_env_var "${ENV_FILE}" "ADMIN_USERNAME" ""
+  upsert_env_var "${ENV_FILE}" "ADMIN_PASSWORD" ""
 
   local supabase_url
   local supabase_key
@@ -406,6 +412,7 @@ main() {
 
   log "Instalacao concluida"
   log "Painel admin: https://${DOMAIN}/"
+  log "Login do painel: token unico definido em ADMIN_TOKEN no arquivo ${ENV_FILE}"
   log "API publica: https://${DOMAIN}/api/v1/products"
   log "Webhook interno: https://${DOMAIN}/api/internal/webhooks/supabase-sync"
 }

@@ -7,6 +7,13 @@ Este projeto pode rodar em uma VPS Ubuntu 24.04 usando:
 - `certbot` para SSL automatico
 - PostgreSQL e Redis locais
 
+No fluxo atual de producao:
+
+- o `nginx` protege o painel com `Basic Auth`
+- o painel abre uma tela de login propria
+- esse login usa um token unico definido em `ADMIN_TOKEN`
+- o backend assina uma sessao administrativa para as chamadas seguintes
+
 ## O que o instalador faz
 
 O script [install.sh](/C:/Users/goohf/Desktop/parceiros/deploy/ubuntu/install.sh):
@@ -22,7 +29,8 @@ O script [install.sh](/C:/Users/goohf/Desktop/parceiros/deploy/ubuntu/install.sh
 - cria o service `produtos-api.service`
 - publica o frontend no `nginx`
 - protege o painel admin com Basic Auth
-- injeta `X-Admin-Token` via `nginx` nas rotas administrativas
+- prepara o painel para login por token administrativo
+- injeta `X-Admin-Token` via `nginx` nas rotas administrativas internas
 - valida DNS
 - emite SSL via Let's Encrypt
 
@@ -50,6 +58,8 @@ O instalador valida esse apontamento antes de chamar o `certbot`.
 3. Preencha pelo menos:
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
+   - opcionalmente `ADMIN_TOKEN` e `ADMIN_SESSION_SECRET`
+     Se deixar com o placeholder, o instalador gera os dois automaticamente.
 4. Rode:
 
 ```bash
@@ -69,6 +79,14 @@ sudo bash deploy/ubuntu/install.sh \
 - `/api/internal/admin/*`: protegido por Basic Auth no Nginx e `X-Admin-Token` injetado
 - `/`: frontend admin protegido por Basic Auth
 
+## Como entrar no painel
+
+1. acesse `https://seu-dominio/`
+2. passe pelo `Basic Auth` do Nginx usando `--admin-user` e `--admin-password`
+3. na tela de login do painel, use o token salvo em `ADMIN_TOKEN`
+
+Esse token pode ser o que voce preencheu em `.env.production` ou o gerado automaticamente pelo instalador.
+
 ## Operacao
 
 Comandos uteis:
@@ -83,5 +101,6 @@ sudo systemctl reload nginx
 ## Observacoes importantes
 
 - O painel admin atual e servido como frontend estatico. Em producao, a protecao administrativa fica no `nginx`.
-- O `VITE_ADMIN_TOKEN` nao precisa ser embutido no frontend de producao; o proxy injeta o header no backend.
+- O `VITE_ADMIN_TOKEN` nao precisa ser embutido no frontend de producao.
+- O backend continua validando `ADMIN_TOKEN` para criar a sessao do painel.
 - O backend continua ouvindo em `127.0.0.1:3000`, e o acesso externo deve passar pelo `nginx`.

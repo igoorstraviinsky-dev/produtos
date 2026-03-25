@@ -31,19 +31,23 @@ Supabase e estoque isolado por parceiro.
 
 - `GET /api/v1/products`
 - `GET /api/v1/my-inventory`
-- `PUT /api/v1/my-inventory/:productId`
+- `PATCH /api/v1/my-inventory/:productId`
 - `POST /api/internal/webhooks/supabase-sync`
 - `GET /admin/companies`
 - `POST /admin/companies`
+- `DELETE /api/internal/admin/companies/:companyId`
 - `PATCH /admin/companies/:companyId/status`
 - `POST /admin/api-keys`
 - `PATCH /admin/api-keys/:apiKeyId/revoke`
+- `POST /api/internal/admin/session/login`
 
 ## Frontend
 
 - Painel admin: `http://127.0.0.1:5173/`
 - Catalogo mestre: `http://127.0.0.1:5173/produtos`
 - Meu Estoque: `http://127.0.0.1:5173/meu-estoque`
+
+O painel admin agora usa tela de login com token administrativo unico.
 
 ## Deploy em VPS
 
@@ -65,3 +69,4 @@ Fluxo resumido:
 1. configure o DNS para apontar para a VPS
 2. preencha [`.env.production.example`](C:\Users\goohf\Desktop\parceiros\.env.production.example)
 3. rode o instalador com dominio, email, usuario admin, senha admin e senha do PostgreSQL
+4. entre no painel com o token salvo em `ADMIN_TOKEN`

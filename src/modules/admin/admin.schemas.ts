@@ -44,3 +44,8 @@ export const updateCostSettingsSchema = z
       message: "At least one cost setting must be provided"
     }
   );
+
+export const adminLoginSchema = z.object({
+  username: z.string().trim().optional(),
+  password: z.string().min(1)
+});

@@ -26,6 +26,9 @@ function createTestEnv(overrides = {}) {
     PRODUCTS_CACHE_STALE_SECONDS: 300,
     WEBSOCKET_AUTH_TIMEOUT_MS: 5000,
     ADMIN_TOKEN: undefined,
+    ADMIN_USERNAME: undefined,
+    ADMIN_PASSWORD: undefined,
+    ADMIN_SESSION_SECRET: undefined,
     ...overrides
   };
 }
@@ -137,6 +140,28 @@ class FakeControlPlaneRepository {
     return this.updateCompany(companyId, {
       isActive
     });
+  }
+
+  async deleteCompany(companyId) {
+    const company = this.companies.get(companyId);
+    if (!company) {
+      return null;
+    }
+
+    for (const [apiKeyId, apiKey] of [...this.apiKeys.entries()]) {
+      if (apiKey.companyId === companyId) {
+        this.apiKeys.delete(apiKeyId);
+      }
+    }
+
+    for (const key of [...this.companyInventory.keys()]) {
+      if (key.startsWith(`${companyId}:`)) {
+        this.companyInventory.delete(key);
+      }
+    }
+
+    this.companies.delete(companyId);
+    return this.buildCompanySnapshot(company);
   }
 
   async findCompanyById(companyId) {
@@ -776,6 +801,32 @@ const cases = [
     }
   },
   {
+    name: "Admin session config exposes active login mode",
+    fn: async () => {
+      const { app } = await createTestApp({
+        env: {
+          ADMIN_USERNAME: "superadmin",
+          ADMIN_PASSWORD: "senha-segura-123",
+          ADMIN_SESSION_SECRET: "sessao-super-segura"
+        }
+      });
+
+      try {
+        const response = await app.inject({
+          method: "GET",
+          url: "/api/internal/admin/session/config"
+        });
+
+        assert.equal(response.statusCode, 200);
+        assert.equal(response.json().data.requiresAuth, true);
+        assert.equal(response.json().data.loginMode, "credentials");
+        assert.equal(response.json().data.usernameHint, "superadmin");
+      } finally {
+        await app.close();
+      }
+    }
+  },
+  {
     name: "Internal admin endpoints manage companies, keys, and inventory",
     fn: async () => {
       const { app } = await createTestApp({
@@ -917,6 +968,78 @@ const cases = [
 
         assert.equal(updatedCompaniesResponse.statusCode, 200);
         assert.equal(updatedCompaniesResponse.json().data[0].activeKeyCount, 0);
+
+        const deleteCompanyResponse = await app.inject({
+          method: "DELETE",
+          url: `/api/internal/admin/companies/${companyId}`,
+          headers: {
+            "x-admin-token": "secret-token"
+          }
+        });
+
+        assert.equal(deleteCompanyResponse.statusCode, 200);
+        assert.equal(deleteCompanyResponse.json().data.id, companyId);
+
+        const companiesAfterDeleteResponse = await app.inject({
+          method: "GET",
+          url: "/api/internal/admin/companies",
+          headers: {
+            "x-admin-token": "secret-token"
+          }
+        });
+
+        assert.equal(companiesAfterDeleteResponse.statusCode, 200);
+        assert.equal(companiesAfterDeleteResponse.json().data.length, 0);
+      } finally {
+        await app.close();
+      }
+    }
+  },
+  {
+    name: "Admin login creates session accepted by internal routes",
+    fn: async () => {
+      const { app } = await createTestApp({
+        env: {
+          ADMIN_USERNAME: "superadmin",
+          ADMIN_PASSWORD: "senha-segura-123",
+          ADMIN_SESSION_SECRET: "sessao-super-segura"
+        }
+      });
+
+      try {
+        const loginResponse = await app.inject({
+          method: "POST",
+          url: "/api/internal/admin/session/login",
+          payload: {
+            username: "superadmin",
+            password: "senha-segura-123"
+          }
+        });
+
+        assert.equal(loginResponse.statusCode, 200);
+        const sessionToken = loginResponse.json().data.token;
+        assert.ok(sessionToken);
+
+        const meResponse = await app.inject({
+          method: "GET",
+          url: "/api/internal/admin/session/me",
+          headers: {
+            authorization: `Bearer ${sessionToken}`
+          }
+        });
+
+        assert.equal(meResponse.statusCode, 200);
+        assert.equal(meResponse.json().data.admin.username, "superadmin");
+
+        const companiesResponse = await app.inject({
+          method: "GET",
+          url: "/api/internal/admin/companies",
+          headers: {
+            authorization: `Bearer ${sessionToken}`
+          }
+        });
+
+        assert.equal(companiesResponse.statusCode, 200);
       } finally {
         await app.close();
       }
