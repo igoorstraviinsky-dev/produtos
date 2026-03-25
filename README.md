@@ -44,3 +44,24 @@ Supabase e estoque isolado por parceiro.
 - Painel admin: `http://127.0.0.1:5173/`
 - Catalogo mestre: `http://127.0.0.1:5173/produtos`
 - Meu Estoque: `http://127.0.0.1:5173/meu-estoque`
+
+## Deploy em VPS
+
+Existe uma estrutura pronta para Ubuntu 24.04 com:
+
+- `systemd`
+- `nginx`
+- `certbot`
+- PostgreSQL e Redis locais
+- instalador idempotente com verificacao de dependencias
+
+Arquivos principais:
+
+- [install.sh](C:\Users\goohf\Desktop\parceiros\deploy\ubuntu\install.sh)
+- [deploy-ubuntu-24.04.md](C:\Users\goohf\Desktop\parceiros\docs\deploy-ubuntu-24.04.md)
+
+Fluxo resumido:
+
+1. configure o DNS para apontar para a VPS
+2. preencha [`.env.production.example`](C:\Users\goohf\Desktop\parceiros\.env.production.example)
+3. rode o instalador com dominio, email, usuario admin, senha admin e senha do PostgreSQL

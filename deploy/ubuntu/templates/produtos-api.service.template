@@ -1,0 +1,24 @@
+[Unit]
+Description=Produtos B2B API
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=__APP_USER__
+Group=__APP_USER__
+WorkingDirectory=__APP_DIR__
+EnvironmentFile=__ENV_FILE__
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node __APP_DIR__/dist/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=__APP_DIR__
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

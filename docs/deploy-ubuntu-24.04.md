@@ -1,0 +1,87 @@
+# Deploy em VPS Ubuntu 24.04
+
+Este projeto pode rodar em uma VPS Ubuntu 24.04 usando:
+
+- `systemd` para o backend Fastify
+- `nginx` como reverse proxy e servidor do frontend estatico
+- `certbot` para SSL automatico
+- PostgreSQL e Redis locais
+
+## O que o instalador faz
+
+O script [install.sh](/C:/Users/goohf/Desktop/parceiros/deploy/ubuntu/install.sh):
+
+- valida que a VPS usa Ubuntu 24.04
+- instala dependencias de sistema
+- instala Node.js 22
+- garante PostgreSQL, Redis e Nginx ativos
+- cria banco e usuario PostgreSQL local
+- instala dependencias do backend e frontend
+- gera os builds
+- aplica migracoes do Prisma
+- cria o service `produtos-api.service`
+- publica o frontend no `nginx`
+- protege o painel admin com Basic Auth
+- injeta `X-Admin-Token` via `nginx` nas rotas administrativas
+- valida DNS
+- emite SSL via Let's Encrypt
+
+## Arquivos de producao
+
+- backend: [.env.production.example](/C:/Users/goohf/Desktop/parceiros/.env.production.example)
+- frontend: [frontend/.env.production.example](/C:/Users/goohf/Desktop/parceiros/frontend/.env.production.example)
+- service: [produtos-api.service.template](/C:/Users/goohf/Desktop/parceiros/deploy/ubuntu/templates/produtos-api.service.template)
+- nginx: [nginx-produtos.conf.template](/C:/Users/goohf/Desktop/parceiros/deploy/ubuntu/templates/nginx-produtos.conf.template)
+
+## DNS antes do SSL
+
+Antes de rodar o instalador, aponte um registro `A` do seu dominio para o IP publico da VPS.
+
+Exemplo:
+
+- `app.seudominio.com -> 203.0.113.10`
+
+O instalador valida esse apontamento antes de chamar o `certbot`.
+
+## Passo a passo
+
+1. Clone o repositório na VPS.
+2. Copie `.env.production.example` para `.env.production`.
+3. Preencha pelo menos:
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+4. Rode:
+
+```bash
+sudo bash deploy/ubuntu/install.sh \
+  --domain app.seudominio.com \
+  --email ops@seudominio.com \
+  --admin-user admin \
+  --admin-password 'uma-senha-forte' \
+  --db-password 'uma-senha-forte-para-o-postgres'
+```
+
+## Rotas e protecao
+
+- `/api/v1/*`: publico para os clientes B2B
+- `/api/internal/webhooks/*`: liberado, protegido pelo `INTERNAL_WEBHOOK_SECRET`
+- `/admin/*`: protegido por Basic Auth no Nginx e `X-Admin-Token` injetado
+- `/api/internal/admin/*`: protegido por Basic Auth no Nginx e `X-Admin-Token` injetado
+- `/`: frontend admin protegido por Basic Auth
+
+## Operacao
+
+Comandos uteis:
+
+```bash
+sudo systemctl status produtos-api
+sudo journalctl -u produtos-api -n 200 --no-pager
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+## Observacoes importantes
+
+- O painel admin atual e servido como frontend estatico. Em producao, a protecao administrativa fica no `nginx`.
+- O `VITE_ADMIN_TOKEN` nao precisa ser embutido no frontend de producao; o proxy injeta o header no backend.
+- O backend continua ouvindo em `127.0.0.1:3000`, e o acesso externo deve passar pelo `nginx`.
