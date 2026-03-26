@@ -4,6 +4,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+  PUBLIC_BASE_URL: z.string().url().optional().transform((value) => value?.replace(/\/+$/, "")),
+  LOCAL_MEDIA_ROOT: z.string().optional().transform((value) => value?.trim() || undefined),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
   SUPABASE_URL: z.string().url(),

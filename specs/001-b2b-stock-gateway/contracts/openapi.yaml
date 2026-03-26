@@ -43,6 +43,28 @@ paths:
           description: Rate limit exceeded
         '503':
           description: Remote catalog unavailable and no valid cache exists
+  /api/v1/media/object/{storageKey}:
+    get:
+      summary: Stream one stable media object by storage key
+      tags:
+        - Product Media
+      parameters:
+        - in: path
+          name: storageKey
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Media object streamed successfully
+        '400':
+          description: Invalid storage key
+        '404':
+          description: Media object not found
+        '502':
+          description: Media origin unavailable
+        '503':
+          description: Media origin is not configured
   /api/v1/my-inventory:
     get:
       summary: List the authenticated partner inventory
@@ -461,6 +483,12 @@ components:
     Product:
       type: object
       required:
+        - media_assets
+        - mediaAssets
+        - media_urls
+        - mediaUrls
+        - main_image_url
+        - mainImageUrl
         - variants
         - id
         - product_id
@@ -470,6 +498,28 @@ components:
         - serialNumber
         - availableQuantity
       properties:
+        media_assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductMediaAsset'
+        mediaAssets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductMediaAsset'
+        media_urls:
+          type: array
+          items:
+            type: string
+        mediaUrls:
+          type: array
+          items:
+            type: string
+        main_image_url:
+          type: string
+          nullable: true
+        mainImageUrl:
+          type: string
+          nullable: true
         variants:
           type: array
           items:
@@ -774,6 +824,40 @@ components:
           format: date-time
           nullable: true
         updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    ProductMediaAsset:
+      type: object
+      required:
+        - id
+        - role
+        - storage_key
+        - storageKey
+        - sort_order
+        - sortOrder
+        - url
+      properties:
+        id:
+          type: string
+        role:
+          type: string
+        storage_key:
+          type: string
+        storageKey:
+          type: string
+        sort_order:
+          type: integer
+        sortOrder:
+          type: integer
+        url:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
           type: string
           format: date-time
           nullable: true

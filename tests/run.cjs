@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { randomUUID } = require("node:crypto");
 const { readFileSync } = require("node:fs");
+const { Readable } = require("node:stream");
 
 const YAML = require("yaml");
 
@@ -15,6 +16,8 @@ function createTestEnv(overrides = {}) {
     PORT: 3000,
     NODE_ENV: "test",
     LOG_LEVEL: "fatal",
+    PUBLIC_BASE_URL: "https://api.example.com",
+    LOCAL_MEDIA_ROOT: undefined,
     DATABASE_URL: "postgresql://test:test@localhost:5432/test",
     REDIS_URL: "redis://localhost:6379",
     SUPABASE_URL: "https://example.supabase.co",
@@ -360,11 +363,25 @@ class FakeProductGateway {
   }
 }
 
+class FakeProductMediaService {
+  async getObjectByStorageKey(storageKey) {
+    return {
+      body: Readable.from([`media:${storageKey}`]),
+      cacheControl: "public, max-age=31536000, immutable",
+      contentLength: null,
+      contentType: "image/jpeg",
+      etag: null,
+      lastModified: null
+    };
+  }
+}
+
 async function createTestApp(options = {}) {
   const env = createTestEnv(options.env);
   const controlPlane = options.controlPlane ?? new FakeControlPlaneRepository();
   const productCache = options.productCache ?? new FakeProductCacheStore();
   const rateLimitCounter = options.rateLimitCounter ?? new FakeRateLimitCounterStore();
+  const productMediaService = options.productMediaService ?? new FakeProductMediaService();
   const productGateway =
     options.productGateway ??
     new FakeProductGateway([
@@ -427,10 +444,36 @@ async function createTestApp(options = {}) {
         bathType: null,
         tipo_banho: null,
         status: null,
-        bronzeImageKey: null,
-        s3_key_bronze: null,
+        bronzeImageKey: "joias/raw/SKU-001/SKU-001_st.jpg",
+        s3_key_bronze: "joias/raw/SKU-001/SKU-001_st.jpg",
         silverImageKey: null,
         s3_key_silver: null,
+        media_assets: [
+          {
+            id: "media-1",
+            role: "st",
+            storage_key: "joias/raw/SKU-001/SKU-001_st.jpg",
+            storageKey: "joias/raw/SKU-001/SKU-001_st.jpg",
+            sort_order: 0,
+            sortOrder: 0,
+            url: null,
+            created_at: "2026-03-23T00:00:00.000Z",
+            createdAt: "2026-03-23T00:00:00.000Z"
+          }
+        ],
+        mediaAssets: [
+          {
+            id: "media-1",
+            role: "st",
+            storage_key: "joias/raw/SKU-001/SKU-001_st.jpg",
+            storageKey: "joias/raw/SKU-001/SKU-001_st.jpg",
+            sort_order: 0,
+            sortOrder: 0,
+            url: null,
+            created_at: "2026-03-23T00:00:00.000Z",
+            createdAt: "2026-03-23T00:00:00.000Z"
+          }
+        ],
         supplierCode: null,
         supplier_code: null,
         fiscalCode: null,
@@ -482,7 +525,8 @@ async function createTestApp(options = {}) {
     controlPlane,
     productCache,
     rateLimitCounter,
-    productGateway
+    productGateway,
+    productMediaService
   });
 
   return {
@@ -491,7 +535,8 @@ async function createTestApp(options = {}) {
     controlPlane,
     productCache,
     rateLimitCounter,
-    productGateway
+    productGateway,
+    productMediaService
   };
 }
 
@@ -593,10 +638,36 @@ const cases = [
           bathType: null,
           tipo_banho: null,
           status: null,
-          bronzeImageKey: null,
-          s3_key_bronze: null,
+          bronzeImageKey: "joias/raw/SKU-001/SKU-001_st.jpg",
+          s3_key_bronze: "joias/raw/SKU-001/SKU-001_st.jpg",
           silverImageKey: null,
           s3_key_silver: null,
+          media_assets: [
+            {
+              id: "media-1",
+              role: "st",
+              storage_key: "joias/raw/SKU-001/SKU-001_st.jpg",
+              storageKey: "joias/raw/SKU-001/SKU-001_st.jpg",
+              sort_order: 0,
+              sortOrder: 0,
+              url: null,
+              created_at: "2026-03-23T00:00:00.000Z",
+              createdAt: "2026-03-23T00:00:00.000Z"
+            }
+          ],
+          mediaAssets: [
+            {
+              id: "media-1",
+              role: "st",
+              storage_key: "joias/raw/SKU-001/SKU-001_st.jpg",
+              storageKey: "joias/raw/SKU-001/SKU-001_st.jpg",
+              sort_order: 0,
+              sortOrder: 0,
+              url: null,
+              created_at: "2026-03-23T00:00:00.000Z",
+              createdAt: "2026-03-23T00:00:00.000Z"
+            }
+          ],
           supplierCode: null,
           supplier_code: null,
           fiscalCode: null,
@@ -648,6 +719,14 @@ const cases = [
       const secondResponse = await service.listProducts();
 
       assert.equal(firstResponse.meta.source, "upstream");
+      assert.equal(
+        firstResponse.data[0].main_image_url,
+        "https://api.example.com/api/v1/media/object/joias%2Fraw%2FSKU-001%2FSKU-001_st.jpg"
+      );
+      assert.equal(
+        firstResponse.data[0].media_assets[0].url,
+        "https://api.example.com/api/v1/media/object/joias%2Fraw%2FSKU-001%2FSKU-001_st.jpg"
+      );
       assert.equal(secondResponse.meta.source, "cache");
     }
   },
@@ -750,6 +829,59 @@ const cases = [
 
       assert.equal(response.meta.source, "cache");
       assert.equal(response.meta.stale, true);
+    }
+  },
+  {
+    name: "Products endpoint exposes stable media URLs and proxy route streams content",
+    fn: async () => {
+      const { app, controlPlane, env } = await createTestApp();
+      try {
+        const company = controlPlane.seedCompany({
+          legalName: "Empresa Media",
+          externalCode: "empresa-media"
+        });
+        const apiKey = "b2b_media_catalog_123";
+
+        controlPlane.seedApiKey({
+          companyId: company.id,
+          keyPrefix: deriveApiKeyPrefix(apiKey),
+          keyHash: hashApiKey(apiKey, env.API_KEY_PEPPER),
+          rateLimitPerMinute: 10
+        });
+
+        const productsResponse = await app.inject({
+          method: "GET",
+          url: "/api/v1/products",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          }
+        });
+
+        assert.equal(productsResponse.statusCode, 200);
+        assert.equal(
+          productsResponse.json().data[0].main_image_url,
+          "https://api.example.com/api/v1/media/object/joias%2Fraw%2FSKU-001%2FSKU-001_st.jpg"
+        );
+        assert.equal(
+          productsResponse.json().data[0].media_assets[0].url,
+          "https://api.example.com/api/v1/media/object/joias%2Fraw%2FSKU-001%2FSKU-001_st.jpg"
+        );
+
+        const mediaResponse = await app.inject({
+          method: "GET",
+          url: "/api/v1/media/object/joias%2Fraw%2FSKU-001%2FSKU-001_st.jpg"
+        });
+
+        assert.equal(mediaResponse.statusCode, 200);
+        assert.equal(mediaResponse.headers["content-type"], "image/jpeg");
+        assert.equal(
+          mediaResponse.headers["cache-control"],
+          "public, max-age=31536000, immutable"
+        );
+        assert.equal(mediaResponse.body, "media:joias/raw/SKU-001/SKU-001_st.jpg");
+      } finally {
+        await app.close();
+      }
     }
   },
   {
@@ -1282,6 +1414,7 @@ const cases = [
 
       assert.ok(openApiDocument.paths["/api/v1/products"]);
       assert.ok(openApiDocument.paths["/api/v1/products"].get);
+      assert.ok(openApiDocument.paths["/api/v1/media/object/{storageKey}"]);
       assert.ok(openApiDocument.paths["/api/v1/my-inventory"]);
       assert.ok(openApiDocument.paths["/api/v1/my-inventory"].get);
       assert.ok(openApiDocument.paths["/api/v1/my-inventory/{productId}"]);

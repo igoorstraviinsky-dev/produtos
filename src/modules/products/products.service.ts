@@ -6,6 +6,10 @@ import { ProductGateway, ProductRecord } from "../../lib/supabase";
 import { ProductCacheStore } from "../../lib/redis";
 import { AppError } from "../../middleware/error-handler";
 import { buildProductsCacheKey } from "../../utils/cache-keys";
+import {
+  ProductMediaAssetRecord,
+  buildStableProductMediaUrl
+} from "../media/media.service";
 import { ProductsResponse } from "./products.schemas";
 import { calculateProductCost } from "./cost-calculator";
 
@@ -119,11 +123,68 @@ export class ProductsService {
 
   private enrichProduct(product: ProductRecord, costSettings: Awaited<ReturnType<ControlPlaneRepository["getCostSettings"]>>) {
     const costBreakdown = calculateProductCost(product, costSettings);
+    const mediaAssets = this.buildMediaAssets(product);
+    const mediaUrls = [...new Set(mediaAssets.map((asset) => asset.url).filter((url): url is string => Boolean(url)))];
+    const mainImageUrl = mediaUrls[0] ?? null;
 
     return {
       ...product,
+      media_assets: mediaAssets,
+      mediaAssets,
+      media_urls: mediaUrls,
+      mediaUrls,
+      main_image_url: mainImageUrl,
+      mainImageUrl,
       costFinal: costBreakdown.finalCost,
       costBreakdown
     };
+  }
+
+  private buildMediaAssets(product: ProductRecord) {
+    const upstreamAssets = [...(product.media_assets ?? product.mediaAssets ?? [])];
+
+    if (upstreamAssets.length > 0) {
+      return upstreamAssets.map((asset) => this.attachStableMediaUrl(asset));
+    }
+
+    const fallbackAssets = this.buildFallbackMediaAssets(product);
+    return fallbackAssets.map((asset) => this.attachStableMediaUrl(asset));
+  }
+
+  private attachStableMediaUrl(asset: ProductMediaAssetRecord): ProductMediaAssetRecord {
+    return {
+      ...asset,
+      url: buildStableProductMediaUrl(asset.storage_key, this.options.env)
+    };
+  }
+
+  private buildFallbackMediaAssets(product: ProductRecord): ProductMediaAssetRecord[] {
+    const assetCandidates: Array<{
+      role: string;
+      storageKey: string | null | undefined;
+    }> = [
+      {
+        role: "bronze",
+        storageKey: product.s3_key_bronze ?? product.bronzeImageKey
+      },
+      {
+        role: "silver",
+        storageKey: product.s3_key_silver ?? product.silverImageKey
+      }
+    ];
+
+    return assetCandidates
+      .filter((candidate): candidate is { role: string; storageKey: string } => Boolean(candidate.storageKey))
+      .map((candidate, index) => ({
+        id: `${product.id}:${candidate.role}`,
+        role: candidate.role,
+        storage_key: candidate.storageKey,
+        storageKey: candidate.storageKey,
+        sort_order: index,
+        sortOrder: index,
+        url: null,
+        created_at: product.created_at ?? null,
+        createdAt: product.createdAt ?? null
+      }));
   }
 }

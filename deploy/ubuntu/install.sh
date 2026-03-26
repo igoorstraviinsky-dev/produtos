@@ -246,6 +246,7 @@ ensure_required_env() {
 
   upsert_env_var "${ENV_FILE}" "NODE_ENV" "production"
   upsert_env_var "${ENV_FILE}" "PORT" "${APP_PORT}"
+  upsert_env_var "${ENV_FILE}" "PUBLIC_BASE_URL" "https://${DOMAIN}"
   upsert_env_var "${ENV_FILE}" "DATABASE_URL" "postgresql://${DB_USER}:${DB_PASSWORD}@127.0.0.1:5432/${DB_NAME}"
   upsert_env_var "${ENV_FILE}" "REDIS_URL" "redis://127.0.0.1:6379"
   upsert_env_var "${ENV_FILE}" "ADMIN_USERNAME" ""

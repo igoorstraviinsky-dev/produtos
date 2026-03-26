@@ -28,6 +28,8 @@ import { ApiKeyService } from "./modules/auth/api-key.service";
 import { createAuthMiddleware } from "./modules/auth/auth.middleware";
 import { InventoryService } from "./modules/inventory/inventory.service";
 import { inventoryRoutes } from "./modules/inventory/inventory.routes";
+import { ProductMediaService, SupabaseProductMediaService } from "./modules/media/media.service";
+import { mediaRoutes } from "./modules/media/media.routes";
 import { ProductsAdminService } from "./modules/products/products.admin.service";
 import { productsAdminRoutes } from "./modules/products/products.admin.routes";
 import { ProductsService } from "./modules/products/products.service";
@@ -48,6 +50,7 @@ type AppDependencies = {
   productCache: ProductCacheStore;
   rateLimitCounter: RateLimitCounterStore;
   productGateway: ProductGateway;
+  productMediaService: ProductMediaService;
 };
 
 function createAdminGuard(adminAuthService: AdminAuthService) {
@@ -79,15 +82,25 @@ async function createDefaultDependencies(env: AppEnv): Promise<AppDependencies> 
     controlPlane: new PrismaControlPlaneRepository(prismaClient),
     productCache: new RedisProductCacheStore(redisClient),
     rateLimitCounter: new RedisRateLimitCounterStore(redisClient),
-    productGateway: new SupabaseProductGateway(supabaseClient, env.SUPABASE_PRODUCTS_TABLE)
+    productGateway: new SupabaseProductGateway(supabaseClient, env.SUPABASE_PRODUCTS_TABLE),
+    productMediaService: new SupabaseProductMediaService(supabaseClient, env)
   };
 }
 
 export async function buildApp(overrides?: Partial<AppDependencies>): Promise<FastifyInstance> {
   const env = overrides?.env ?? loadEnv();
-  const dependencies = overrides?.controlPlane
-    ? ({ ...overrides, env } as AppDependencies)
-    : await createDefaultDependencies(env);
+  const shouldLoadDefaults =
+    !overrides?.controlPlane ||
+    !overrides?.productCache ||
+    !overrides?.rateLimitCounter ||
+    !overrides?.productGateway ||
+    !overrides?.productMediaService;
+  const defaultDependencies = shouldLoadDefaults ? await createDefaultDependencies(env) : null;
+  const dependencies = {
+    ...(defaultDependencies ?? {}),
+    ...(overrides ?? {}),
+    env
+  } as AppDependencies;
 
   const app = Fastify({
     logger: createLoggerOptions(env)
@@ -139,6 +152,11 @@ export async function buildApp(overrides?: Partial<AppDependencies>): Promise<Fa
     authMiddleware,
     rateLimitMiddleware,
     productsService
+  });
+
+  await app.register(mediaRoutes, {
+    prefix: "/api/v1",
+    mediaService: dependencies.productMediaService
   });
 
   await app.register(inventoryRoutes, {

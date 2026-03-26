@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Readable } from "node:stream";
 
 import { buildApp } from "../../src/app";
 import { AppEnv } from "../../src/config/env";
@@ -12,6 +13,7 @@ import {
 } from "../../src/lib/postgres";
 import { ProductCacheStore, RateLimitCounterStore } from "../../src/lib/redis";
 import { ProductGateway, ProductRecord } from "../../src/lib/supabase";
+import { ProductMediaService } from "../../src/modules/media/media.service";
 
 type SeedCompanyInput = {
   id?: string;
@@ -34,15 +36,22 @@ export function createTestEnv(overrides: Partial<AppEnv> = {}): AppEnv {
     PORT: 3000,
     NODE_ENV: "test",
     LOG_LEVEL: "fatal",
+    PUBLIC_BASE_URL: "https://api.example.com",
+    LOCAL_MEDIA_ROOT: undefined,
     DATABASE_URL: "postgresql://test:test@localhost:5432/test",
     REDIS_URL: "redis://localhost:6379",
     SUPABASE_URL: "https://example.supabase.co",
     SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
     SUPABASE_PRODUCTS_TABLE: "products",
     API_KEY_PEPPER: "test-pepper-value",
+    INTERNAL_WEBHOOK_SECRET: "test-internal-sync-secret",
     PRODUCTS_CACHE_TTL_SECONDS: 60,
     PRODUCTS_CACHE_STALE_SECONDS: 300,
+    WEBSOCKET_AUTH_TIMEOUT_MS: 5000,
     ADMIN_TOKEN: undefined,
+    ADMIN_USERNAME: undefined,
+    ADMIN_PASSWORD: undefined,
+    ADMIN_SESSION_SECRET: undefined,
     ...overrides
   };
 }
@@ -365,17 +374,32 @@ export class FakeProductGateway implements ProductGateway {
   }
 }
 
+export class FakeProductMediaService implements ProductMediaService {
+  async getObjectByStorageKey(storageKey: string) {
+    return {
+      body: Readable.from([`media:${storageKey}`]),
+      cacheControl: "public, max-age=31536000, immutable",
+      contentLength: null,
+      contentType: "image/jpeg",
+      etag: null,
+      lastModified: null
+    };
+  }
+}
+
 export async function createTestApp(options?: {
   env?: Partial<AppEnv>;
   controlPlane?: FakeControlPlaneRepository;
   productCache?: FakeProductCacheStore;
   rateLimitCounter?: FakeRateLimitCounterStore;
   productGateway?: FakeProductGateway;
+  productMediaService?: FakeProductMediaService;
 }) {
   const env = createTestEnv(options?.env);
   const controlPlane = options?.controlPlane ?? new FakeControlPlaneRepository();
   const productCache = options?.productCache ?? new FakeProductCacheStore();
   const rateLimitCounter = options?.rateLimitCounter ?? new FakeRateLimitCounterStore();
+  const productMediaService = options?.productMediaService ?? new FakeProductMediaService();
   const productGateway =
     options?.productGateway ??
     new FakeProductGateway([
@@ -438,10 +462,36 @@ export async function createTestApp(options?: {
         bathType: null,
         tipo_banho: null,
         status: "AVAILABLE",
-        bronzeImageKey: null,
-        s3_key_bronze: null,
+        bronzeImageKey: "joias/raw/SKU-001/SKU-001_st.jpg",
+        s3_key_bronze: "joias/raw/SKU-001/SKU-001_st.jpg",
         silverImageKey: null,
         s3_key_silver: null,
+        media_assets: [
+          {
+            id: "media-1",
+            role: "st",
+            storage_key: "joias/raw/SKU-001/SKU-001_st.jpg",
+            storageKey: "joias/raw/SKU-001/SKU-001_st.jpg",
+            sort_order: 0,
+            sortOrder: 0,
+            url: null,
+            created_at: "2026-03-23T00:00:00.000Z",
+            createdAt: "2026-03-23T00:00:00.000Z"
+          }
+        ],
+        mediaAssets: [
+          {
+            id: "media-1",
+            role: "st",
+            storage_key: "joias/raw/SKU-001/SKU-001_st.jpg",
+            storageKey: "joias/raw/SKU-001/SKU-001_st.jpg",
+            sort_order: 0,
+            sortOrder: 0,
+            url: null,
+            created_at: "2026-03-23T00:00:00.000Z",
+            createdAt: "2026-03-23T00:00:00.000Z"
+          }
+        ],
         supplierCode: null,
         supplier_code: null,
         fiscalCode: null,
@@ -493,7 +543,8 @@ export async function createTestApp(options?: {
     controlPlane,
     productCache,
     rateLimitCounter,
-    productGateway
+    productGateway,
+    productMediaService
   });
 
   return {
@@ -502,6 +553,7 @@ export async function createTestApp(options?: {
     controlPlane,
     productCache,
     rateLimitCounter,
-    productGateway
+    productGateway,
+    productMediaService
   };
 }

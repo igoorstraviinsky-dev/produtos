@@ -37,7 +37,25 @@ export const productVariantSchema = z.object({
   updatedAt: z.string().nullable()
 });
 
+export const productMediaAssetSchema = z.object({
+  id: z.string(),
+  role: z.string(),
+  storage_key: z.string(),
+  storageKey: z.string(),
+  sort_order: z.number(),
+  sortOrder: z.number(),
+  url: z.string().nullable(),
+  created_at: z.string().nullable(),
+  createdAt: z.string().nullable()
+});
+
 export const productSchema = z.object({
+  media_assets: z.array(productMediaAssetSchema),
+  mediaAssets: z.array(productMediaAssetSchema),
+  media_urls: z.array(z.string()),
+  mediaUrls: z.array(z.string()),
+  main_image_url: z.string().nullable(),
+  mainImageUrl: z.string().nullable(),
   variants: z.array(productVariantSchema),
   id: z.string(),
   product_id: z.string(),

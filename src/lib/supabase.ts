@@ -1,5 +1,7 @@
 import { SupabaseClient, createClient } from "@supabase/supabase-js";
 
+import type { ProductMediaAssetRecord } from "../modules/media/media.service";
+
 export type ProductVariantOptionRecord = {
   id: string;
   kind: string;
@@ -28,6 +30,12 @@ export type ProductVariantRecord = {
 };
 
 export type ProductRecord = {
+  media_assets?: ProductMediaAssetRecord[];
+  mediaAssets?: ProductMediaAssetRecord[];
+  media_urls?: string[];
+  mediaUrls?: string[];
+  main_image_url?: string | null;
+  mainImageUrl?: string | null;
   variants: ProductVariantRecord[];
   id: string;
   product_id: string;
@@ -164,6 +172,15 @@ type RemoteProductVariantRow = {
   updated_at?: string | null;
 };
 
+type RemoteProductMediaAssetRow = {
+  id: string;
+  product_id: string;
+  role?: string | null;
+  storage_key?: string | null;
+  sort_order?: number | null;
+  created_at?: string | null;
+};
+
 type RemoteVariantOptionLinkRow = {
   variant_id: string;
   option_id: string;
@@ -227,9 +244,23 @@ function mapRemoteProductVariantRow(
 }
 
 function mapRemoteProductRow(row: RemoteProductRow, variants: ProductVariantRecord[]): ProductRecord {
+  return mapRemoteProductRowWithMedia(row, variants, []);
+}
+
+function mapRemoteProductRowWithMedia(
+  row: RemoteProductRow,
+  variants: ProductVariantRecord[],
+  mediaAssets: ProductMediaAssetRecord[]
+): ProductRecord {
   const code = row.numero_serie ?? row.sku ?? row.id;
 
   return {
+    media_assets: mediaAssets,
+    mediaAssets,
+    media_urls: [],
+    mediaUrls: [],
+    main_image_url: null,
+    mainImageUrl: null,
     variants,
     id: row.id,
     product_id: row.id,
@@ -305,6 +336,24 @@ function mapRemoteProductRow(row: RemoteProductRow, variants: ProductVariantReco
     price: row.price ?? null,
     updatedAt: row.updated_at ?? null,
     updated_at: row.updated_at ?? null
+  };
+}
+
+function mapRemoteMediaAssetRow(row: RemoteProductMediaAssetRow): ProductMediaAssetRecord | null {
+  if (!row.storage_key) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    role: row.role ?? "media",
+    storage_key: row.storage_key,
+    storageKey: row.storage_key,
+    sort_order: row.sort_order ?? 0,
+    sortOrder: row.sort_order ?? 0,
+    url: null,
+    created_at: row.created_at ?? null,
+    createdAt: row.created_at ?? null
   };
 }
 
@@ -412,6 +461,7 @@ export class SupabaseProductGateway implements ProductGateway {
 
     let linkRows: RemoteVariantOptionLinkRow[] = [];
     let optionRows: RemoteTreatmentOptionRow[] = [];
+    let mediaAssetRows: RemoteProductMediaAssetRow[] = [];
 
     if (variantIds.length > 0) {
       const { data: linksData, error: linksError } = await this.supabase
@@ -440,9 +490,44 @@ export class SupabaseProductGateway implements ProductGateway {
       }
     }
 
-    const variantsByProductId = buildVariantsByProductId(variantRows, linkRows, optionRows);
+    const { data: mediaAssetsData, error: mediaAssetsError } = await this.supabase
+      .from("product_media_assets")
+      .select("id, product_id, role, storage_key, sort_order, created_at")
+      .in("product_id", productIds)
+      .order("sort_order", {
+        ascending: true
+      })
+      .order("created_at", {
+        ascending: true
+      });
 
-    return productRows.map((row) => mapRemoteProductRow(row, variantsByProductId.get(row.id) ?? []));
+    if (mediaAssetsError) {
+      throw new Error(`supabase product_media_assets query failed: ${mediaAssetsError.message}`);
+    }
+
+    mediaAssetRows = (mediaAssetsData ?? []) as RemoteProductMediaAssetRow[];
+
+    const variantsByProductId = buildVariantsByProductId(variantRows, linkRows, optionRows);
+    const mediaAssetsByProductId = new Map<string, ProductMediaAssetRecord[]>();
+
+    for (const mediaAssetRow of mediaAssetRows) {
+      const mappedAsset = mapRemoteMediaAssetRow(mediaAssetRow);
+      if (!mappedAsset) {
+        continue;
+      }
+
+      const existingAssets = mediaAssetsByProductId.get(mediaAssetRow.product_id) ?? [];
+      existingAssets.push(mappedAsset);
+      mediaAssetsByProductId.set(mediaAssetRow.product_id, existingAssets);
+    }
+
+    return productRows.map((row) =>
+      mapRemoteProductRowWithMedia(
+        row,
+        variantsByProductId.get(row.id) ?? [],
+        mediaAssetsByProductId.get(row.id) ?? []
+      )
+    );
   }
 
   async updateProduct(input: {

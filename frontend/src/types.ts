@@ -30,6 +30,12 @@ export type IssuedApiKey = {
 };
 
 export type Product = {
+  media_assets: ProductMediaAsset[];
+  mediaAssets: ProductMediaAsset[];
+  media_urls: string[];
+  mediaUrls: string[];
+  main_image_url: string | null;
+  mainImageUrl: string | null;
   variants: ProductVariant[];
   id: string;
   product_id: string;
@@ -113,6 +119,18 @@ export type Product = {
     r3: number;
     finalCost: number;
   };
+};
+
+export type ProductMediaAsset = {
+  id: string;
+  role: string;
+  storage_key: string;
+  storageKey: string;
+  sort_order: number;
+  sortOrder: number;
+  url: string | null;
+  created_at: string | null;
+  createdAt: string | null;
 };
 
 export type ProductVariant = {

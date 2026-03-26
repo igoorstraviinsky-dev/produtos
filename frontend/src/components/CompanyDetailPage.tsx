@@ -47,6 +47,19 @@ function formatWeight(value: string | number | null | undefined) {
 }
 
 function resolveProductImageUrl(product: Product | null) {
+  const stableAssetUrl =
+    product?.main_image_url ??
+    product?.mainImageUrl ??
+    product?.media_assets?.[0]?.url ??
+    product?.mediaAssets?.[0]?.url ??
+    product?.media_urls?.[0] ??
+    product?.mediaUrls?.[0] ??
+    null;
+
+  if (stableAssetUrl) {
+    return stableAssetUrl;
+  }
+
   const key =
     product?.s3_key_bronze ??
     product?.bronzeImageKey ??
