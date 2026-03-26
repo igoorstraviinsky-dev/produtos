@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 export type CompanyRecord = {
   id: string;
@@ -31,6 +31,16 @@ export type MasterProductRecord = {
   sku: string;
   name: string;
   masterStock: number;
+  updatedAt: Date;
+};
+
+export type ProductVariantRecord = {
+  id: string;
+  productId: string;
+  sku: string;
+  individualWeight: number | null;
+  individualStock: number;
+  createdAt: Date;
   updatedAt: Date;
 };
 
@@ -95,6 +105,17 @@ export type UpsertMasterProductInput = {
   sku: string;
   name: string;
   masterStock: number;
+  updatedAt: Date;
+  variants?: UpsertProductVariantInput[];
+};
+
+export type UpsertProductVariantInput = {
+  id: string;
+  productId: string;
+  sku: string;
+  individualWeight?: number | null;
+  individualStock: number;
+  createdAt?: Date;
   updatedAt: Date;
 };
 
@@ -193,6 +214,26 @@ function mapMasterProduct(product: {
     name: product.name,
     masterStock: product.masterStock,
     updatedAt: product.updatedAt
+  };
+}
+
+function mapProductVariant(variant: {
+  id: string;
+  productId: string;
+  sku: string;
+  individualWeight: number | null;
+  individualStock: number;
+  createdAt: Date;
+  updatedAt: Date;
+}): ProductVariantRecord {
+  return {
+    id: variant.id,
+    productId: variant.productId,
+    sku: variant.sku,
+    individualWeight: variant.individualWeight,
+    individualStock: variant.individualStock,
+    createdAt: variant.createdAt,
+    updatedAt: variant.updatedAt
   };
 }
 
@@ -510,10 +551,18 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
   }
 
   async replaceMasterProducts(products: UpsertMasterProductInput[]) {
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const productIds = products.map((product) => product.id);
 
       if (productIds.length > 0) {
+        await tx.productVariant.deleteMany({
+          where: {
+            productId: {
+              notIn: productIds
+            }
+          }
+        });
+
         await tx.companyInventory.deleteMany({
           where: {
             productId: {
@@ -530,6 +579,7 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
           }
         });
       } else {
+        await tx.productVariant.deleteMany();
         await tx.companyInventory.deleteMany();
         await tx.masterProduct.deleteMany();
       }
@@ -553,6 +603,50 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
             updatedAt: product.updatedAt
           }
         });
+
+        const variantIds = (product.variants ?? []).map((variant) => variant.id);
+
+        if (variantIds.length > 0) {
+          await tx.productVariant.deleteMany({
+            where: {
+              productId: product.id,
+              id: {
+                notIn: variantIds
+              }
+            }
+          });
+        } else {
+          await tx.productVariant.deleteMany({
+            where: {
+              productId: product.id
+            }
+          });
+        }
+
+        for (const variant of product.variants ?? []) {
+          await tx.productVariant.upsert({
+            where: {
+              id: variant.id
+            },
+            update: {
+              productId: product.id,
+              sku: variant.sku,
+              individualWeight: variant.individualWeight ?? null,
+              individualStock: variant.individualStock,
+              createdAt: variant.createdAt ?? new Date(),
+              updatedAt: variant.updatedAt
+            },
+            create: {
+              id: variant.id,
+              productId: product.id,
+              sku: variant.sku,
+              individualWeight: variant.individualWeight ?? null,
+              individualStock: variant.individualStock,
+              createdAt: variant.createdAt ?? new Date(),
+              updatedAt: variant.updatedAt
+            }
+          });
+        }
       }
     });
 

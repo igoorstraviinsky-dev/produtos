@@ -43,8 +43,23 @@ model MasterProduct {
   masterStock        Int                @map("master_stock")
   updatedAt          DateTime           @map("updated_at")
   companyInventories CompanyInventory[]
+  variants           ProductVariant[]
 
   @@map("master_products")
+}
+
+model ProductVariant {
+  id            String        @id
+  productId     String        @map("product_id")
+  sku           String
+  individualWeight Float?     @map("individual_weight")
+  individualStock  Int        @default(0) @map("individual_stock")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  product       MasterProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId], map: "idx_product_variants_product_id")
+  @@map("product_variants")
 }
 
 model CostSettings {

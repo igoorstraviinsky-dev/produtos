@@ -11,6 +11,20 @@ type UpdateInventoryProductInput = {
   availableQuantity: number;
 };
 
+function toNullableNumber(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const normalized = value.replace(",", ".").trim();
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export class ProductsAdminService {
   constructor(
     private readonly productGateway: ProductGateway,
@@ -25,7 +39,16 @@ export class ProductsAdminService {
         sku: product.sku,
         name: product.name,
         masterStock: product.availableQuantity,
-        updatedAt: product.updatedAt ? new Date(product.updatedAt) : new Date()
+        updatedAt: product.updatedAt ? new Date(product.updatedAt) : new Date(),
+        variants: product.variants.map((variant) => ({
+          id: variant.variant_id,
+          productId: product.id,
+          sku: variant.sku,
+          individualWeight: toNullableNumber(variant.individual_weight),
+          individualStock: variant.individual_stock,
+          createdAt: variant.created_at ? new Date(variant.created_at) : undefined,
+          updatedAt: variant.updated_at ? new Date(variant.updated_at) : new Date()
+        }))
       }))
     );
 

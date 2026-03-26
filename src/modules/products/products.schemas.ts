@@ -10,8 +10,38 @@ export const productCostBreakdownSchema = z.object({
   finalCost: z.number()
 });
 
-export const productSchema = z.object({
+export const productVariantOptionSchema = z.object({
   id: z.string(),
+  kind: z.string(),
+  label: z.string()
+});
+
+export const productVariantSchema = z.object({
+  variant_id: z.string(),
+  variantId: z.string(),
+  product_id: z.string(),
+  productId: z.string(),
+  sku: z.string(),
+  individual_weight: z.union([z.string(), z.number()]).nullable(),
+  individualWeight: z.union([z.string(), z.number()]).nullable(),
+  individual_stock: z.number(),
+  individualStock: z.number(),
+  size_labels: z.array(z.string()),
+  sizeLabels: z.array(z.string()),
+  color_labels: z.array(z.string()),
+  colorLabels: z.array(z.string()),
+  options: z.array(productVariantOptionSchema),
+  created_at: z.string().nullable(),
+  createdAt: z.string().nullable(),
+  updated_at: z.string().nullable(),
+  updatedAt: z.string().nullable()
+});
+
+export const productSchema = z.object({
+  variants: z.array(productVariantSchema),
+  id: z.string(),
+  product_id: z.string(),
+  code: z.string(),
   sku: z.string(),
   numero_serie: z.string(),
   name: z.string(),
@@ -23,10 +53,12 @@ export const productSchema = z.object({
   categoria: z.string().nullable(),
   subcategory: z.string().nullable(),
   subcategoria: z.string().nullable(),
+  material: z.string().nullable(),
   baseMaterial: z.string().nullable(),
   material_base: z.string().nullable(),
   purity: z.string().nullable(),
   pureza: z.string().nullable(),
+  weight_grams: z.union([z.string(), z.number()]).nullable(),
   weightGrams: z.union([z.string(), z.number()]).nullable(),
   peso_gramas: z.union([z.string(), z.number()]).nullable(),
   bathType: z.string().nullable(),

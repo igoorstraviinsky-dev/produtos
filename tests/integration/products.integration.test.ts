@@ -48,6 +48,8 @@ describe("Products integration", () => {
     assert.equal(firstResponse.statusCode, 200);
     assert.equal(firstResponse.json().meta.source, "upstream");
     assert.equal(firstResponse.json().data[0].serialNumber, "SKU-001");
+    assert.equal(firstResponse.json().data[0].variants.length, 1);
+    assert.equal(firstResponse.json().data[0].variants[0].sku, "SKU-001-ARO-16");
     assert.equal(firstResponse.json().data[0].baseMaterial, "Prata 925");
     assert.equal(firstResponse.json().data[0].costFinal, 56.15);
     assert.equal(secondResponse.statusCode, 200);
@@ -81,7 +83,10 @@ describe("Products integration", () => {
       cachedAt: new Date(Date.now() - 10_000).toISOString(),
       data: [
         {
+          variants: [],
           id: "prod-stale",
+          product_id: "prod-stale",
+          code: "SKU-STALE",
           sku: "SKU-STALE",
           numero_serie: "SKU-STALE",
           name: "Produto Cache",
@@ -93,10 +98,12 @@ describe("Products integration", () => {
           categoria: "Categoria cache",
           subcategory: "Subcategoria cache",
           subcategoria: "Subcategoria cache",
+          material: "Prata 925",
           baseMaterial: "Prata 925",
           material_base: "Prata 925",
           purity: "925",
           pureza: "925",
+          weight_grams: "1.0",
           weightGrams: "1.0",
           peso_gramas: "1.0",
           bathType: null,

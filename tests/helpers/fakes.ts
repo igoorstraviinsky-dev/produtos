@@ -350,10 +350,14 @@ export class FakeProductGateway implements ProductGateway {
 
     const updated = {
       ...product,
+      code: input.sku,
       sku: input.sku,
+      numero_serie: input.sku,
       name: input.name,
+      nome: input.name,
       serialNumber: input.sku,
-      availableQuantity: input.availableQuantity
+      availableQuantity: input.availableQuantity,
+      stock_quantity: input.availableQuantity
     };
 
     this.products = this.products.map((item) => (item.id === input.id ? updated : item));
@@ -376,7 +380,42 @@ export async function createTestApp(options?: {
     options?.productGateway ??
     new FakeProductGateway([
       {
+        variants: [
+          {
+            variant_id: "variant-1",
+            variantId: "variant-1",
+            product_id: "prod-1",
+            productId: "prod-1",
+            sku: "SKU-001-ARO-16",
+            individual_weight: "10.5",
+            individualWeight: "10.5",
+            individual_stock: 4,
+            individualStock: 4,
+            size_labels: ["ARO 16"],
+            sizeLabels: ["ARO 16"],
+            color_labels: ["PRATA"],
+            colorLabels: ["PRATA"],
+            options: [
+              {
+                id: "option-size-1",
+                kind: "size",
+                label: "ARO 16"
+              },
+              {
+                id: "option-color-1",
+                kind: "color",
+                label: "PRATA"
+              }
+            ],
+            created_at: "2026-03-23T00:00:00.000Z",
+            createdAt: "2026-03-23T00:00:00.000Z",
+            updated_at: "2026-03-23T00:00:00.000Z",
+            updatedAt: "2026-03-23T00:00:00.000Z",
+          }
+        ],
         id: "prod-1",
+        product_id: "prod-1",
+        code: "SKU-001",
         sku: "SKU-001",
         numero_serie: "SKU-001",
         name: "Produto 1",
@@ -388,10 +427,12 @@ export async function createTestApp(options?: {
         categoria: "Categoria teste",
         subcategory: "Subcategoria teste",
         subcategoria: "Subcategoria teste",
+        material: "Prata 925",
         baseMaterial: "Prata 925",
         material_base: "Prata 925",
         purity: "925",
         pureza: "925",
+        weight_grams: "10.5",
         weightGrams: "10.5",
         peso_gramas: "10.5",
         bathType: null,

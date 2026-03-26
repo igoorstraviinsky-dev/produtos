@@ -461,13 +461,24 @@ components:
     Product:
       type: object
       required:
+        - variants
         - id
+        - product_id
+        - code
         - sku
         - name
         - serialNumber
         - availableQuantity
       properties:
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductVariant'
         id:
+          type: string
+        product_id:
+          type: string
+        code:
           type: string
         sku:
           type: string
@@ -497,6 +508,9 @@ components:
         subcategoria:
           type: string
           nullable: true
+        material:
+          type: string
+          nullable: true
         baseMaterial:
           type: string
           nullable: true
@@ -508,6 +522,11 @@ components:
           nullable: true
         pureza:
           type: string
+          nullable: true
+        weight_grams:
+          oneOf:
+            - type: string
+            - type: number
           nullable: true
         weightGrams:
           oneOf:
@@ -682,6 +701,95 @@ components:
           type: number
         costBreakdown:
           $ref: '#/components/schemas/ProductCostBreakdown'
+    ProductVariant:
+      type: object
+      required:
+        - variant_id
+        - variantId
+        - product_id
+        - productId
+        - sku
+        - individual_stock
+        - individualStock
+        - size_labels
+        - sizeLabels
+        - color_labels
+        - colorLabels
+        - options
+      properties:
+        variant_id:
+          type: string
+        variantId:
+          type: string
+        product_id:
+          type: string
+        productId:
+          type: string
+        sku:
+          type: string
+        individual_weight:
+          oneOf:
+            - type: string
+            - type: number
+          nullable: true
+        individualWeight:
+          oneOf:
+            - type: string
+            - type: number
+          nullable: true
+        individual_stock:
+          type: integer
+        individualStock:
+          type: integer
+        size_labels:
+          type: array
+          items:
+            type: string
+        sizeLabels:
+          type: array
+          items:
+            type: string
+        color_labels:
+          type: array
+          items:
+            type: string
+        colorLabels:
+          type: array
+          items:
+            type: string
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductVariantOption'
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    ProductVariantOption:
+      type: object
+      required:
+        - id
+        - kind
+        - label
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+        label:
+          type: string
     ProductCostBreakdown:
       type: object
       required:

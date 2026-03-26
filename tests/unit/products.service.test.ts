@@ -15,7 +15,42 @@ describe("ProductsService", () => {
     const cacheStore = new FakeProductCacheStore();
     const productGateway = new FakeProductGateway([
       {
+        variants: [
+          {
+            variant_id: "variant-1",
+            variantId: "variant-1",
+            product_id: "prod-1",
+            productId: "prod-1",
+            sku: "SKU-001-AZUL",
+            individual_weight: "5.5",
+            individualWeight: "5.5",
+            individual_stock: 2,
+            individualStock: 2,
+            size_labels: ["ARO 18"],
+            sizeLabels: ["ARO 18"],
+            color_labels: ["AZUL"],
+            colorLabels: ["AZUL"],
+            options: [
+              {
+                id: "option-size-1",
+                kind: "size",
+                label: "ARO 18"
+              },
+              {
+                id: "option-color-1",
+                kind: "color",
+                label: "AZUL"
+              }
+            ],
+            created_at: "2026-03-23T00:00:00.000Z",
+            createdAt: "2026-03-23T00:00:00.000Z",
+            updated_at: "2026-03-23T00:00:00.000Z",
+            updatedAt: "2026-03-23T00:00:00.000Z",
+          }
+        ],
         id: "prod-1",
+        product_id: "prod-1",
+        code: "SKU-001",
         sku: "SKU-001",
         numero_serie: "SKU-001",
         name: "Produto 1",
@@ -27,10 +62,12 @@ describe("ProductsService", () => {
         categoria: "Categoria teste",
         subcategory: "Subcategoria teste",
         subcategoria: "Subcategoria teste",
+        material: "Prata 925",
         baseMaterial: "Prata 925",
         material_base: "Prata 925",
         purity: "925",
         pureza: "925",
+        weight_grams: "5.5",
         weightGrams: "5.5",
         peso_gramas: "5.5",
         bathType: null,
@@ -114,7 +151,10 @@ describe("ProductsService", () => {
       cachedAt: new Date(Date.now() - 60_000).toISOString(),
       data: [
         {
+          variants: [],
           id: "prod-1",
+          product_id: "prod-1",
+          code: "SKU-001",
           sku: "SKU-001",
           numero_serie: "SKU-001",
           name: "Produto 1",
@@ -126,10 +166,12 @@ describe("ProductsService", () => {
           categoria: "Categoria teste",
           subcategory: "Subcategoria teste",
           subcategoria: "Subcategoria teste",
+          material: "Prata 925",
           baseMaterial: "Prata 925",
           material_base: "Prata 925",
           purity: "925",
           pureza: "925",
+          weight_grams: "5.5",
           weightGrams: "5.5",
           peso_gramas: "5.5",
           bathType: null,

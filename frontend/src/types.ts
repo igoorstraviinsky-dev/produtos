@@ -30,7 +30,10 @@ export type IssuedApiKey = {
 };
 
 export type Product = {
+  variants: ProductVariant[];
   id: string;
+  product_id: string;
+  code: string;
   sku: string;
   numero_serie: string;
   name: string;
@@ -42,10 +45,12 @@ export type Product = {
   categoria: string | null;
   subcategory: string | null;
   subcategoria: string | null;
+  material: string | null;
   baseMaterial: string | null;
   material_base: string | null;
   purity: string | null;
   pureza: string | null;
+  weight_grams: string | number | null;
   weightGrams: string | number | null;
   peso_gramas: string | number | null;
   bathType: string | null;
@@ -108,6 +113,31 @@ export type Product = {
     r3: number;
     finalCost: number;
   };
+};
+
+export type ProductVariant = {
+  variant_id: string;
+  variantId: string;
+  product_id: string;
+  productId: string;
+  sku: string;
+  individual_weight: string | number | null;
+  individualWeight: string | number | null;
+  individual_stock: number;
+  individualStock: number;
+  size_labels: string[];
+  sizeLabels: string[];
+  color_labels: string[];
+  colorLabels: string[];
+  options: Array<{
+    id: string;
+    kind: string;
+    label: string;
+  }>;
+  created_at: string | null;
+  createdAt: string | null;
+  updated_at: string | null;
+  updatedAt: string | null;
 };
 
 export type CostSettings = {
