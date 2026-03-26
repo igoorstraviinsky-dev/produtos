@@ -35,6 +35,13 @@ function toNumber(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+}
+
 function formatWeight(value: string | number | null | undefined) {
   const parsed = toNumber(value);
   if (parsed === null) {
@@ -53,6 +60,10 @@ function getSupplierCode(product: Product | null) {
 
 function getCommercialDescription(product: Product | null, fallbackName: string) {
   return product?.descricao ?? product?.description ?? fallbackName;
+}
+
+function getTechnicalDescription(product: Product | null, fallbackName: string) {
+  return product?.description ?? product?.descricao ?? fallbackName;
 }
 
 function getVariantStockTotal(product: Product | null) {
@@ -160,26 +171,26 @@ function buildProductImageCandidates(product: Product | null) {
   return [...new Set(expandedCandidates)];
 }
 
-function getVariantOptionChips(variant: ProductVariant) {
-  const sizeChips = variant.size_labels.map((label) => ({
-    key: `size:${label}`,
-    label: label,
-    tone: "bg-cyan-100 text-cyan-800"
-  }));
-  const colorChips = variant.color_labels.map((label) => ({
-    key: `color:${label}`,
-    label: label,
-    tone: "bg-amber-100 text-amber-800"
-  }));
-  const extraChips = variant.options
-    .filter((option) => option.kind !== "size" && option.kind !== "color")
-    .map((option) => ({
-      key: `${option.kind}:${option.id}`,
-      label: `${option.kind}: ${option.label}`,
-      tone: "bg-slate-100 text-slate-700"
-    }));
+function getVariantDisplayLabel(variant: ProductVariant) {
+  if (variant.size_labels.length > 0) {
+    return variant.size_labels.join(", ");
+  }
 
-  return [...sizeChips, ...colorChips, ...extraChips];
+  if (variant.color_labels.length > 0) {
+    return variant.color_labels.join(", ");
+  }
+
+  const firstOption = variant.options[0];
+  return firstOption?.label ?? "Sem atributo";
+}
+
+function formatUsd(value: string | number | null | undefined) {
+  const parsed = toNumber(value);
+  if (parsed === null) {
+    return "n/d";
+  }
+
+  return `US$ ${formatNumber(parsed)}`;
 }
 
 function ProductImage(props: { product: Product | null; alt: string; mode?: "line" | "card" }) {
@@ -254,6 +265,85 @@ function ProductImage(props: { product: Product | null; alt: string; mode?: "lin
   );
 }
 
+function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
+  const { product, alt } = props;
+  const candidates = buildProductImageCandidates(product);
+  const previewCandidates = [...new Set(candidates)].slice(0, 4);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [product?.id, previewCandidates.join("|")]);
+
+  const selectedCandidate = previewCandidates[selectedIndex] ?? previewCandidates[0] ?? null;
+
+  return (
+    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
+      <p className="text-sm font-semibold text-slate-900">Fotos</p>
+      <div className="mt-4 grid gap-3 lg:grid-cols-[16rem_minmax(0,1fr)]">
+        <div className="overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+          <div className="aspect-square">
+            {selectedCandidate ? (
+              <button
+                type="button"
+                onClick={() => window.open(selectedCandidate, "_blank", "noopener,noreferrer")}
+                className="block h-full w-full"
+                title="Abrir foto principal"
+              >
+                <img
+                  src={selectedCandidate}
+                  alt={alt}
+                  className="h-full w-full object-contain p-5"
+                  loading="lazy"
+                />
+              </button>
+            ) : (
+              <ProductImage product={product} alt={alt} />
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+          {previewCandidates.length > 0 ? (
+            previewCandidates.map((candidate, index) => (
+              <button
+                key={`${candidate}-${index}`}
+                type="button"
+                onClick={() => {
+                  setSelectedIndex(index);
+                  window.open(candidate, "_blank", "noopener,noreferrer");
+                }}
+                className={[
+                  "overflow-hidden rounded-[1.2rem] border bg-white shadow-[0_8px_20px_rgba(15,23,42,0.05)] transition hover:border-cyan-300",
+                  selectedCandidate === candidate ? "border-cyan-300" : "border-slate-200"
+                ].join(" ")}
+                title={`Abrir foto ${index + 1}`}
+              >
+                <div className="aspect-square">
+                  <img
+                    src={candidate}
+                    alt={`${alt} ${index + 1}`}
+                    className="h-full w-full object-contain p-2"
+                    loading="lazy"
+                  />
+                </div>
+              </button>
+            ))
+          ) : (
+            <div className="sm:col-span-4 lg:col-span-2 xl:col-span-4">
+              <div className="h-full overflow-hidden rounded-[1.2rem] border border-dashed border-slate-300 bg-white">
+                <div className="aspect-square">
+                  <ProductImage product={product} alt={alt} mode="card" />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type CompanyDetailPageProps = {
   company: Company;
   activeTab: "profile" | "keys" | "inventory";
@@ -317,14 +407,6 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
 
   const productsById = new Map(products.map((product) => [product.id, product]));
   const [openInventoryProductId, setOpenInventoryProductId] = useState<string | null>(null);
-  const [expandedProductIds, setExpandedProductIds] = useState<Record<string, boolean>>({});
-
-  function toggleVariants(productId: string) {
-    setExpandedProductIds((current) => ({
-      ...current,
-      [productId]: !current[productId]
-    }));
-  }
 
   useEffect(() => {
     if (!openInventoryProductId) {
@@ -663,8 +745,9 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                 const product = productsById.get(item.productId) ?? null;
                 const variants = product?.variants ?? [];
                 const currentDisplayStock = getCurrentDisplayStock(item, product);
+                const commercialDescription = product?.name ?? item.name;
+                const technicalDescription = getTechnicalDescription(product, item.name);
                 const isCardOpen = openInventoryProductId === item.productId;
-                const isVariantsExpanded = Boolean(expandedProductIds[item.productId]);
 
                 return (
                   <article
@@ -745,141 +828,198 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
 
                     {isCardOpen ? (
                       <div className="border-t border-slate-200 bg-white px-5 py-5">
-                        <div className="grid gap-5 xl:grid-cols-[20rem_minmax(0,1fr)]">
-                          <div className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
-                            <div className="aspect-[4/5]">
-                              <ProductImage product={product} alt={item.name} />
+                        <div className="space-y-5">
+                          <ProductPhotoGallery product={product} alt={commercialDescription} />
+
+                          <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 px-4 py-4">
+                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  SKU
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-950">{item.sku}</p>
+                              </div>
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Codigo Fornecedor
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-950">
+                                  {getSupplierCode(product)}
+                                </p>
+                              </div>
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  NCM
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-950">
+                                  {product?.ncm ?? "n/d"}
+                                </p>
+                              </div>
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Tabela
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-950">
+                                  {product?.labor_rate_table_name ?? product?.laborRateTableName ?? "n/d"}
+                                </p>
+                              </div>
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Mao de Obra
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-950">
+                                  {product?.labor_rate_label ?? product?.laborRateLabel ?? "n/d"}
+                                </p>
+                              </div>
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Ref Tabela
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-950">
+                                  {formatUsd(product?.labor_cost ?? product?.laborCost)}
+                                </p>
+                              </div>
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Tipo de Material
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-950">
+                                  {product?.material_base ?? product?.baseMaterial ?? "n/d"}
+                                </p>
+                              </div>
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Categoria
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-950">
+                                  {product?.categoria ?? product?.category ?? "n/d"}
+                                </p>
+                              </div>
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Subcategorias
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-950">
+                                  {product?.subcategoria ?? product?.subcategory ?? "n/d"}
+                                </p>
+                              </div>
                             </div>
-                            <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                Clique na imagem para ampliar
-                              </p>
+
+                            <div className="mt-3 grid gap-3">
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Descricao Comercial
+                                </p>
+                                <p className="mt-1 text-sm leading-6 text-slate-700">
+                                  {commercialDescription}
+                                </p>
+                              </div>
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Descricao Tecnica
+                                </p>
+                                <p className="mt-1 text-sm leading-6 text-slate-700">
+                                  {technicalDescription}
+                                </p>
+                              </div>
                             </div>
                           </div>
 
-                          <div className="space-y-4">
-                            <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 px-4 py-4">
-                              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                                <div className="max-w-md">
+                          <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 px-4 py-4">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                              <div className="max-w-md">
+                                <p className="text-sm font-semibold text-slate-900">
+                                  Estoque isolado da empresa
+                                </p>
+                                <p className="mt-1 text-sm text-slate-500">
+                                  O valor salvo aqui substitui o estoque mestre desse produto para a empresa selecionada.
+                                </p>
+                              </div>
+
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={inventoryDrafts[item.productId] ?? ""}
+                                  onChange={(event) =>
+                                    onInventoryDraftChange(item.productId, event.target.value)
+                                  }
+                                  className="w-32 rounded-[1rem] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+                                />
+                                <button
+                                  type="button"
+                                  disabled={savingInventoryId === item.productId}
+                                  onClick={() => onSaveInventory(item.productId)}
+                                  className="inline-flex items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                >
+                                  {savingInventoryId === item.productId ? "Salvando..." : "Salvar"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {product && variants.length > 0 ? (
+                            <div className="rounded-[1.5rem] border border-slate-200 bg-white/90 px-4 py-4">
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
                                   <p className="text-sm font-semibold text-slate-900">
-                                    Estoque isolado da empresa
+                                    Variantes ({variants.length})
                                   </p>
-                                  <p className="mt-1 text-sm text-slate-500">
-                                    O valor salvo aqui substitui o estoque mestre desse produto para a
-                                    empresa selecionada.
+                                  <p className="mt-1 text-sm text-slate-600">
+                                    Variacoes oficiais do catalogo mestre para consulta rapida da empresa.
                                   </p>
                                 </div>
-
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={inventoryDrafts[item.productId] ?? ""}
-                                    onChange={(event) =>
-                                      onInventoryDraftChange(item.productId, event.target.value)
-                                    }
-                                    className="w-32 rounded-[1rem] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
-                                  />
-                                  <button
-                                    type="button"
-                                    disabled={savingInventoryId === item.productId}
-                                    onClick={() => onSaveInventory(item.productId)}
-                                    className="inline-flex items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                                  >
-                                    {savingInventoryId === item.productId ? "Salvando..." : "Salvar"}
-                                  </button>
-                                </div>
+                                {product?.material_base ? (
+                                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                                    {product.material_base}
+                                  </span>
+                                ) : null}
                               </div>
 
-                              {variants.length > 0 ? (
-                                <div className="mt-4 border-t border-slate-200 pt-4">
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleVariants(item.productId)}
-                                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
-                                  >
-                                    {isVariantsExpanded
-                                      ? `Ocultar variacoes (${variants.length})`
-                                      : `Ver variacoes (${variants.length})`}
-                                  </button>
-                                </div>
-                              ) : null}
+                              <div className="mt-4 overflow-x-auto">
+                                <table className="min-w-full divide-y divide-slate-200 text-left">
+                                  <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                                    <tr>
+                                      <th className="px-3 py-3 font-semibold">Tamanho</th>
+                                      <th className="px-3 py-3 font-semibold">SKU</th>
+                                      <th className="px-3 py-3 font-semibold">Peso (g)</th>
+                                      <th className="px-3 py-3 font-semibold">Estoque</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 bg-white">
+                                    {variants.map((variant) => (
+                                      <tr key={variant.variant_id} className="text-sm text-slate-700">
+                                        <td className="px-3 py-3 font-semibold text-slate-900">
+                                          {getVariantDisplayLabel(variant)}
+                                        </td>
+                                        <td className="px-3 py-3">{variant.sku}</td>
+                                        <td className="px-3 py-3">
+                                          {formatWeight(
+                                            variant.individual_weight ?? variant.individualWeight
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-3">
+                                          <span className="inline-flex min-w-10 items-center justify-center rounded-full bg-rose-500 px-2 py-1 text-xs font-semibold text-white">
+                                            {variant.individual_stock}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
+                          ) : null}
 
-                            {isVariantsExpanded ? (
-                              <div className="rounded-[1.5rem] border border-slate-200 bg-white/90 px-4 py-4">
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                  <div>
-                                    <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
-                                      Variacoes do produto
-                                    </p>
-                                    <p className="mt-1 text-sm text-slate-600">
-                                      Exibimos as variacoes oficiais do catalogo mestre para consulta rapida
-                                      no painel da empresa.
-                                    </p>
-                                  </div>
-                                  {product?.material_base ? (
-                                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
-                                      {product.material_base}
-                                    </span>
-                                  ) : null}
-                                </div>
+                          {!product && productsState === "loading" ? (
+                            <p className="text-sm text-slate-500">Carregando detalhes do catalogo mestre...</p>
+                          ) : null}
 
-                                {!product && productsState === "loading" ? (
-                                  <p className="mt-4 text-sm text-slate-500">
-                                    Carregando detalhes do catalogo mestre...
-                                  </p>
-                                ) : null}
-
-                                {!product && productsState !== "loading" ? (
-                                  <div className="mt-4 rounded-[1.25rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                                    Nao foi possivel carregar a ficha completa desse produto no catalogo
-                                    mestre.
-                                  </div>
-                                ) : null}
-
-                                {product && variants.length > 0 ? (
-                                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                                    {variants.map((variant) => {
-                                      const chips = getVariantOptionChips(variant);
-
-                                      return (
-                                        <div
-                                          key={variant.variant_id}
-                                          className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4"
-                                        >
-                                          <div className="flex flex-wrap items-start justify-between gap-3">
-                                            <div>
-                                              <p className="font-semibold text-slate-950">{variant.sku}</p>
-                                              <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
-                                                {formatWeight(
-                                                  variant.individual_weight ?? variant.individualWeight
-                                                )}
-                                              </p>
-                                            </div>
-                                            <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
-                                              Estoque {variant.individual_stock}
-                                            </div>
-                                          </div>
-
-                                          <div className="mt-3 flex flex-wrap gap-2">
-                                            {chips.map((chip) => (
-                                              <span
-                                                key={chip.key}
-                                                className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${chip.tone}`}
-                                              >
-                                                {chip.label}
-                                              </span>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </div>
+                          {!product && productsState !== "loading" ? (
+                            <div className="rounded-[1.25rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                              Nao foi possivel carregar a ficha completa desse produto no catalogo mestre.
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     ) : null}

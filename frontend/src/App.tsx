@@ -406,6 +406,7 @@ function App() {
     }
     if (currentPage === "costs") {
       void refreshCostSettings();
+      void refreshCostSettingsHistory();
       void refreshProducts();
     }
     if (currentPage === "company" && activeTab === "inventory") {
@@ -472,7 +473,7 @@ function App() {
       }
       setCostSettingsSaveState("saved");
       await refreshProducts();
-      if (costHistoryOpen) {
+      if (currentPage === "costs" || costHistoryOpen) {
         await refreshCostSettingsHistory();
       }
     } catch (error) {
@@ -846,6 +847,8 @@ function App() {
             productsState={productsState}
             costSettingsState={costSettingsState}
             costSettingsSaveState={costSettingsSaveState}
+            costHistoryEntries={costHistoryEntries}
+            costHistoryState={costHistoryState}
             variables={costVariables}
             onVariableChange={(field, value) =>
               setCostVariables((current) => ({

@@ -1,4 +1,4 @@
-import type { Product } from "../types";
+import type { CostSettingsHistoryEntry, Product } from "../types";
 
 function parseNumericValue(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") {
@@ -28,11 +28,35 @@ function formatNumber(value: number) {
   }).format(value);
 }
 
+function formatHistoryField(field: string) {
+  switch (field) {
+    case "silverPricePerGram":
+      return "Prata";
+    case "zonaFrancaRatePercent":
+      return "Taxa ZF";
+    case "transportFee":
+      return "Transporte";
+    case "dollarRate":
+      return "Dolar";
+    default:
+      return field;
+  }
+}
+
+function formatHistoryDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short"
+  }).format(new Date(value));
+}
+
 type CostCalculatorPageProps = {
   products: Product[];
   productsState: "idle" | "loading" | "success" | "error";
   costSettingsState: "idle" | "loading" | "success" | "error";
   costSettingsSaveState: "idle" | "saving" | "saved" | "error";
+  costHistoryEntries: CostSettingsHistoryEntry[];
+  costHistoryState: "idle" | "loading" | "success" | "error";
   variables: {
     silverPricePerGram: string;
     zonaFrancaRatePercent: string;
@@ -57,6 +81,8 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
     productsState,
     costSettingsState,
     costSettingsSaveState,
+    costHistoryEntries,
+    costHistoryState,
     variables,
     onVariableChange,
     onOpenHistory,
@@ -167,6 +193,68 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
           Nao foi possivel salvar os parametros automaticamente.
         </p>
       ) : null}
+
+      <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
+        <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">
+              Atualizacoes
+            </p>
+            <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-950">
+              Historico recente das variaveis
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Visualize as ultimas alteracoes de prata, taxa ZF, transporte e dolar aplicadas na calculadora.
+            </p>
+          </div>
+        </div>
+
+        {costHistoryState === "loading" ? (
+          <p className="mt-4 text-sm text-slate-500">Carregando historico...</p>
+        ) : null}
+        {costHistoryState === "error" ? (
+          <p className="mt-4 text-sm text-rose-600">Nao foi possivel carregar o historico.</p>
+        ) : null}
+        {costHistoryState === "success" && costHistoryEntries.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-500">Nenhuma alteracao registrada ainda.</p>
+        ) : null}
+        {costHistoryEntries.length > 0 ? (
+          <div className="mt-5 grid gap-3 lg:grid-cols-3">
+            {costHistoryEntries.slice(0, 3).map((entry) => (
+              <article
+                key={entry.id}
+                className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 px-4 py-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    {entry.changedFields.map((field) => (
+                      <span
+                        key={field}
+                        className="rounded-full bg-cyan-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-800"
+                      >
+                        {formatHistoryField(field)}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs font-medium text-slate-500">
+                    {formatHistoryDate(entry.createdAt)}
+                  </p>
+                </div>
+
+                <div className="mt-4 space-y-2 text-sm text-slate-700">
+                  {entry.changedFields.map((field) => (
+                    <p key={field}>
+                      <span className="font-semibold text-slate-950">{formatHistoryField(field)}:</span>{" "}
+                      {entry.previous[field as keyof typeof entry.previous]} {"->"}{" "}
+                      {entry.next[field as keyof typeof entry.next]}
+                    </p>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </section>
 
       <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
         <div className="overflow-hidden rounded-[1.75rem] border border-slate-200">
