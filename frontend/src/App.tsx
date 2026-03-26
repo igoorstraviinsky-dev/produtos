@@ -20,7 +20,7 @@ import type {
 
 type AsyncState = "idle" | "loading" | "success" | "error";
 type AppPage = "dashboard" | "company" | "costs";
-type CompanyTab = "settings" | "inventory";
+type CompanyTab = "profile" | "keys" | "inventory";
 type AuthState = "checking" | "authenticated" | "unauthenticated";
 
 function getRouteState(pathname: string) {
@@ -72,7 +72,7 @@ function App() {
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [currentPage, setCurrentPage] = useState<AppPage>(initialRoute.page);
   const [selectedCompanyId, setSelectedCompanyId] = useState(initialRoute.companyId);
-  const [activeTab, setActiveTab] = useState<CompanyTab>("settings");
+  const [activeTab, setActiveTab] = useState<CompanyTab>("inventory");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([]);
   const [inventory, setInventory] = useState<AdminInventoryItem[]>([]);
@@ -358,7 +358,7 @@ function App() {
     window.history.pushState({}, "", `/empresas/${encodeURIComponent(companyId)}`);
     setCurrentPage("company");
     setSelectedCompanyId(companyId);
-    setActiveTab("settings");
+    setActiveTab("inventory");
   }
 
   useEffect(() => {
@@ -371,7 +371,7 @@ function App() {
       const route = getRouteState(window.location.pathname);
       setCurrentPage(route.page);
       setSelectedCompanyId(route.companyId);
-      setActiveTab("settings");
+      setActiveTab(route.page === "company" ? "inventory" : "profile");
     };
 
     window.addEventListener("popstate", handlePopState);

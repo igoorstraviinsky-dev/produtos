@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Toggle } from "./Toggle";
 import { EmptyState, StatusChip } from "./ui";
@@ -139,16 +139,27 @@ function getVariantOptionChips(variant: ProductVariant) {
   return [...sizeChips, ...colorChips, ...extraChips];
 }
 
-function ProductImage(props: { product: Product | null; alt: string }) {
-  const { product, alt } = props;
+function ProductImage(props: { product: Product | null; alt: string; mode?: "line" | "card" }) {
+  const { product, alt, mode = "card" } = props;
   const candidates = buildProductImageCandidates(product);
   const [candidateIndex, setCandidateIndex] = useState(0);
   const [exhausted, setExhausted] = useState(false);
+  const isCompact = mode === "line";
 
   if (candidates.length === 0 || exhausted) {
     return (
-      <div className="flex h-full w-full items-center justify-center px-4 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-        Sem foto
+      <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_transparent_55%),linear-gradient(145deg,_rgba(248,250,252,0.96),_rgba(241,245,249,0.92))] px-4 text-center">
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-sm text-slate-400">
+          +
+        </span>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+            Sem foto
+          </p>
+          {!isCompact ? (
+            <p className="mt-1 text-xs text-slate-400">Produto sem imagem valida no catalogo.</p>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -159,13 +170,16 @@ function ProductImage(props: { product: Product | null; alt: string }) {
     <button
       type="button"
       onClick={() => window.open(currentCandidate, "_blank", "noopener,noreferrer")}
-      className="group relative block h-full w-full overflow-hidden"
+      className="group relative block h-full w-full overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(250,204,21,0.18),_transparent_34%),linear-gradient(150deg,_rgba(255,255,255,0.98),_rgba(241,245,249,0.96))]"
       title="Abrir foto do produto"
     >
       <img
         src={currentCandidate}
         alt={alt}
-        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+        className={[
+          "h-full w-full transition duration-300 group-hover:scale-[1.03]",
+          isCompact ? "object-contain p-2" : "object-contain p-5"
+        ].join(" ")}
         loading="lazy"
         onError={() => {
           setCandidateIndex((current) => {
@@ -178,7 +192,14 @@ function ProductImage(props: { product: Product | null; alt: string }) {
           });
         }}
       />
-      <span className="absolute bottom-3 left-3 rounded-full bg-slate-950/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white opacity-0 transition group-hover:opacity-100">
+      <span
+        className={[
+          "absolute rounded-full bg-slate-950/78 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white transition",
+          isCompact
+            ? "bottom-2 left-2 opacity-100"
+            : "bottom-3 left-3 opacity-0 group-hover:opacity-100"
+        ].join(" ")}
+      >
         Abrir foto
       </span>
     </button>
@@ -187,7 +208,7 @@ function ProductImage(props: { product: Product | null; alt: string }) {
 
 type CompanyDetailPageProps = {
   company: Company;
-  activeTab: "settings" | "inventory";
+  activeTab: "profile" | "keys" | "inventory";
   apiKeys: ApiKeySummary[];
   inventory: AdminInventoryItem[];
   products: Product[];
@@ -204,7 +225,7 @@ type CompanyDetailPageProps = {
   };
   inventoryDrafts: Record<string, string>;
   onBack: () => void;
-  onChangeTab: (tab: "settings" | "inventory") => void;
+  onChangeTab: (tab: "profile" | "keys" | "inventory") => void;
   onCompanyFormChange: (
     patch: Partial<{ legalName: string; isActive: boolean; syncStoreInventory: boolean }>
   ) => void;
@@ -247,6 +268,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
   } = props;
 
   const productsById = new Map(products.map((product) => [product.id, product]));
+  const [openInventoryProductId, setOpenInventoryProductId] = useState<string | null>(null);
   const [expandedProductIds, setExpandedProductIds] = useState<Record<string, boolean>>({});
 
   function toggleVariants(productId: string) {
@@ -254,6 +276,21 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
       ...current,
       [productId]: !current[productId]
     }));
+  }
+
+  useEffect(() => {
+    if (!openInventoryProductId) {
+      return;
+    }
+
+    const stillExists = inventory.some((item) => item.productId === openInventoryProductId);
+    if (!stillExists) {
+      setOpenInventoryProductId(null);
+    }
+  }, [inventory, openInventoryProductId]);
+
+  function toggleInventoryCard(productId: string) {
+    setOpenInventoryProductId((current) => (current === productId ? null : productId));
   }
 
   return (
@@ -320,15 +357,27 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
         <div className="mt-6 flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={() => onChangeTab("settings")}
+            onClick={() => onChangeTab("profile")}
             className={[
               "rounded-full px-4 py-2 text-sm font-semibold transition",
-              activeTab === "settings"
+              activeTab === "profile"
                 ? "bg-slate-950 text-white"
                 : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
             ].join(" ")}
           >
-            Configuracoes
+            Dados da empresa
+          </button>
+          <button
+            type="button"
+            onClick={() => onChangeTab("keys")}
+            className={[
+              "rounded-full px-4 py-2 text-sm font-semibold transition",
+              activeTab === "keys"
+                ? "bg-amber-500 text-slate-950"
+                : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            ].join(" ")}
+          >
+            Gestao de credenciais
           </button>
           <button
             type="button"
@@ -345,63 +394,59 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
         </div>
       </div>
 
-      {activeTab === "settings" ? (
-        <div className="grid gap-6 xl:grid-cols-[1fr_1.2fr]">
-          <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-            <div className="border-b border-slate-200 pb-5">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-700">
-                Configuracoes
-              </p>
-              <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-950">
-                Dados da empresa
-              </h3>
+      {activeTab === "profile" ? (
+        <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
+          <div className="border-b border-slate-200 pb-5">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-700">
+              Dados da empresa
+            </p>
+            <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-950">
+              Configuracoes da operacao
+            </h3>
+          </div>
+
+          <div className="mt-6 max-w-3xl space-y-5">
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold text-slate-700">
+                Nome da empresa
+              </span>
+              <input
+                value={companyForm.legalName}
+                onChange={(event) => onCompanyFormChange({ legalName: event.target.value })}
+                className="w-full rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+              />
+            </label>
+
+            <div className="flex items-center justify-between rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Empresa ativa</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Bloqueia ou libera imediatamente as integracoes dessa company.
+                </p>
+              </div>
+              <Toggle
+                checked={companyForm.isActive}
+                onChange={(nextValue) => onCompanyFormChange({ isActive: nextValue })}
+              />
             </div>
 
-            <div className="mt-6 space-y-5">
-              <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-slate-700">
-                  Nome da empresa
-                </span>
-                <input
-                  value={companyForm.legalName}
-                  onChange={(event) =>
-                    onCompanyFormChange({ legalName: event.target.value })
-                  }
-                  className="w-full rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
-                />
-              </label>
-
-              <div className="flex items-center justify-between rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Empresa ativa</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Bloqueia ou libera imediatamente as integracoes dessa company.
-                  </p>
-                </div>
-                <Toggle
-                  checked={companyForm.isActive}
-                  onChange={(nextValue) => onCompanyFormChange({ isActive: nextValue })}
-                />
+            <div className="flex items-center justify-between rounded-[1.4rem] border border-cyan-200 bg-cyan-50 px-4 py-4">
+              <div className="pr-4">
+                <p className="text-sm font-semibold text-slate-900">
+                  Sincronizar estoque loja
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Deixa esta empresa preparada para puxarmos o estoque diretamente da loja
+                  usada na operacao, sem depender apenas do valor manual do painel.
+                </p>
               </div>
+              <Toggle
+                checked={companyForm.syncStoreInventory}
+                onChange={(nextValue) => onCompanyFormChange({ syncStoreInventory: nextValue })}
+              />
+            </div>
 
-              <div className="flex items-center justify-between rounded-[1.4rem] border border-cyan-200 bg-cyan-50 px-4 py-4">
-                <div className="pr-4">
-                  <p className="text-sm font-semibold text-slate-900">
-                    Sincronizar estoque loja
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Deixa esta empresa preparada para puxarmos o estoque diretamente da loja
-                    usada na operacao, sem depender apenas do valor manual do painel.
-                  </p>
-                </div>
-                <Toggle
-                  checked={companyForm.syncStoreInventory}
-                  onChange={(nextValue) =>
-                    onCompanyFormChange({ syncStoreInventory: nextValue })
-                  }
-                />
-              </div>
-
+            <div className="flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={onSaveCompany}
@@ -418,78 +463,80 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                 {deletingCompany ? "Excluindo..." : "Excluir empresa"}
               </button>
             </div>
-          </section>
+          </div>
+        </section>
+      ) : null}
 
-          <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-            <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
-                  API Keys
-                </p>
-                <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-950">
-                  Gestao de credenciais
-                </h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  Gere novas chaves para integracoes e revogue acessos comprometidos.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onOpenIssueKey}
-                className="inline-flex items-center justify-center rounded-full bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+      {activeTab === "keys" ? (
+        <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
+          <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
+                API Keys
+              </p>
+              <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-950">
+                Gestao de credenciais
+              </h3>
+              <p className="mt-2 text-sm text-slate-600">
+                Gere novas chaves para integracoes e revogue acessos comprometidos.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenIssueKey}
+              className="inline-flex items-center justify-center rounded-full bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+            >
+              Gerar nova chave
+            </button>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {apiKeysState === "loading" ? (
+              <p className="text-sm text-slate-500">Atualizando chaves da empresa...</p>
+            ) : null}
+
+            {apiKeys.length === 0 && apiKeysState !== "loading" ? (
+              <EmptyState
+                title="Nenhuma chave emitida"
+                description="Gere a primeira API key para integrar essa empresa ao gateway."
+              />
+            ) : null}
+
+            {apiKeys.map((apiKey) => (
+              <article
+                key={apiKey.id}
+                className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4"
               >
-                Gerar nova chave
-              </button>
-            </div>
-
-            <div className="mt-6 space-y-4">
-              {apiKeysState === "loading" ? (
-                <p className="text-sm text-slate-500">Atualizando chaves da empresa...</p>
-              ) : null}
-
-              {apiKeys.length === 0 && apiKeysState !== "loading" ? (
-                <EmptyState
-                  title="Nenhuma chave emitida"
-                  description="Gere a primeira API key para integrar essa empresa ao gateway."
-                />
-              ) : null}
-
-              {apiKeys.map((apiKey) => (
-                <article
-                  key={apiKey.id}
-                  className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4"
-                >
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-display text-xl tracking-tight text-slate-950">
-                          {apiKey.keyPrefix}
-                        </p>
-                        <StatusChip active={!apiKey.isRevoked}>
-                          {apiKey.isRevoked ? "Revogada" : "Ativa"}
-                        </StatusChip>
-                      </div>
-                      <div className="mt-3 grid gap-2 text-sm text-slate-600">
-                        <p>Rate limit: {apiKey.rateLimitPerMinute} req/min</p>
-                        <p>Criada: {formatDate(apiKey.createdAt)}</p>
-                        <p>Ultimo uso: {formatDate(apiKey.lastUsedAt)}</p>
-                      </div>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-display text-xl tracking-tight text-slate-950">
+                        {apiKey.keyPrefix}
+                      </p>
+                      <StatusChip active={!apiKey.isRevoked}>
+                        {apiKey.isRevoked ? "Revogada" : "Ativa"}
+                      </StatusChip>
                     </div>
-
-                    <button
-                      type="button"
-                      disabled={apiKey.isRevoked || keyActionId === apiKey.id}
-                      onClick={() => onRevokeKey(apiKey.id)}
-                      className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                    >
-                      Revogar
-                    </button>
+                    <div className="mt-3 grid gap-2 text-sm text-slate-600">
+                      <p>Rate limit: {apiKey.rateLimitPerMinute} req/min</p>
+                      <p>Criada: {formatDate(apiKey.createdAt)}</p>
+                      <p>Ultimo uso: {formatDate(apiKey.lastUsedAt)}</p>
+                    </div>
                   </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        </div>
+
+                  <button
+                    type="button"
+                    disabled={apiKey.isRevoked || keyActionId === apiKey.id}
+                    onClick={() => onRevokeKey(apiKey.id)}
+                    className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    Revogar
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       {activeTab === "inventory" ? (
@@ -563,216 +610,261 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
           ) : null}
 
           {inventory.length > 0 ? (
-            <div className="mt-6 space-y-5">
+            <div className="mt-6 space-y-3">
               {inventory.map((item) => {
                 const product = productsById.get(item.productId) ?? null;
                 const variants = product?.variants ?? [];
-                const isExpanded = Boolean(expandedProductIds[item.productId]);
+                const isCardOpen = openInventoryProductId === item.productId;
+                const isVariantsExpanded = Boolean(expandedProductIds[item.productId]);
 
                 return (
                   <article
                     key={item.productId}
-                    className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-50/70 shadow-[0_18px_40px_rgba(15,23,42,0.06)]"
+                    className={[
+                      "overflow-hidden rounded-[1.75rem] border transition",
+                      isCardOpen
+                        ? "border-cyan-200 bg-white shadow-[0_22px_55px_rgba(14,165,233,0.12)]"
+                        : "border-slate-200 bg-slate-50/70 shadow-[0_12px_28px_rgba(15,23,42,0.05)] hover:border-cyan-200 hover:bg-white hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+                    ].join(" ")}
                   >
-                    <div className="flex flex-col gap-5 p-5 xl:flex-row">
-                      <div className="w-full xl:max-w-[14rem]">
-                        <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white">
-                          <ProductImage product={product} alt={item.name} />
-                        </div>
-                      </div>
+                    <button
+                      type="button"
+                      onClick={() => toggleInventoryCard(item.productId)}
+                      className="flex w-full flex-col gap-4 p-4 text-left sm:p-5"
+                    >
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
+                        <div className="flex items-center gap-4 xl:min-w-0 xl:flex-1">
+                          <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.7)]">
+                            <ProductImage product={product} alt={item.name} mode="line" />
+                          </div>
 
-                      <div className="flex-1 space-y-4">
-                        <div>
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                              <p className="font-display text-2xl tracking-tight text-slate-950">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <p className="line-clamp-2 font-display text-xl tracking-tight text-slate-950 sm:text-2xl">
                                 {item.name}
                               </p>
-                              <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.16em]">
-                                <span className="rounded-full bg-slate-950 px-3 py-1 text-white">
-                                  {item.sku}
+                              <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
+                                {variants.length} variacoes
+                              </span>
+                            </div>
+
+                            <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.16em]">
+                              <span className="rounded-full bg-slate-950 px-3 py-1 text-white">
+                                {item.sku}
+                              </span>
+                              {product?.categoria ? (
+                                <span className="rounded-full bg-white px-3 py-1 text-slate-600">
+                                  {product.categoria}
                                 </span>
-                                {product?.categoria ? (
-                                  <span className="rounded-full bg-white px-3 py-1 text-slate-600">
-                                    {product.categoria}
-                                  </span>
-                                ) : null}
-                                {product?.subcategoria ? (
-                                  <span className="rounded-full bg-white px-3 py-1 text-slate-600">
-                                    {product.subcategoria}
-                                  </span>
-                                ) : null}
+                              ) : null}
+                              {product?.subcategoria ? (
+                                <span className="rounded-full bg-white px-3 py-1 text-slate-600">
+                                  {product.subcategoria}
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                              <div className="rounded-[1.1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Catalogo mestre
+                                </p>
+                                <p className="mt-2 text-lg font-semibold text-slate-950">
+                                  {item.masterStock}
+                                </p>
+                              </div>
+                              <div className="rounded-[1.1rem] border border-emerald-200 bg-emerald-50 px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                                  Estoque atual
+                                </p>
+                                <p className="mt-2 text-lg font-semibold text-emerald-900">
+                                  {item.effectiveStockQuantity}
+                                </p>
+                              </div>
+                              <div className="rounded-[1.1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Peso base
+                                </p>
+                                <p className="mt-2 text-sm font-semibold text-slate-950">
+                                  {formatWeight(product?.weight_grams ?? product?.peso_gramas ?? null)}
+                                </p>
+                              </div>
+                              <div className="rounded-[1.1rem] border border-slate-200 bg-white px-3 py-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Atualizado
+                                </p>
+                                <p className="mt-2 text-sm font-semibold text-slate-950">
+                                  {formatDate(item.updatedAt)}
+                                </p>
                               </div>
                             </div>
-
-                            <div className="rounded-[1.25rem] border border-cyan-200 bg-cyan-50 px-4 py-3 text-right">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
-                                Variacoes
-                              </p>
-                              <p className="mt-2 font-display text-3xl tracking-tight text-cyan-900">
-                                {variants.length}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                            <div className="rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                Catalogo mestre
-                              </p>
-                              <p className="mt-2 text-xl font-semibold text-slate-950">
-                                {item.masterStock}
-                              </p>
-                            </div>
-                            <div className="rounded-[1.25rem] border border-emerald-200 bg-emerald-50 px-4 py-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                                Estoque atual
-                              </p>
-                              <p className="mt-2 text-xl font-semibold text-emerald-900">
-                                {item.effectiveStockQuantity}
-                              </p>
-                            </div>
-                            <div className="rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                Peso base
-                              </p>
-                              <p className="mt-2 text-base font-semibold text-slate-950">
-                                {formatWeight(product?.weight_grams ?? product?.peso_gramas ?? null)}
-                              </p>
-                            </div>
-                            <div className="rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                Atualizado
-                              </p>
-                              <p className="mt-2 text-sm font-semibold text-slate-950">
-                                {formatDate(item.updatedAt)}
-                              </p>
-                            </div>
                           </div>
                         </div>
 
-                        <div className="rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4">
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                            <div className="max-w-md">
-                              <p className="text-sm font-semibold text-slate-900">
-                                Estoque isolado da empresa
-                              </p>
-                              <p className="mt-1 text-sm text-slate-500">
-                                O valor salvo aqui substitui o estoque mestre desse produto para a
-                                empresa selecionada.
-                              </p>
-                            </div>
-
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                              <input
-                                type="number"
-                                min="0"
-                                value={inventoryDrafts[item.productId] ?? ""}
-                                onChange={(event) =>
-                                  onInventoryDraftChange(item.productId, event.target.value)
-                                }
-                                className="w-32 rounded-[1rem] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
-                              />
-                              <button
-                                type="button"
-                                disabled={savingInventoryId === item.productId}
-                                onClick={() => onSaveInventory(item.productId)}
-                                className="inline-flex items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                              >
-                                {savingInventoryId === item.productId ? "Salvando..." : "Salvar"}
-                              </button>
-                            </div>
+                        <div className="flex items-center justify-between gap-3 xl:w-[13rem] xl:flex-col xl:items-stretch">
+                          <div className="rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                              Estoque loja
+                            </p>
+                            <p className="mt-2 text-xl font-semibold text-slate-950">
+                              {inventoryDrafts[item.productId] ?? item.effectiveStockQuantity}
+                            </p>
                           </div>
-
-                          {variants.length > 0 ? (
-                            <div className="mt-4 border-t border-slate-200 pt-4">
-                              <button
-                                type="button"
-                                onClick={() => toggleVariants(item.productId)}
-                                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-white"
-                              >
-                                {isExpanded
-                                  ? `Ocultar variacoes (${variants.length})`
-                                  : `Ver variacoes (${variants.length})`}
-                              </button>
-                            </div>
-                          ) : null}
+                          <div className="flex items-center justify-end">
+                            <span
+                              className={[
+                                "inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold transition",
+                                isCardOpen
+                                  ? "bg-slate-950 text-white"
+                                  : "border border-slate-200 bg-white text-slate-700"
+                              ].join(" ")}
+                            >
+                              {isCardOpen ? "Fechar card" : "Abrir card"}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </button>
 
-                    {isExpanded ? (
-                      <div className="border-t border-slate-200 bg-white/80 px-5 py-5">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
-                            Variacoes do produto
-                          </p>
-                          <p className="mt-1 text-sm text-slate-600">
-                            Exibimos as variacoes oficiais do catalogo mestre para consulta rapida
-                            no painel da empresa.
-                          </p>
-                        </div>
-                        {product?.material_base ? (
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
-                            {product.material_base}
-                          </span>
-                        ) : null}
-                      </div>
+                    {isCardOpen ? (
+                      <div className="border-t border-slate-200 bg-white px-5 py-5">
+                        <div className="grid gap-5 xl:grid-cols-[20rem_minmax(0,1fr)]">
+                          <div className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+                            <div className="aspect-[4/5]">
+                              <ProductImage product={product} alt={item.name} />
+                            </div>
+                            <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Clique na imagem para ampliar
+                              </p>
+                            </div>
+                          </div>
 
-                      {!product && productsState === "loading" ? (
-                        <p className="mt-4 text-sm text-slate-500">
-                          Carregando detalhes do catalogo mestre...
-                        </p>
-                      ) : null}
+                          <div className="space-y-4">
+                            <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 px-4 py-4">
+                              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                                <div className="max-w-md">
+                                  <p className="text-sm font-semibold text-slate-900">
+                                    Estoque isolado da empresa
+                                  </p>
+                                  <p className="mt-1 text-sm text-slate-500">
+                                    O valor salvo aqui substitui o estoque mestre desse produto para a
+                                    empresa selecionada.
+                                  </p>
+                                </div>
 
-                      {!product && productsState !== "loading" ? (
-                        <div className="mt-4 rounded-[1.25rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                          Nao foi possivel carregar a ficha completa desse produto no catalogo
-                          mestre.
-                        </div>
-                      ) : null}
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={inventoryDrafts[item.productId] ?? ""}
+                                    onChange={(event) =>
+                                      onInventoryDraftChange(item.productId, event.target.value)
+                                    }
+                                    className="w-32 rounded-[1rem] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={savingInventoryId === item.productId}
+                                    onClick={() => onSaveInventory(item.productId)}
+                                    className="inline-flex items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                  >
+                                    {savingInventoryId === item.productId ? "Salvando..." : "Salvar"}
+                                  </button>
+                                </div>
+                              </div>
 
-                      {product && variants.length > 0 ? (
-                        <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                          {variants.map((variant) => {
-                            const chips = getVariantOptionChips(variant);
+                              {variants.length > 0 ? (
+                                <div className="mt-4 border-t border-slate-200 pt-4">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleVariants(item.productId)}
+                                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+                                  >
+                                    {isVariantsExpanded
+                                      ? `Ocultar variacoes (${variants.length})`
+                                      : `Ver variacoes (${variants.length})`}
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
 
-                            return (
-                              <div
-                                key={variant.variant_id}
-                                className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4"
-                              >
-                                <div className="flex flex-wrap items-start justify-between gap-3">
+                            {isVariantsExpanded ? (
+                              <div className="rounded-[1.5rem] border border-slate-200 bg-white/90 px-4 py-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
                                   <div>
-                                    <p className="font-semibold text-slate-950">{variant.sku}</p>
-                                    <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
-                                      {formatWeight(
-                                        variant.individual_weight ?? variant.individualWeight
-                                      )}
+                                    <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                      Variacoes do produto
+                                    </p>
+                                    <p className="mt-1 text-sm text-slate-600">
+                                      Exibimos as variacoes oficiais do catalogo mestre para consulta rapida
+                                      no painel da empresa.
                                     </p>
                                   </div>
-                                  <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
-                                    Estoque {variant.individual_stock}
-                                  </div>
+                                  {product?.material_base ? (
+                                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                                      {product.material_base}
+                                    </span>
+                                  ) : null}
                                 </div>
 
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {chips.map((chip) => (
-                                    <span
-                                      key={chip.key}
-                                      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${chip.tone}`}
-                                    >
-                                      {chip.label}
-                                    </span>
-                                  ))}
-                                </div>
+                                {!product && productsState === "loading" ? (
+                                  <p className="mt-4 text-sm text-slate-500">
+                                    Carregando detalhes do catalogo mestre...
+                                  </p>
+                                ) : null}
+
+                                {!product && productsState !== "loading" ? (
+                                  <div className="mt-4 rounded-[1.25rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                                    Nao foi possivel carregar a ficha completa desse produto no catalogo
+                                    mestre.
+                                  </div>
+                                ) : null}
+
+                                {product && variants.length > 0 ? (
+                                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                                    {variants.map((variant) => {
+                                      const chips = getVariantOptionChips(variant);
+
+                                      return (
+                                        <div
+                                          key={variant.variant_id}
+                                          className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4"
+                                        >
+                                          <div className="flex flex-wrap items-start justify-between gap-3">
+                                            <div>
+                                              <p className="font-semibold text-slate-950">{variant.sku}</p>
+                                              <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
+                                                {formatWeight(
+                                                  variant.individual_weight ?? variant.individualWeight
+                                                )}
+                                              </p>
+                                            </div>
+                                            <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                                              Estoque {variant.individual_stock}
+                                            </div>
+                                          </div>
+
+                                          <div className="mt-3 flex flex-wrap gap-2">
+                                            {chips.map((chip) => (
+                                              <span
+                                                key={chip.key}
+                                                className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${chip.tone}`}
+                                              >
+                                                {chip.label}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : null}
                               </div>
-                            );
-                          })}
+                            ) : null}
+                          </div>
                         </div>
-                      ) : null}
-                    </div>
+                      </div>
                     ) : null}
                   </article>
                 );
