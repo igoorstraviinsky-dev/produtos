@@ -130,6 +130,7 @@ export async function buildApp(overrides?: Partial<AppDependencies>): Promise<Fa
     logger: app.log
   });
   const productsAdminService = new ProductsAdminService(
+    env,
     dependencies.productGateway,
     dependencies.productCache,
     dependencies.controlPlane

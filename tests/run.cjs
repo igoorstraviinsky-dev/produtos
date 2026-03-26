@@ -1264,6 +1264,20 @@ const cases = [
         assert.equal(adminSyncResponse.statusCode, 200);
         assert.equal(adminSyncResponse.json().data.syncedCount, 1);
 
+        const adminProductsResponse = await app.inject({
+          method: "GET",
+          url: "/api/internal/admin/products",
+          headers: {
+            "x-admin-token": "secret-token"
+          }
+        });
+
+        assert.equal(adminProductsResponse.statusCode, 200);
+        assert.equal(
+          adminProductsResponse.json().data[0].main_image_url,
+          "https://api.example.com/api/v1/media/object/joias%2Fraw%2FSKU-001%2FSKU-001_st.jpg"
+        );
+
         const inventoryResponse = await app.inject({
           method: "GET",
           url: `/api/internal/admin/companies/${companyId}/inventory`,
