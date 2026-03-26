@@ -12,11 +12,18 @@ export const updateCompanyStatusSchema = z.object({
 export const updateCompanySchema = z
   .object({
     legalName: z.string().min(2).optional(),
-    isActive: z.boolean().optional()
+    isActive: z.boolean().optional(),
+    syncStoreInventory: z.boolean().optional()
   })
-  .refine((payload) => payload.legalName !== undefined || payload.isActive !== undefined, {
-    message: "At least one company field must be provided"
-  });
+  .refine(
+    (payload) =>
+      payload.legalName !== undefined ||
+      payload.isActive !== undefined ||
+      payload.syncStoreInventory !== undefined,
+    {
+      message: "At least one company field must be provided"
+    }
+  );
 
 export const issueApiKeySchema = z.object({
   companyId: z.string().uuid(),

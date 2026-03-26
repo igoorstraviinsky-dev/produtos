@@ -3,6 +3,7 @@ export type Company = {
   legalName: string;
   externalCode: string;
   isActive: boolean;
+  syncStoreInventory: boolean;
   apiKeyCount: number;
   activeKeyCount: number;
   createdAt: string;

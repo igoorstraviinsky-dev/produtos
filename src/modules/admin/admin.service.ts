@@ -62,6 +62,7 @@ export class AdminService {
         legalName: company.legalName,
         externalCode: company.externalCode,
         isActive: company.isActive,
+        syncStoreInventory: company.syncStoreInventory,
         apiKeyCount: company.apiKeyCount,
         activeKeyCount: company.activeKeyCount,
         createdAt: company.createdAt,

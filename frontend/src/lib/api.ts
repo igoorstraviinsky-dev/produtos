@@ -150,7 +150,10 @@ export const api = {
     });
     return response.data;
   },
-  async updateCompany(companyId: string, payload: { legalName?: string; isActive?: boolean }) {
+  async updateCompany(
+    companyId: string,
+    payload: { legalName?: string; isActive?: boolean; syncStoreInventory?: boolean }
+  ) {
     const response = await request<ApiEnvelope<Company>>(
       `/api/internal/admin/companies/${companyId}`,
       {

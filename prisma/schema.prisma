@@ -12,6 +12,7 @@ model Company {
   legalName    String   @map("legal_name")
   externalCode String   @unique @map("external_code")
   isActive     Boolean  @default(true) @map("is_active")
+  syncStoreInventory Boolean @default(false) @map("sync_store_inventory")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
   apiKeys      ApiKey[]

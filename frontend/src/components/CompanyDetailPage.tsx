@@ -46,45 +46,55 @@ function formatWeight(value: string | number | null | undefined) {
   })} g`;
 }
 
-function resolveProductImageUrl(product: Product | null) {
-  const stableAssetUrl =
-    product?.main_image_url ??
-    product?.mainImageUrl ??
-    product?.media_assets?.[0]?.url ??
-    product?.mediaAssets?.[0]?.url ??
-    product?.media_urls?.[0] ??
-    product?.mediaUrls?.[0] ??
-    null;
+function normalizeCandidateUrl(value: string | null | undefined) {
+  const nextValue = value?.trim();
+  return nextValue ? nextValue : null;
+}
 
-  if (stableAssetUrl) {
-    return stableAssetUrl;
-  }
-
-  const key =
-    product?.s3_key_bronze ??
-    product?.bronzeImageKey ??
-    product?.s3_key_silver ??
-    product?.silverImageKey ??
-    null;
-
-  if (!key || key.startsWith("local:")) {
+function buildPublicBucketUrl(key: string | null | undefined) {
+  const nextKey = normalizeCandidateUrl(key);
+  if (!nextKey || nextKey.startsWith("local:")) {
     return null;
   }
 
-  if (/^https?:\/\//i.test(key)) {
-    return key;
+  if (/^https?:\/\//i.test(nextKey)) {
+    return nextKey;
   }
 
-  return PRODUCT_IMAGE_BASE_URL ? `${PRODUCT_IMAGE_BASE_URL}/${key.replace(/^\/+/, "")}` : null;
+  return PRODUCT_IMAGE_BASE_URL ? `${PRODUCT_IMAGE_BASE_URL}/${nextKey.replace(/^\/+/, "")}` : null;
 }
 
-function buildProductImageCandidates(product: Product | null) {
-  const primaryUrl = resolveProductImageUrl(product);
-  if (!primaryUrl) {
+function collectProductImageCandidates(product: Product | null) {
+  if (!product) {
     return [];
   }
 
-  const candidates = [primaryUrl];
+  const candidates = [
+    normalizeCandidateUrl(product.main_image_url),
+    normalizeCandidateUrl(product.mainImageUrl),
+    ...(product.media_assets ?? []).map((asset) => normalizeCandidateUrl(asset.url)),
+    ...(product.media_assets ?? []).map((asset) =>
+      buildPublicBucketUrl(asset.storage_key ?? asset.storageKey)
+    ),
+    ...(product.mediaAssets ?? []).map((asset) => normalizeCandidateUrl(asset.url)),
+    ...(product.mediaAssets ?? []).map((asset) =>
+      buildPublicBucketUrl(asset.storage_key ?? asset.storageKey)
+    ),
+    ...(product.media_urls ?? []).map((url) => normalizeCandidateUrl(url)),
+    ...(product.mediaUrls ?? []).map((url) => normalizeCandidateUrl(url)),
+    buildPublicBucketUrl(product.s3_key_bronze ?? product.bronzeImageKey),
+    buildPublicBucketUrl(product.s3_key_silver ?? product.silverImageKey)
+  ].filter((value): value is string => Boolean(value));
+
+  return [...new Set(candidates)];
+}
+
+function buildProductImageCandidates(product: Product | null) {
+  const baseCandidates = collectProductImageCandidates(product);
+  if (baseCandidates.length === 0) {
+    return [];
+  }
+
   const suffixVariants = [
     ["_st.", "_md."],
     ["_md.", "_st."],
@@ -92,13 +102,19 @@ function buildProductImageCandidates(product: Product | null) {
     ["_sm.", "_md."]
   ] as const;
 
-  for (const [from, to] of suffixVariants) {
-    if (primaryUrl.includes(from)) {
-      candidates.push(primaryUrl.replace(from, to));
+  const expandedCandidates: string[] = [];
+
+  for (const candidate of baseCandidates) {
+    expandedCandidates.push(candidate);
+
+    for (const [from, to] of suffixVariants) {
+      if (candidate.includes(from)) {
+        expandedCandidates.push(candidate.replace(from, to));
+      }
     }
   }
 
-  return [...new Set(candidates)];
+  return [...new Set(expandedCandidates)];
 }
 
 function getVariantOptionChips(variant: ProductVariant) {
@@ -137,23 +153,35 @@ function ProductImage(props: { product: Product | null; alt: string }) {
     );
   }
 
-  return (
-    <img
-      src={candidates[candidateIndex]}
-      alt={alt}
-      className="h-full w-full object-cover"
-      loading="lazy"
-      onError={() => {
-        setCandidateIndex((current) => {
-          if (current >= candidates.length - 1) {
-            setExhausted(true);
-            return current;
-          }
+  const currentCandidate = candidates[candidateIndex];
 
-          return current + 1;
-        });
-      }}
-    />
+  return (
+    <button
+      type="button"
+      onClick={() => window.open(currentCandidate, "_blank", "noopener,noreferrer")}
+      className="group relative block h-full w-full overflow-hidden"
+      title="Abrir foto do produto"
+    >
+      <img
+        src={currentCandidate}
+        alt={alt}
+        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+        loading="lazy"
+        onError={() => {
+          setCandidateIndex((current) => {
+            if (current >= candidates.length - 1) {
+              setExhausted(true);
+              return current;
+            }
+
+            return current + 1;
+          });
+        }}
+      />
+      <span className="absolute bottom-3 left-3 rounded-full bg-slate-950/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white opacity-0 transition group-hover:opacity-100">
+        Abrir foto
+      </span>
+    </button>
   );
 }
 
@@ -172,11 +200,14 @@ type CompanyDetailPageProps = {
   companyForm: {
     legalName: string;
     isActive: boolean;
+    syncStoreInventory: boolean;
   };
   inventoryDrafts: Record<string, string>;
   onBack: () => void;
   onChangeTab: (tab: "settings" | "inventory") => void;
-  onCompanyFormChange: (patch: Partial<{ legalName: string; isActive: boolean }>) => void;
+  onCompanyFormChange: (
+    patch: Partial<{ legalName: string; isActive: boolean; syncStoreInventory: boolean }>
+  ) => void;
   onSaveCompany: () => void;
   onDeleteCompany: () => void;
   deletingCompany: boolean;
@@ -250,6 +281,11 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
                 Codigo {company.externalCode}
               </span>
+              {company.syncStoreInventory ? (
+                <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">
+                  Sync loja ativo
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -345,6 +381,24 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                 <Toggle
                   checked={companyForm.isActive}
                   onChange={(nextValue) => onCompanyFormChange({ isActive: nextValue })}
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-[1.4rem] border border-cyan-200 bg-cyan-50 px-4 py-4">
+                <div className="pr-4">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Sincronizar estoque loja
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Deixa esta empresa preparada para puxarmos o estoque diretamente da loja
+                    usada na operacao, sem depender apenas do valor manual do painel.
+                  </p>
+                </div>
+                <Toggle
+                  checked={companyForm.syncStoreInventory}
+                  onChange={(nextValue) =>
+                    onCompanyFormChange({ syncStoreInventory: nextValue })
+                  }
                 />
               </div>
 
@@ -452,6 +506,20 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                 Edite o estoque isolado da empresa e visualize foto, SKU principal e todas as
                 variacoes cadastradas no catalogo mestre.
               </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span
+                  className={[
+                    "rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em]",
+                    company.syncStoreInventory
+                      ? "bg-cyan-100 text-cyan-800"
+                      : "bg-slate-100 text-slate-600"
+                  ].join(" ")}
+                >
+                  {company.syncStoreInventory
+                    ? "Sincronizacao da loja habilitada"
+                    : "Sincronizacao da loja desabilitada"}
+                </span>
+              </div>
             </div>
             <button
               type="button"

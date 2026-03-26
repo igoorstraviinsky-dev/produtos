@@ -94,7 +94,11 @@ function App() {
   const [createdKey, setCreatedKey] = useState<IssuedApiKey | null>(null);
   const [newCompany, setNewCompany] = useState({ legalName: "", externalCode: "" });
   const [rateLimitValue, setRateLimitValue] = useState("100");
-  const [companyForm, setCompanyForm] = useState({ legalName: "", isActive: true });
+  const [companyForm, setCompanyForm] = useState({
+    legalName: "",
+    isActive: true,
+    syncStoreInventory: false
+  });
   const [companyActionId, setCompanyActionId] = useState("");
   const [deletingCompanyId, setDeletingCompanyId] = useState("");
   const [keyActionId, setKeyActionId] = useState("");
@@ -126,7 +130,8 @@ function App() {
   function syncCompanyForm(company: Company | null) {
     setCompanyForm({
       legalName: company?.legalName ?? "",
-      isActive: company?.isActive ?? true
+      isActive: company?.isActive ?? true,
+      syncStoreInventory: company?.syncStoreInventory ?? false
     });
   }
 
@@ -545,7 +550,8 @@ function App() {
     try {
       const updatedCompany = await api.updateCompany(selectedCompany.id, {
         legalName,
-        isActive: companyForm.isActive
+        isActive: companyForm.isActive,
+        syncStoreInventory: companyForm.syncStoreInventory
       });
 
       setCompanies((currentCompanies) =>

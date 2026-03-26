@@ -7,6 +7,7 @@ export type CompanyRecord = {
   legalName: string;
   externalCode: string;
   isActive: boolean;
+  syncStoreInventory: boolean;
   apiKeyCount: number;
   activeKeyCount: number;
   createdAt: Date;
@@ -91,6 +92,7 @@ export type CreateCompanyInput = {
 export type UpdateCompanyInput = {
   legalName?: string;
   isActive?: boolean;
+  syncStoreInventory?: boolean;
 };
 
 export type CreateApiKeyInput = {
@@ -124,6 +126,7 @@ type CompanyWithCounts = {
   legalName: string;
   externalCode: string;
   isActive: boolean;
+  syncStoreInventory: boolean;
   createdAt: Date;
   updatedAt: Date;
   _count?: {
@@ -166,6 +169,7 @@ function mapCompany(company: CompanyWithCounts): CompanyRecord {
     legalName: company.legalName,
     externalCode: company.externalCode,
     isActive: company.isActive,
+    syncStoreInventory: company.syncStoreInventory,
     apiKeyCount: company._count?.apiKeys ?? company.apiKeys?.length ?? 0,
     activeKeyCount:
       company.apiKeys?.filter((apiKey) => !apiKey.isRevoked).length ??
@@ -354,7 +358,10 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
         },
         data: {
           ...(input.legalName !== undefined ? { legalName: input.legalName } : {}),
-          ...(input.isActive !== undefined ? { isActive: input.isActive } : {})
+          ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+          ...(input.syncStoreInventory !== undefined
+            ? { syncStoreInventory: input.syncStoreInventory }
+            : {})
         },
         include: {
           _count: {
