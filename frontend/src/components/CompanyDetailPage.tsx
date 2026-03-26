@@ -8,6 +8,7 @@ const DEFAULT_PRODUCT_IMAGE_BASE_URL = "https://estoque-joias-b2b-gold.s3.us-eas
 const PRODUCT_IMAGE_BASE_URL = (
   import.meta.env.VITE_PRODUCT_IMAGE_BASE_URL ?? DEFAULT_PRODUCT_IMAGE_BASE_URL
 ).replace(/\/$/, "");
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -64,6 +65,16 @@ function buildPublicBucketUrl(key: string | null | undefined) {
   return PRODUCT_IMAGE_BASE_URL ? `${PRODUCT_IMAGE_BASE_URL}/${nextKey.replace(/^\/+/, "")}` : null;
 }
 
+function buildStableMediaApiUrl(key: string | null | undefined) {
+  const nextKey = normalizeCandidateUrl(key);
+  if (!nextKey) {
+    return null;
+  }
+
+  const routePath = `/api/v1/media/object/${encodeURIComponent(nextKey)}`;
+  return API_BASE_URL ? `${API_BASE_URL}${routePath}` : routePath;
+}
+
 function collectProductImageCandidates(product: Product | null) {
   if (!product) {
     return [];
@@ -74,15 +85,23 @@ function collectProductImageCandidates(product: Product | null) {
     normalizeCandidateUrl(product.mainImageUrl),
     ...(product.media_assets ?? []).map((asset) => normalizeCandidateUrl(asset.url)),
     ...(product.media_assets ?? []).map((asset) =>
+      buildStableMediaApiUrl(asset.storage_key ?? asset.storageKey)
+    ),
+    ...(product.media_assets ?? []).map((asset) =>
       buildPublicBucketUrl(asset.storage_key ?? asset.storageKey)
     ),
     ...(product.mediaAssets ?? []).map((asset) => normalizeCandidateUrl(asset.url)),
+    ...(product.mediaAssets ?? []).map((asset) =>
+      buildStableMediaApiUrl(asset.storage_key ?? asset.storageKey)
+    ),
     ...(product.mediaAssets ?? []).map((asset) =>
       buildPublicBucketUrl(asset.storage_key ?? asset.storageKey)
     ),
     ...(product.media_urls ?? []).map((url) => normalizeCandidateUrl(url)),
     ...(product.mediaUrls ?? []).map((url) => normalizeCandidateUrl(url)),
+    buildStableMediaApiUrl(product.s3_key_bronze ?? product.bronzeImageKey),
     buildPublicBucketUrl(product.s3_key_bronze ?? product.bronzeImageKey),
+    buildStableMediaApiUrl(product.s3_key_silver ?? product.silverImageKey),
     buildPublicBucketUrl(product.s3_key_silver ?? product.silverImageKey)
   ].filter((value): value is string => Boolean(value));
 
@@ -145,6 +164,11 @@ function ProductImage(props: { product: Product | null; alt: string; mode?: "lin
   const [candidateIndex, setCandidateIndex] = useState(0);
   const [exhausted, setExhausted] = useState(false);
   const isCompact = mode === "line";
+
+  useEffect(() => {
+    setCandidateIndex(0);
+    setExhausted(false);
+  }, [product?.id, candidates.join("|")]);
 
   if (candidates.length === 0 || exhausted) {
     return (
