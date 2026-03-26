@@ -2,7 +2,14 @@ import { useEffect, useState } from "react";
 
 import { Toggle } from "./Toggle";
 import { EmptyState, StatusChip } from "./ui";
-import type { AdminInventoryItem, ApiKeySummary, Company, Product, ProductVariant } from "../types";
+import type {
+  AdminInventoryItem,
+  ApiKeySummary,
+  Company,
+  Product,
+  ProductMediaAsset,
+  ProductVariant
+} from "../types";
 
 const DEFAULT_PRODUCT_IMAGE_BASE_URL = "https://estoque-joias-b2b-gold.s3.us-east-2.amazonaws.com";
 const PRODUCT_IMAGE_BASE_URL = (
@@ -143,6 +150,95 @@ function collectProductImageCandidates(product: Product | null) {
   return [...new Set(candidates)];
 }
 
+function getCanonicalImageKey(value: string | null | undefined) {
+  const nextValue = normalizeCandidateUrl(value);
+  if (!nextValue) {
+    return null;
+  }
+
+  let normalized = nextValue;
+
+  if (/^https?:\/\//i.test(normalized)) {
+    try {
+      const url = new URL(normalized);
+      normalized = decodeURIComponent(url.pathname);
+    } catch {
+      normalized = normalized.replace(/^https?:\/\/[^/]+/i, "");
+    }
+  } else {
+    normalized = decodeURIComponent(normalized);
+  }
+
+  normalized = normalized.replace(/^\/api\/v1\/media\/object\//, "");
+  normalized = normalized.replace(/^\/+/, "");
+  normalized = normalized.replace(/\?.*$/, "");
+  normalized = normalized.replace(/_(st|md|sm)(\.[a-z0-9]+)$/i, "$2");
+
+  return normalized.toLowerCase();
+}
+
+function buildGalleryImageGroups(product: Product | null) {
+  if (!product) {
+    return [];
+  }
+
+  const rawAssets = [...(product.media_assets ?? []), ...(product.mediaAssets ?? [])];
+  const sortedAssets = [...rawAssets].sort((left, right) => {
+    const leftOrder = left.sort_order ?? left.sortOrder ?? 0;
+    const rightOrder = right.sort_order ?? right.sortOrder ?? 0;
+    return leftOrder - rightOrder;
+  });
+
+  const groups = new Map<string, string[]>();
+
+  function addGroup(keySource: string | null | undefined, urls: Array<string | null | undefined>) {
+    const key = getCanonicalImageKey(keySource ?? urls[0]);
+    if (!key) {
+      return;
+    }
+
+    const current = groups.get(key) ?? [];
+    for (const url of urls) {
+      const normalizedUrl = normalizeCandidateUrl(url);
+      if (normalizedUrl && !current.includes(normalizedUrl)) {
+        current.push(normalizedUrl);
+      }
+    }
+
+    if (current.length > 0) {
+      groups.set(key, current);
+    }
+  }
+
+  sortedAssets.forEach((asset: ProductMediaAsset) => {
+    const storageKey = asset.storage_key ?? asset.storageKey;
+    addGroup(storageKey ?? asset.url, [
+      asset.url,
+      buildStableMediaApiUrl(storageKey),
+      buildPublicBucketUrl(storageKey)
+    ]);
+  });
+
+  [...(product.media_urls ?? []), ...(product.mediaUrls ?? [])].forEach((url) => {
+    addGroup(url, [url]);
+  });
+
+  addGroup(product.s3_key_bronze ?? product.bronzeImageKey, [
+    buildStableMediaApiUrl(product.s3_key_bronze ?? product.bronzeImageKey),
+    buildPublicBucketUrl(product.s3_key_bronze ?? product.bronzeImageKey)
+  ]);
+
+  addGroup(product.s3_key_silver ?? product.silverImageKey, [
+    buildStableMediaApiUrl(product.s3_key_silver ?? product.silverImageKey),
+    buildPublicBucketUrl(product.s3_key_silver ?? product.silverImageKey)
+  ]);
+
+  return Array.from(groups.entries()).map(([key, candidates]) => ({
+    key,
+    candidates
+  }));
+}
+
 function buildProductImageCandidates(product: Product | null) {
   const baseCandidates = collectProductImageCandidates(product);
   if (baseCandidates.length === 0) {
@@ -267,30 +363,42 @@ function ProductImage(props: { product: Product | null; alt: string; mode?: "lin
 
 function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
   const { product, alt } = props;
-  const candidates = buildProductImageCandidates(product);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [validCandidates, setValidCandidates] = useState<string[]>([]);
+  const [validCandidates, setValidCandidates] = useState<Array<{ key: string; url: string }>>([]);
+  const galleryGroups = buildGalleryImageGroups(product);
 
   useEffect(() => {
     let isCancelled = false;
     const loaders: HTMLImageElement[] = [];
 
-    if (candidates.length === 0) {
+    if (galleryGroups.length === 0) {
       setValidCandidates([]);
       return;
     }
 
+    async function findFirstValidUrl(candidates: string[]) {
+      for (const candidate of candidates) {
+        const result = await new Promise<{ url: string; ok: boolean }>((resolve) => {
+          const image = new Image();
+          loaders.push(image);
+          image.onload = () => resolve({ url: candidate, ok: true });
+          image.onerror = () => resolve({ url: candidate, ok: false });
+          image.src = candidate;
+        });
+
+        if (result.ok) {
+          return result.url;
+        }
+      }
+
+      return null;
+    }
+
     void Promise.all(
-      candidates.map(
-        (candidate) =>
-          new Promise<{ candidate: string; ok: boolean }>((resolve) => {
-            const image = new Image();
-            loaders.push(image);
-            image.onload = () => resolve({ candidate, ok: true });
-            image.onerror = () => resolve({ candidate, ok: false });
-            image.src = candidate;
-          })
-      )
+      galleryGroups.map(async (group) => ({
+        key: group.key,
+        url: await findFirstValidUrl(group.candidates)
+      }))
     ).then((results) => {
       if (isCancelled) {
         return;
@@ -298,8 +406,7 @@ function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
 
       setValidCandidates(
         results
-          .filter((result) => result.ok)
-          .map((result) => result.candidate)
+          .filter((result): result is { key: string; url: string } => Boolean(result.url))
           .slice(0, 4)
       );
     });
@@ -312,14 +419,14 @@ function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
         image.src = "";
       });
     };
-  }, [candidates.join("|")]);
+  }, [galleryGroups.map((group) => `${group.key}:${group.candidates.join("|")}`).join("||")]);
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [product?.id, validCandidates.join("|")]);
+  }, [product?.id, validCandidates.map((candidate) => candidate.url).join("|")]);
 
   const previewCandidates = validCandidates;
-  const selectedCandidate = previewCandidates[selectedIndex] ?? previewCandidates[0] ?? null;
+  const selectedCandidate = previewCandidates[selectedIndex]?.url ?? previewCandidates[0]?.url ?? null;
 
   return (
     <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
@@ -351,21 +458,21 @@ function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
           {previewCandidates.length > 0 ? (
             previewCandidates.map((candidate, index) => (
               <button
-                key={`${candidate}-${index}`}
+                key={`${candidate.key}-${index}`}
                 type="button"
                 onClick={() => {
                   setSelectedIndex(index);
-                  window.open(candidate, "_blank", "noopener,noreferrer");
+                  window.open(candidate.url, "_blank", "noopener,noreferrer");
                 }}
                 className={[
                   "overflow-hidden rounded-[1.2rem] border bg-white shadow-[0_8px_20px_rgba(15,23,42,0.05)] transition hover:border-cyan-300",
-                  selectedCandidate === candidate ? "border-cyan-300" : "border-slate-200"
+                  selectedCandidate === candidate.url ? "border-cyan-300" : "border-slate-200"
                 ].join(" ")}
                 title={`Abrir foto ${index + 1}`}
               >
                 <div className="aspect-square">
                   <img
-                    src={candidate}
+                    src={candidate.url}
                     alt={`${alt} ${index + 1}`}
                     className="h-full w-full object-contain p-2"
                     loading="lazy"
