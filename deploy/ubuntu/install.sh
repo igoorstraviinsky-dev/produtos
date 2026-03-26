@@ -195,6 +195,7 @@ write_frontend_env() {
   cat > "${FRONTEND_ENV_FILE}" <<EOF
 VITE_API_BASE_URL=
 VITE_ADMIN_TOKEN=
+VITE_PRODUCT_IMAGE_BASE_URL=https://estoque-joias-b2b-gold.s3.us-east-2.amazonaws.com
 EOF
 }
 

@@ -279,7 +279,7 @@ function App() {
         await refreshCompanyDetail(options.companyId);
       }
 
-      if (currentPage === "costs") {
+      if (currentPage === "costs" || currentPage === "company") {
         await refreshProducts();
       }
 
@@ -403,7 +403,10 @@ function App() {
       void refreshCostSettings();
       void refreshProducts();
     }
-  }, [currentPage, selectedCompanyId]);
+    if (currentPage === "company" && activeTab === "inventory") {
+      void refreshProducts();
+    }
+  }, [activeTab, currentPage, selectedCompanyId]);
 
   useEffect(() => {
     if (
@@ -859,8 +862,10 @@ function App() {
             activeTab={activeTab}
             apiKeys={apiKeys}
             inventory={inventory}
+            products={products}
             apiKeysState={apiKeysState}
             inventoryState={inventoryState}
+            productsState={productsState}
             keyActionId={keyActionId}
             savingInventoryId={savingInventoryId}
             syncingCatalog={syncCatalogState === "syncing"}

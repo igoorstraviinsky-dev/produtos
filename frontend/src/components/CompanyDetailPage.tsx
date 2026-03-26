@@ -1,6 +1,11 @@
 import { Toggle } from "./Toggle";
 import { EmptyState, StatusChip } from "./ui";
-import type { AdminInventoryItem, ApiKeySummary, Company } from "../types";
+import type { AdminInventoryItem, ApiKeySummary, Company, Product, ProductVariant } from "../types";
+
+const DEFAULT_PRODUCT_IMAGE_BASE_URL = "https://estoque-joias-b2b-gold.s3.us-east-2.amazonaws.com";
+const PRODUCT_IMAGE_BASE_URL = (
+  import.meta.env.VITE_PRODUCT_IMAGE_BASE_URL ?? DEFAULT_PRODUCT_IMAGE_BASE_URL
+).replace(/\/$/, "");
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -13,13 +18,82 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
+function toNumber(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const normalized = value.replace(",", ".").trim();
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatWeight(value: string | number | null | undefined) {
+  const parsed = toNumber(value);
+  if (parsed === null) {
+    return "Peso n/d";
+  }
+
+  return `${parsed.toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3
+  })} g`;
+}
+
+function resolveProductImageUrl(product: Product | null) {
+  const key =
+    product?.s3_key_bronze ??
+    product?.bronzeImageKey ??
+    product?.s3_key_silver ??
+    product?.silverImageKey ??
+    null;
+
+  if (!key || key.startsWith("local:")) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(key)) {
+    return key;
+  }
+
+  return PRODUCT_IMAGE_BASE_URL ? `${PRODUCT_IMAGE_BASE_URL}/${key.replace(/^\/+/, "")}` : null;
+}
+
+function getVariantOptionChips(variant: ProductVariant) {
+  const sizeChips = variant.size_labels.map((label) => ({
+    key: `size:${label}`,
+    label: label,
+    tone: "bg-cyan-100 text-cyan-800"
+  }));
+  const colorChips = variant.color_labels.map((label) => ({
+    key: `color:${label}`,
+    label: label,
+    tone: "bg-amber-100 text-amber-800"
+  }));
+  const extraChips = variant.options
+    .filter((option) => option.kind !== "size" && option.kind !== "color")
+    .map((option) => ({
+      key: `${option.kind}:${option.id}`,
+      label: `${option.kind}: ${option.label}`,
+      tone: "bg-slate-100 text-slate-700"
+    }));
+
+  return [...sizeChips, ...colorChips, ...extraChips];
+}
+
 type CompanyDetailPageProps = {
   company: Company;
   activeTab: "settings" | "inventory";
   apiKeys: ApiKeySummary[];
   inventory: AdminInventoryItem[];
+  products: Product[];
   apiKeysState: "idle" | "loading" | "success" | "error";
   inventoryState: "idle" | "loading" | "success" | "error";
+  productsState: "idle" | "loading" | "success" | "error";
   keyActionId: string;
   savingInventoryId: string;
   syncingCatalog: boolean;
@@ -47,8 +121,10 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
     activeTab,
     apiKeys,
     inventory,
+    products,
     apiKeysState,
     inventoryState,
+    productsState,
     keyActionId,
     savingInventoryId,
     syncingCatalog,
@@ -66,6 +142,8 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
     onInventoryDraftChange,
     onSaveInventory
   } = props;
+
+  const productsById = new Map(products.map((product) => [product.id, product]));
 
   return (
     <section className="space-y-6">
@@ -288,11 +366,11 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                 Estoque da Empresa
               </p>
               <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-950">
-                Catalogo mestre com quantidade customizada
+                Catalogo mestre com fotos e variacoes
               </h3>
               <p className="mt-2 text-sm text-slate-600">
-                Edite apenas o estoque isolado dessa empresa. O catalogo principal continua
-                preservado.
+                Edite o estoque isolado da empresa e visualize foto, SKU principal e todas as
+                variacoes cadastradas no catalogo mestre.
               </p>
             </div>
             <button
@@ -307,6 +385,12 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
 
           {inventoryState === "loading" ? (
             <p className="mt-6 text-sm text-slate-500">Carregando estoque da empresa...</p>
+          ) : null}
+
+          {productsState === "loading" && inventory.length > 0 ? (
+            <p className="mt-3 text-sm text-slate-500">
+              Carregando fotos e variacoes do catalogo mestre...
+            </p>
           ) : null}
 
           {inventory.length === 0 && inventoryState !== "loading" ? (
@@ -331,59 +415,221 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
           ) : null}
 
           {inventory.length > 0 ? (
-            <div className="mt-6 overflow-hidden rounded-[1.75rem] border border-slate-200">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200 text-left">
-                  <thead className="bg-slate-50/80 text-xs uppercase tracking-[0.16em] text-slate-500">
-                    <tr>
-                      <th className="px-4 py-4 font-semibold">Produto</th>
-                      <th className="px-4 py-4 font-semibold">SKU</th>
-                      <th className="px-4 py-4 font-semibold">Catalogo mestre</th>
-                      <th className="px-4 py-4 font-semibold">Estoque da empresa</th>
-                      <th className="px-4 py-4 font-semibold">Atualizado</th>
-                      <th className="px-4 py-4 font-semibold text-right">Acao</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {inventory.map((item) => (
-                      <tr key={item.productId} className="align-top hover:bg-slate-50/80">
-                        <td className="px-4 py-4">
-                          <p className="font-semibold text-slate-950">{item.name}</p>
-                          <p className="mt-1 text-xs text-slate-500">{item.productId}</p>
-                        </td>
-                        <td className="px-4 py-4 text-sm text-slate-700">{item.sku}</td>
-                        <td className="px-4 py-4 text-sm font-semibold text-slate-900">
-                          {item.masterStock}
-                        </td>
-                        <td className="px-4 py-4">
-                          <input
-                            type="number"
-                            min="0"
-                            value={inventoryDrafts[item.productId] ?? ""}
-                            onChange={(event) =>
-                              onInventoryDraftChange(item.productId, event.target.value)
-                            }
-                            className="w-28 rounded-[1rem] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
-                          />
-                        </td>
-                        <td className="px-4 py-4 text-sm text-slate-500">
-                          {formatDate(item.updatedAt)}
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          <button
-                            type="button"
-                            disabled={savingInventoryId === item.productId}
-                            onClick={() => onSaveInventory(item.productId)}
-                            className="inline-flex items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                          >
-                            Salvar
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="mt-6 grid gap-5 xl:grid-cols-2">
+              {inventory.map((item) => {
+                const product = productsById.get(item.productId) ?? null;
+                const imageUrl = resolveProductImageUrl(product);
+                const variants = product?.variants ?? [];
+
+                return (
+                  <article
+                    key={item.productId}
+                    className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-50/70 shadow-[0_18px_40px_rgba(15,23,42,0.06)]"
+                  >
+                    <div className="flex flex-col gap-5 p-5 lg:flex-row">
+                      <div className="w-full lg:max-w-[11rem]">
+                        <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white">
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt={item.name}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="px-4 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                              Sem foto
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex-1 space-y-4">
+                        <div>
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-display text-2xl tracking-tight text-slate-950">
+                                {item.name}
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.16em]">
+                                <span className="rounded-full bg-slate-950 px-3 py-1 text-white">
+                                  {item.sku}
+                                </span>
+                                {product?.categoria ? (
+                                  <span className="rounded-full bg-white px-3 py-1 text-slate-600">
+                                    {product.categoria}
+                                  </span>
+                                ) : null}
+                                {product?.subcategoria ? (
+                                  <span className="rounded-full bg-white px-3 py-1 text-slate-600">
+                                    {product.subcategoria}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            <div className="rounded-[1.25rem] border border-cyan-200 bg-cyan-50 px-4 py-3 text-right">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
+                                Variacoes
+                              </p>
+                              <p className="mt-2 font-display text-3xl tracking-tight text-cyan-900">
+                                {variants.length}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Catalogo mestre
+                              </p>
+                              <p className="mt-2 text-xl font-semibold text-slate-950">
+                                {item.masterStock}
+                              </p>
+                            </div>
+                            <div className="rounded-[1.25rem] border border-emerald-200 bg-emerald-50 px-4 py-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                                Estoque atual
+                              </p>
+                              <p className="mt-2 text-xl font-semibold text-emerald-900">
+                                {item.effectiveStockQuantity}
+                              </p>
+                            </div>
+                            <div className="rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Peso base
+                              </p>
+                              <p className="mt-2 text-base font-semibold text-slate-950">
+                                {formatWeight(product?.weight_grams ?? product?.peso_gramas ?? null)}
+                              </p>
+                            </div>
+                            <div className="rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Atualizado
+                              </p>
+                              <p className="mt-2 text-sm font-semibold text-slate-950">
+                                {formatDate(item.updatedAt)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                            <div className="max-w-md">
+                              <p className="text-sm font-semibold text-slate-900">
+                                Estoque isolado da empresa
+                              </p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                O valor salvo aqui substitui o estoque mestre desse produto para a
+                                empresa selecionada.
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                              <input
+                                type="number"
+                                min="0"
+                                value={inventoryDrafts[item.productId] ?? ""}
+                                onChange={(event) =>
+                                  onInventoryDraftChange(item.productId, event.target.value)
+                                }
+                                className="w-32 rounded-[1rem] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+                              />
+                              <button
+                                type="button"
+                                disabled={savingInventoryId === item.productId}
+                                onClick={() => onSaveInventory(item.productId)}
+                                className="inline-flex items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                              >
+                                {savingInventoryId === item.productId ? "Salvando..." : "Salvar"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-200 bg-white/80 px-5 py-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+                            Variacoes do produto
+                          </p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            Exibimos as variacoes oficiais do catalogo mestre para consulta rapida
+                            no painel da empresa.
+                          </p>
+                        </div>
+                        {product?.material_base ? (
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                            {product.material_base}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {!product && productsState === "loading" ? (
+                        <p className="mt-4 text-sm text-slate-500">
+                          Carregando detalhes do catalogo mestre...
+                        </p>
+                      ) : null}
+
+                      {!product && productsState !== "loading" ? (
+                        <div className="mt-4 rounded-[1.25rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                          Nao foi possivel carregar a ficha completa desse produto no catalogo
+                          mestre.
+                        </div>
+                      ) : null}
+
+                      {product && variants.length === 0 ? (
+                        <div className="mt-4 rounded-[1.25rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                          Produto simples. Nenhuma variante cadastrada para este item.
+                        </div>
+                      ) : null}
+
+                      {product && variants.length > 0 ? (
+                        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                          {variants.map((variant) => {
+                            const chips = getVariantOptionChips(variant);
+
+                            return (
+                              <div
+                                key={variant.variant_id}
+                                className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4"
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <p className="font-semibold text-slate-950">{variant.sku}</p>
+                                    <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
+                                      {formatWeight(
+                                        variant.individual_weight ?? variant.individualWeight
+                                      )}
+                                    </p>
+                                  </div>
+                                  <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                                    Estoque {variant.individual_stock}
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {chips.map((chip) => (
+                                    <span
+                                      key={chip.key}
+                                      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${chip.tone}`}
+                                    >
+                                      {chip.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           ) : null}
         </section>
