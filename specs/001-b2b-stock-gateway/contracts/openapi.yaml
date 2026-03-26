@@ -1011,6 +1011,7 @@ components:
         - masterStock
         - effectiveStockQuantity
         - updatedAt
+        - variants
       properties:
         productId:
           type: string
@@ -1018,6 +1019,39 @@ components:
           type: string
         name:
           type: string
+        masterStock:
+          type: integer
+        customStockQuantity:
+          type: integer
+          nullable: true
+        effectiveStockQuantity:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartnerInventoryVariantItem'
+    PartnerInventoryVariantItem:
+      type: object
+      required:
+        - variantId
+        - productId
+        - sku
+        - masterStock
+        - effectiveStockQuantity
+        - updatedAt
+      properties:
+        variantId:
+          type: string
+        productId:
+          type: string
+        sku:
+          type: string
+        individualWeight:
+          type: number
+          nullable: true
         masterStock:
           type: integer
         customStockQuantity:
@@ -1059,6 +1093,25 @@ components:
         customStockQuantity:
           type: integer
           minimum: 0
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartnerInventorySyncVariantItem'
+    PartnerInventorySyncVariantItem:
+      type: object
+      properties:
+        variant_id:
+          type: string
+        variantId:
+          type: string
+        sku:
+          type: string
+        custom_stock_quantity:
+          type: integer
+          minimum: 0
+        customStockQuantity:
+          type: integer
+          minimum: 0
     PartnerInventorySyncError:
       type: object
       required:
@@ -1077,6 +1130,12 @@ components:
           type: string
           nullable: true
         numeroSerie:
+          type: string
+          nullable: true
+        variantId:
+          type: string
+          nullable: true
+        variantSku:
           type: string
           nullable: true
         message:

@@ -42,6 +42,7 @@ class FakeControlPlaneRepository {
     this.apiKeys = new Map();
     this.masterProducts = new Map();
     this.companyInventory = new Map();
+    this.companyVariantInventory = new Map();
     this.costSettings = {
       silverPricePerGram: 1,
       zonaFrancaRatePercent: 6,
@@ -240,6 +241,11 @@ class FakeControlPlaneRepository {
     return [...this.masterProducts.values()].find((product) => product.sku === sku) ?? null;
   }
 
+  async listProductVariantsByProductId(productId) {
+    const product = this.masterProducts.get(productId);
+    return product?.variants ?? [];
+  }
+
   async getCostSettings() {
     return this.costSettings;
   }
@@ -262,15 +268,51 @@ class FakeControlPlaneRepository {
       .sort((left, right) => left.name.localeCompare(right.name))
       .map((product) => {
         const companyInventory = this.companyInventory.get(`${companyId}:${product.id}`) ?? null;
+        const variants = (product.variants ?? []).map((variant) => {
+          const variantInventory =
+            this.companyVariantInventory.get(`${companyId}:${variant.id}`) ?? null;
+
+          return {
+            variantId: variant.id,
+            productId: variant.productId,
+            sku: variant.sku,
+            individualWeight: variant.individualWeight ?? null,
+            masterStock: variant.individualStock ?? 0,
+            customStockQuantity: variantInventory?.customStockQuantity ?? null,
+            effectiveStockQuantity:
+              variantInventory?.customStockQuantity ?? variant.individualStock ?? 0,
+            updatedAt: variantInventory?.updatedAt ?? variant.updatedAt
+          };
+        });
+        const hasVariantInventory = variants.some(
+          (variant) => variant.customStockQuantity !== null
+        );
+        const masterStockFromVariants =
+          variants.length > 0
+            ? variants.reduce((sum, variant) => sum + variant.masterStock, 0)
+            : product.masterStock;
+        const effectiveStockFromVariants =
+          variants.reduce((sum, variant) => sum + variant.effectiveStockQuantity, 0);
+        const latestVariantUpdate = variants.reduce(
+          (latest, variant) => (!latest || variant.updatedAt > latest ? variant.updatedAt : latest),
+          null
+        );
+
         return {
           productId: product.id,
           sku: product.sku,
           name: product.name,
-          masterStock: product.masterStock,
-          customStockQuantity: companyInventory?.customStockQuantity ?? null,
-          effectiveStockQuantity:
-            companyInventory?.customStockQuantity ?? product.masterStock,
-          updatedAt: companyInventory?.updatedAt ?? product.updatedAt
+          masterStock: masterStockFromVariants,
+          customStockQuantity: hasVariantInventory
+            ? effectiveStockFromVariants
+            : companyInventory?.customStockQuantity ?? null,
+          effectiveStockQuantity: hasVariantInventory
+            ? effectiveStockFromVariants
+            : companyInventory?.customStockQuantity ?? masterStockFromVariants,
+          updatedAt: hasVariantInventory
+            ? latestVariantUpdate ?? companyInventory?.updatedAt ?? product.updatedAt
+            : companyInventory?.updatedAt ?? product.updatedAt,
+          variants
         };
       });
   }
@@ -298,8 +340,31 @@ class FakeControlPlaneRepository {
       masterStock: product.masterStock,
       customStockQuantity: record.customStockQuantity,
       effectiveStockQuantity: record.customStockQuantity,
-      updatedAt: record.updatedAt
+      updatedAt: record.updatedAt,
+      variants: (product.variants ?? []).map((variant) => {
+        const variantInventory =
+          this.companyVariantInventory.get(`${companyId}:${variant.id}`) ?? null;
+
+        return {
+          variantId: variant.id,
+          productId: variant.productId,
+          sku: variant.sku,
+          individualWeight: variant.individualWeight ?? null,
+          masterStock: variant.individualStock ?? 0,
+          customStockQuantity: variantInventory?.customStockQuantity ?? null,
+          effectiveStockQuantity:
+            variantInventory?.customStockQuantity ?? variant.individualStock ?? 0,
+          updatedAt: variantInventory?.updatedAt ?? variant.updatedAt
+        };
+      })
     };
+  }
+
+  async upsertCompanyVariantInventory(companyId, variantId, customStockQuantity) {
+    this.companyVariantInventory.set(`${companyId}:${variantId}`, {
+      customStockQuantity,
+      updatedAt: new Date()
+    });
   }
 }
 
@@ -1144,6 +1209,105 @@ const cases = [
         assert.equal(getResponse.statusCode, 200);
         assert.equal(getResponse.json().data[0].customStockQuantity, 14);
         assert.equal(getResponse.json().data[1].customStockQuantity, 5);
+      } finally {
+        await app.close();
+      }
+    }
+  },
+  {
+    name: "Partner inventory sync accepts variant stock and returns summed product stock",
+    fn: async () => {
+      const { app, controlPlane, env } = await createTestApp();
+      try {
+        const company = controlPlane.seedCompany({
+          legalName: "Empresa Variantes",
+          externalCode: "empresa-variantes"
+        });
+        const apiKey = "b2b_inventory_variants_key";
+
+        controlPlane.seedApiKey({
+          companyId: company.id,
+          keyPrefix: deriveApiKeyPrefix(apiKey),
+          keyHash: hashApiKey(apiKey, env.API_KEY_PEPPER),
+          rateLimitPerMinute: 20
+        });
+
+        await controlPlane.replaceMasterProducts([
+          {
+            id: "prod-variant-1",
+            sku: "VAR-001",
+            name: "Produto Variado",
+            masterStock: 20,
+            updatedAt: new Date("2026-03-24T00:00:00.000Z"),
+            variants: [
+              {
+                id: "variant-a",
+                productId: "prod-variant-1",
+                sku: "VAR-001-A",
+                individualWeight: 1.1,
+                individualStock: 4,
+                createdAt: new Date("2026-03-24T00:00:00.000Z"),
+                updatedAt: new Date("2026-03-24T00:00:00.000Z")
+              },
+              {
+                id: "variant-b",
+                productId: "prod-variant-1",
+                sku: "VAR-001-B",
+                individualWeight: 1.3,
+                individualStock: 6,
+                createdAt: new Date("2026-03-24T00:00:00.000Z"),
+                updatedAt: new Date("2026-03-24T00:00:00.000Z")
+              }
+            ]
+          }
+        ]);
+
+        const syncResponse = await app.inject({
+          method: "POST",
+          url: "/api/v1/my-inventory",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          },
+          payload: {
+            items: [
+              {
+                sku: "VAR-001",
+                variants: [
+                  {
+                    sku: "VAR-001-A",
+                    custom_stock_quantity: 9
+                  },
+                  {
+                    variant_id: "variant-b",
+                    custom_stock_quantity: 3
+                  }
+                ]
+              }
+            ]
+          }
+        });
+
+        assert.equal(syncResponse.statusCode, 200);
+        assert.equal(syncResponse.json().meta.updatedCount, 1);
+        assert.equal(syncResponse.json().data[0].effectiveStockQuantity, 12);
+        assert.equal(syncResponse.json().data[0].customStockQuantity, 12);
+        assert.equal(syncResponse.json().data[0].variants.length, 2);
+        assert.equal(syncResponse.json().data[0].variants[0].effectiveStockQuantity, 9);
+        assert.equal(syncResponse.json().data[0].variants[1].effectiveStockQuantity, 3);
+
+        const getResponse = await app.inject({
+          method: "GET",
+          url: "/api/v1/my-inventory",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          }
+        });
+
+        assert.equal(getResponse.statusCode, 200);
+        assert.equal(getResponse.json().data[0].masterStock, 10);
+        assert.equal(getResponse.json().data[0].effectiveStockQuantity, 12);
+        assert.equal(getResponse.json().data[0].variants[0].sku, "VAR-001-A");
+        assert.equal(getResponse.json().data[0].variants[0].customStockQuantity, 9);
       } finally {
         await app.close();
       }

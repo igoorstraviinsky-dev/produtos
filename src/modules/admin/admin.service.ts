@@ -15,6 +15,16 @@ function mapInventoryItem(record: {
   customStockQuantity: number | null;
   effectiveStockQuantity: number;
   updatedAt: Date;
+  variants: Array<{
+    variantId: string;
+    productId: string;
+    sku: string;
+    individualWeight: number | null;
+    masterStock: number;
+    customStockQuantity: number | null;
+    effectiveStockQuantity: number;
+    updatedAt: Date;
+  }>;
 }) {
   return {
     productId: record.productId,
@@ -23,7 +33,17 @@ function mapInventoryItem(record: {
     masterStock: record.masterStock,
     customStockQuantity: record.customStockQuantity,
     effectiveStockQuantity: record.effectiveStockQuantity,
-    updatedAt: record.updatedAt.toISOString()
+    updatedAt: record.updatedAt.toISOString(),
+    variants: record.variants.map((variant) => ({
+      variantId: variant.variantId,
+      productId: variant.productId,
+      sku: variant.sku,
+      individualWeight: variant.individualWeight,
+      masterStock: variant.masterStock,
+      customStockQuantity: variant.customStockQuantity,
+      effectiveStockQuantity: variant.effectiveStockQuantity,
+      updatedAt: variant.updatedAt.toISOString()
+    }))
   };
 }
 

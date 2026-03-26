@@ -5,7 +5,8 @@ import {
   MyInventoryResponse,
   MyInventorySyncError,
   MyInventorySyncResponse,
-  SyncMyInventoryItem
+  SyncMyInventoryItem,
+  SyncMyInventoryVariantItem
 } from "./inventory.schemas";
 
 function mapInventoryItem(record: {
@@ -16,6 +17,16 @@ function mapInventoryItem(record: {
   customStockQuantity: number | null;
   effectiveStockQuantity: number;
   updatedAt: Date;
+  variants: Array<{
+    variantId: string;
+    productId: string;
+    sku: string;
+    individualWeight: number | null;
+    masterStock: number;
+    customStockQuantity: number | null;
+    effectiveStockQuantity: number;
+    updatedAt: Date;
+  }>;
 }): MyInventoryItem {
   return {
     productId: record.productId,
@@ -24,7 +35,17 @@ function mapInventoryItem(record: {
     masterStock: record.masterStock,
     customStockQuantity: record.customStockQuantity,
     effectiveStockQuantity: record.effectiveStockQuantity,
-    updatedAt: record.updatedAt.toISOString()
+    updatedAt: record.updatedAt.toISOString(),
+    variants: record.variants.map((variant) => ({
+      variantId: variant.variantId,
+      productId: variant.productId,
+      sku: variant.sku,
+      individualWeight: variant.individualWeight,
+      masterStock: variant.masterStock,
+      customStockQuantity: variant.customStockQuantity,
+      effectiveStockQuantity: variant.effectiveStockQuantity,
+      updatedAt: variant.updatedAt.toISOString()
+    }))
   };
 }
 
@@ -70,6 +91,24 @@ export class InventoryService {
     };
   }
 
+  private buildVariantSyncError(
+    index: number,
+    item: SyncMyInventoryItem,
+    variant: SyncMyInventoryVariantItem,
+    message: string
+  ): MyInventorySyncError {
+    return {
+      index,
+      productId: item.productId,
+      sku: item.sku,
+      code: item.code,
+      numeroSerie: item.numeroSerie,
+      variantId: variant.variantId,
+      variantSku: variant.sku,
+      message
+    };
+  }
+
   async listMyInventory(companyId: string): Promise<MyInventoryResponse> {
     const inventory = await this.controlPlane.listEffectiveInventoryByCompany(companyId);
 
@@ -110,10 +149,22 @@ export class InventoryService {
     companyId: string,
     items: SyncMyInventoryItem[]
   ): Promise<MyInventorySyncResponse> {
-    const updatedItems: MyInventoryItem[] = [];
     const errors: MyInventorySyncError[] = [];
     const productsById = new Map<string, MasterProductRecord | null>();
     const productsBySku = new Map<string, MasterProductRecord | null>();
+    const variantsByProductId = new Map<
+      string,
+      Array<{
+        id: string;
+        productId: string;
+        sku: string;
+        individualWeight: number | null;
+        individualStock: number;
+        createdAt: Date;
+        updatedAt: Date;
+      }>
+    >();
+    const touchedProductIds = new Set<string>();
 
     for (const [index, item] of items.entries()) {
       const product = await this.resolveMasterProduct(item, productsById, productsBySku);
@@ -129,24 +180,81 @@ export class InventoryService {
         continue;
       }
 
-      const updatedInventory = await this.controlPlane.upsertCompanyInventory(
-        companyId,
-        product.id,
-        item.customStockQuantity
-      );
-
-      if (!updatedInventory) {
-        errors.push(
-          this.buildSyncError(
-            index,
-            item,
-            "Produto nao encontrado no catalogo mestre local para atualizacao"
-          )
+      if (!variantsByProductId.has(product.id)) {
+        variantsByProductId.set(
+          product.id,
+          await this.controlPlane.listProductVariantsByProductId(product.id)
         );
-        continue;
       }
 
-      updatedItems.push(mapInventoryItem(updatedInventory));
+      const productVariants = variantsByProductId.get(product.id) ?? [];
+      const hasVariantUpdates = item.variants.length > 0;
+
+      if (item.customStockQuantity !== null) {
+        const updatedInventory = await this.controlPlane.upsertCompanyInventory(
+          companyId,
+          product.id,
+          item.customStockQuantity
+        );
+
+        if (!updatedInventory) {
+          errors.push(
+            this.buildSyncError(
+              index,
+              item,
+              "Produto nao encontrado no catalogo mestre local para atualizacao"
+            )
+          );
+          continue;
+        }
+      }
+
+      for (const variant of item.variants) {
+        const matchedVariant =
+          productVariants.find((record) => record.id === variant.variantId) ??
+          productVariants.find((record) => record.sku === variant.sku) ??
+          null;
+
+        if (!matchedVariant) {
+          errors.push(
+            this.buildVariantSyncError(
+              index,
+              item,
+              variant,
+              "Variante nao encontrada para o produto informado"
+            )
+          );
+          continue;
+        }
+
+        await this.controlPlane.upsertCompanyVariantInventory(
+          companyId,
+          matchedVariant.id,
+          variant.customStockQuantity
+        );
+      }
+
+      if (item.customStockQuantity !== null || hasVariantUpdates) {
+        touchedProductIds.add(product.id);
+      }
+    }
+
+    const inventory = await this.controlPlane.listEffectiveInventoryByCompany(companyId);
+    const updatedItems = inventory
+      .filter((record) => touchedProductIds.has(record.productId))
+      .map(mapInventoryItem);
+
+    if (updatedItems.length === 0 && errors.length === 0) {
+      return {
+        data: [],
+        errors: [],
+        meta: {
+          companyId,
+          receivedCount: items.length,
+          updatedCount: 0,
+          errorCount: 0
+        }
+      };
     }
 
     return {

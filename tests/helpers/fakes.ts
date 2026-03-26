@@ -61,9 +61,31 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
   private readonly apiKeys = new Map<string, ApiKeyRecord>();
   private readonly masterProducts = new Map<
     string,
-    { id: string; sku: string; name: string; masterStock: number; updatedAt: Date }
+    {
+      id: string;
+      sku: string;
+      name: string;
+      masterStock: number;
+      updatedAt: Date;
+      variants?: Array<{
+        id: string;
+        productId: string;
+        sku: string;
+        individualWeight?: number | null;
+        individualStock: number;
+        createdAt?: Date;
+        updatedAt: Date;
+      }>;
+    }
   >();
   private readonly companyInventory = new Map<
+    string,
+    {
+      customStockQuantity: number;
+      updatedAt: Date;
+    }
+  >();
+  private readonly companyVariantInventory = new Map<
     string,
     {
       customStockQuantity: number;
@@ -252,7 +274,8 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
         sku: product.sku,
         name: product.name,
         masterStock: product.masterStock,
-        updatedAt: product.updatedAt
+        updatedAt: product.updatedAt,
+        variants: product.variants ?? []
       });
     }
 
@@ -267,18 +290,57 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
     return [...this.masterProducts.values()].find((product) => product.sku === sku) ?? null;
   }
 
+  async listProductVariantsByProductId(productId: string) {
+    return this.masterProducts.get(productId)?.variants ?? [];
+  }
+
   async listEffectiveInventoryByCompany(companyId: string) {
     return [...this.masterProducts.values()].map((product) => {
       const key = `${companyId}:${product.id}`;
       const customInventory = this.companyInventory.get(key);
+      const variants = (product.variants ?? []).map((variant) => {
+        const variantInventory =
+          this.companyVariantInventory.get(`${companyId}:${variant.id}`) ?? null;
+        return {
+          variantId: variant.id,
+          productId: variant.productId,
+          sku: variant.sku,
+          individualWeight: variant.individualWeight ?? null,
+          masterStock: variant.individualStock,
+          customStockQuantity: variantInventory?.customStockQuantity ?? null,
+          effectiveStockQuantity:
+            variantInventory?.customStockQuantity ?? variant.individualStock,
+          updatedAt: variantInventory?.updatedAt ?? variant.updatedAt
+        };
+      });
+      const hasVariantInventory = variants.some((variant) => variant.customStockQuantity !== null);
+      const masterStock =
+        variants.length > 0
+          ? variants.reduce((sum, variant) => sum + variant.masterStock, 0)
+          : product.masterStock;
+      const effectiveStockQuantity = hasVariantInventory
+        ? variants.reduce((sum, variant) => sum + variant.effectiveStockQuantity, 0)
+        : customInventory?.customStockQuantity ?? masterStock;
+      const latestVariantUpdate = variants.reduce<Date | null>((latest, variant) => {
+        if (!latest || variant.updatedAt > latest) {
+          return variant.updatedAt;
+        }
+
+        return latest;
+      }, null);
       return {
         productId: product.id,
         sku: product.sku,
         name: product.name,
-        masterStock: product.masterStock,
-        customStockQuantity: customInventory?.customStockQuantity ?? null,
-        effectiveStockQuantity: customInventory?.customStockQuantity ?? product.masterStock,
-        updatedAt: customInventory?.updatedAt ?? product.updatedAt
+        masterStock,
+        customStockQuantity: hasVariantInventory
+          ? effectiveStockQuantity
+          : customInventory?.customStockQuantity ?? null,
+        effectiveStockQuantity,
+        updatedAt: hasVariantInventory
+          ? latestVariantUpdate ?? customInventory?.updatedAt ?? product.updatedAt
+          : customInventory?.updatedAt ?? product.updatedAt,
+        variants
       };
     });
   }
@@ -306,8 +368,34 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
       masterStock: product.masterStock,
       customStockQuantity,
       effectiveStockQuantity: customStockQuantity,
-      updatedAt
+      updatedAt,
+      variants: (product.variants ?? []).map((variant) => {
+        const variantInventory =
+          this.companyVariantInventory.get(`${companyId}:${variant.id}`) ?? null;
+        return {
+          variantId: variant.id,
+          productId: variant.productId,
+          sku: variant.sku,
+          individualWeight: variant.individualWeight ?? null,
+          masterStock: variant.individualStock,
+          customStockQuantity: variantInventory?.customStockQuantity ?? null,
+          effectiveStockQuantity:
+            variantInventory?.customStockQuantity ?? variant.individualStock,
+          updatedAt: variantInventory?.updatedAt ?? variant.updatedAt
+        };
+      })
     };
+  }
+
+  async upsertCompanyVariantInventory(
+    companyId: string,
+    variantId: string,
+    customStockQuantity: number
+  ) {
+    this.companyVariantInventory.set(`${companyId}:${variantId}`, {
+      customStockQuantity,
+      updatedAt: new Date()
+    });
   }
 
   async getCostSettings() {

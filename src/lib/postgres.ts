@@ -82,6 +82,18 @@ export type EffectiveInventoryRecord = {
   customStockQuantity: number | null;
   effectiveStockQuantity: number;
   updatedAt: Date;
+  variants: EffectiveInventoryVariantRecord[];
+};
+
+export type EffectiveInventoryVariantRecord = {
+  variantId: string;
+  productId: string;
+  sku: string;
+  individualWeight: number | null;
+  masterStock: number;
+  customStockQuantity: number | null;
+  effectiveStockQuantity: number;
+  updatedAt: Date;
 };
 
 export type CreateCompanyInput = {
@@ -153,6 +165,7 @@ export interface ControlPlaneRepository {
   listMasterProducts(): Promise<MasterProductRecord[]>;
   findMasterProductById(productId: string): Promise<MasterProductRecord | null>;
   findMasterProductBySku(sku: string): Promise<MasterProductRecord | null>;
+  listProductVariantsByProductId(productId: string): Promise<ProductVariantRecord[]>;
   getCostSettings(): Promise<CostSettingsRecord>;
   updateCostSettings(input: UpdateCostSettingsInput): Promise<CostSettingsRecord>;
   listCostSettingsHistory(limit?: number): Promise<CostSettingsHistoryRecord[]>;
@@ -162,6 +175,11 @@ export interface ControlPlaneRepository {
     productId: string,
     customStockQuantity: number
   ): Promise<EffectiveInventoryRecord | null>;
+  upsertCompanyVariantInventory(
+    companyId: string,
+    variantId: string,
+    customStockQuantity: number
+  ): Promise<void>;
 }
 
 function mapCompany(company: CompanyWithCounts): CompanyRecord {
@@ -296,17 +314,68 @@ function mapEffectiveInventory(product: {
     customStockQuantity: number;
     updatedAt: Date;
   }>;
+  variants: Array<{
+    id: string;
+    productId: string;
+    sku: string;
+    individualWeight: number | null;
+    individualStock: number;
+    updatedAt: Date;
+    companyVariantInventories: Array<{
+      customStockQuantity: number;
+      updatedAt: Date;
+    }>;
+  }>;
 }): EffectiveInventoryRecord {
   const companyInventory = product.companyInventories[0] ?? null;
+  const mappedVariants = product.variants.map((variant) => {
+    const companyVariantInventory = variant.companyVariantInventories[0] ?? null;
+
+    return {
+      variantId: variant.id,
+      productId: variant.productId,
+      sku: variant.sku,
+      individualWeight: variant.individualWeight,
+      masterStock: variant.individualStock,
+      customStockQuantity: companyVariantInventory?.customStockQuantity ?? null,
+      effectiveStockQuantity:
+        companyVariantInventory?.customStockQuantity ?? variant.individualStock,
+      updatedAt: companyVariantInventory?.updatedAt ?? variant.updatedAt
+    };
+  });
+  const hasVariants = mappedVariants.length > 0;
+  const hasCustomVariantInventory = mappedVariants.some(
+    (variant) => variant.customStockQuantity !== null
+  );
+  const variantEffectiveStock = mappedVariants.reduce(
+    (sum, variant) => sum + variant.effectiveStockQuantity,
+    0
+  );
+  const variantMasterStock = mappedVariants.reduce((sum, variant) => sum + variant.masterStock, 0);
+  const fallbackMasterStock = hasVariants ? variantMasterStock : product.masterStock;
+  const latestVariantUpdate = mappedVariants.reduce<Date | null>((latest, variant) => {
+    if (!latest || variant.updatedAt > latest) {
+      return variant.updatedAt;
+    }
+
+    return latest;
+  }, null);
 
   return {
     productId: product.id,
     sku: product.sku,
     name: product.name,
-    masterStock: product.masterStock,
-    customStockQuantity: companyInventory?.customStockQuantity ?? null,
-    effectiveStockQuantity: companyInventory?.customStockQuantity ?? product.masterStock,
-    updatedAt: companyInventory?.updatedAt ?? product.updatedAt
+    masterStock: fallbackMasterStock,
+    customStockQuantity: hasCustomVariantInventory
+      ? variantEffectiveStock
+      : companyInventory?.customStockQuantity ?? null,
+    effectiveStockQuantity: hasCustomVariantInventory
+      ? variantEffectiveStock
+      : companyInventory?.customStockQuantity ?? fallbackMasterStock,
+    updatedAt: hasCustomVariantInventory
+      ? latestVariantUpdate ?? companyInventory?.updatedAt ?? product.updatedAt
+      : companyInventory?.updatedAt ?? product.updatedAt,
+    variants: mappedVariants
   };
 }
 
@@ -692,6 +761,17 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
     return product ? mapMasterProduct(product) : null;
   }
 
+  async listProductVariantsByProductId(productId: string) {
+    const variants = await this.prisma.productVariant.findMany({
+      where: {
+        productId
+      },
+      orderBy: [{ createdAt: "asc" }, { sku: "asc" }]
+    });
+
+    return variants.map(mapProductVariant);
+  }
+
   async getCostSettings() {
     await this.prisma.$executeRawUnsafe(`
       INSERT INTO "cost_settings" (
@@ -851,6 +931,20 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
             updatedAt: "desc"
           },
           take: 1
+        },
+        variants: {
+          orderBy: [{ createdAt: "asc" }, { sku: "asc" }],
+          include: {
+            companyVariantInventories: {
+              where: {
+                companyId
+              },
+              orderBy: {
+                updatedAt: "desc"
+              },
+              take: 1
+            }
+          }
         }
       }
     });
@@ -904,11 +998,48 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
               updatedAt: "desc"
             },
             take: 1
+          },
+          variants: {
+            orderBy: [{ createdAt: "asc" }, { sku: "asc" }],
+            include: {
+              companyVariantInventories: {
+                where: {
+                  companyId
+                },
+                orderBy: {
+                  updatedAt: "desc"
+                },
+                take: 1
+              }
+            }
           }
         }
       });
     });
 
     return product ? mapEffectiveInventory(product) : null;
+  }
+
+  async upsertCompanyVariantInventory(
+    companyId: string,
+    variantId: string,
+    customStockQuantity: number
+  ) {
+    await this.prisma.companyVariantInventory.upsert({
+      where: {
+        companyId_variantId: {
+          companyId,
+          variantId
+        }
+      },
+      update: {
+        customStockQuantity
+      },
+      create: {
+        companyId,
+        variantId,
+        customStockQuantity
+      }
+    });
   }
 }
