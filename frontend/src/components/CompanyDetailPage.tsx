@@ -172,12 +172,94 @@ function getCanonicalImageKey(value: string | null | undefined) {
   normalized = normalized.replace(/^\/api\/v1\/media\/object\//, "");
   normalized = normalized.replace(/^\/+/, "");
   normalized = normalized.replace(/\?.*$/, "");
-  normalized = normalized.replace(/_(st|md|sm)(\.[a-z0-9]+)$/i, "$2");
 
   return normalized.toLowerCase();
 }
 
+function normalizeMediaRole(value: string | null | undefined) {
+  const nextValue = value?.trim();
+  if (!nextValue) {
+    return null;
+  }
+
+  const normalized = nextValue
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+
+  if (normalized === "st" || normalized === "still" || normalized === "ststill") {
+    return "st";
+  }
+
+  if (
+    normalized === "mf" ||
+    normalized === "macroframe" ||
+    normalized === "macro" ||
+    normalized === "mfmacroframe"
+  ) {
+    return "mf";
+  }
+
+  if (
+    normalized === "md" ||
+    normalized === "modelo" ||
+    normalized === "model" ||
+    normalized === "mdmodelo"
+  ) {
+    return "md";
+  }
+
+  if (
+    normalized === "mmf" ||
+    normalized === "mmfmodelomacroframe" ||
+    normalized === "modelomacroframe" ||
+    normalized === "modelmacroframe" ||
+    normalized === "modelomacro" ||
+    normalized === "modelmacro"
+  ) {
+    return "mmf";
+  }
+
+  return normalized || null;
+}
+
+function getMediaRolePriority(value: string | null | undefined) {
+  switch (normalizeMediaRole(value)) {
+    case "st":
+      return 0;
+    case "mf":
+      return 1;
+    case "md":
+      return 2;
+    case "mmf":
+      return 3;
+    default:
+      return 10;
+  }
+}
+
+function getMediaRoleLabel(value: string | null | undefined) {
+  switch (normalizeMediaRole(value)) {
+    case "st":
+      return "ST - Still";
+    case "mf":
+      return "MF - Macroframe";
+    case "md":
+      return "MD - Modelo";
+    case "mmf":
+      return "MMF - Modelo Macroframe";
+    default:
+      return null;
+  }
+}
+
 function getImageDisplayName(value: string | null | undefined, fallback?: string | null) {
+  const mediaRoleLabel = getMediaRoleLabel(fallback);
+  if (mediaRoleLabel) {
+    return mediaRoleLabel;
+  }
+
   const nextValue = normalizeCandidateUrl(value);
   if (!nextValue) {
     return fallback?.trim() || "Imagem";
@@ -215,21 +297,29 @@ function buildGalleryImageGroups(product: Product | null) {
     return leftOrder - rightOrder;
   });
 
-  const groups = new Map<string, { candidates: string[]; label: string }>();
+  const groups = new Map<
+    string,
+    { candidates: string[]; label: string; priority: number; sortOrder: number }
+  >();
 
   function addGroup(
+    groupKey: string | null | undefined,
     keySource: string | null | undefined,
     urls: Array<string | null | undefined>,
-    fallbackLabel?: string | null
+    fallbackLabel?: string | null,
+    priority = 10,
+    sortOrder = 999
   ) {
-    const key = getCanonicalImageKey(keySource ?? urls[0]);
+    const key = groupKey ?? getCanonicalImageKey(keySource ?? urls[0]);
     if (!key) {
       return;
     }
 
     const current = groups.get(key) ?? {
       candidates: [],
-      label: getImageDisplayName(keySource ?? urls[0], fallbackLabel)
+      label: getImageDisplayName(keySource ?? urls[0], fallbackLabel),
+      priority,
+      sortOrder
     };
     for (const url of urls) {
       const normalizedUrl = normalizeCandidateUrl(url);
@@ -245,60 +335,72 @@ function buildGalleryImageGroups(product: Product | null) {
 
   sortedAssets.forEach((asset: ProductMediaAsset) => {
     const storageKey = asset.storage_key ?? asset.storageKey;
-    addGroup(storageKey ?? asset.url, [
+    const roleKey = normalizeMediaRole(asset.role);
+    const canonicalKey = getCanonicalImageKey(storageKey ?? asset.url);
+    const groupKey = roleKey ? `role:${roleKey}` : canonicalKey ? `asset:${canonicalKey}` : null;
+
+    addGroup(groupKey, storageKey ?? asset.url, [
       asset.url,
       buildStableMediaApiUrl(storageKey),
       buildPublicBucketUrl(storageKey)
-    ], asset.role);
+    ], asset.role, getMediaRolePriority(asset.role), asset.sort_order ?? asset.sortOrder ?? 999);
   });
 
-  [...(product.media_urls ?? []), ...(product.mediaUrls ?? [])].forEach((url) => {
-    addGroup(url, [url]);
-  });
+  if (groups.size < 4) {
+    [...(product.media_urls ?? []), ...(product.mediaUrls ?? [])].forEach((url) => {
+      const canonicalKey = getCanonicalImageKey(url);
+      addGroup(canonicalKey ? `asset:${canonicalKey}` : null, url, [url]);
+    });
 
-  addGroup(product.s3_key_bronze ?? product.bronzeImageKey, [
-    buildStableMediaApiUrl(product.s3_key_bronze ?? product.bronzeImageKey),
-    buildPublicBucketUrl(product.s3_key_bronze ?? product.bronzeImageKey)
-  ]);
+    const bronzeKey = product.s3_key_bronze ?? product.bronzeImageKey;
+    const canonicalBronzeKey = getCanonicalImageKey(bronzeKey);
+    addGroup(
+      canonicalBronzeKey ? `asset:${canonicalBronzeKey}` : null,
+      bronzeKey,
+      [buildStableMediaApiUrl(bronzeKey), buildPublicBucketUrl(bronzeKey)],
+      "st"
+    );
 
-  addGroup(product.s3_key_silver ?? product.silverImageKey, [
-    buildStableMediaApiUrl(product.s3_key_silver ?? product.silverImageKey),
-    buildPublicBucketUrl(product.s3_key_silver ?? product.silverImageKey)
-  ]);
+    const silverKey = product.s3_key_silver ?? product.silverImageKey;
+    const canonicalSilverKey = getCanonicalImageKey(silverKey);
+    addGroup(
+      canonicalSilverKey ? `asset:${canonicalSilverKey}` : null,
+      silverKey,
+      [buildStableMediaApiUrl(silverKey), buildPublicBucketUrl(silverKey)]
+    );
+  }
 
-  return Array.from(groups.entries()).map(([key, entry]) => ({
-    key,
-    candidates: entry.candidates,
-    label: entry.label
-  }));
+  return Array.from(groups.entries())
+    .sort((left, right) => {
+      const [, leftEntry] = left;
+      const [, rightEntry] = right;
+
+      if (leftEntry.priority !== rightEntry.priority) {
+        return leftEntry.priority - rightEntry.priority;
+      }
+
+      if (leftEntry.sortOrder !== rightEntry.sortOrder) {
+        return leftEntry.sortOrder - rightEntry.sortOrder;
+      }
+
+      return leftEntry.label.localeCompare(rightEntry.label, "pt-BR", {
+        sensitivity: "base"
+      });
+    })
+    .map(([key, entry]) => ({
+      key,
+      candidates: entry.candidates,
+      label: entry.label
+    }));
 }
 
-function buildProductImageCandidates(product: Product | null) {
-  const baseCandidates = collectProductImageCandidates(product);
-  if (baseCandidates.length === 0) {
-    return [];
+function buildPrimaryImageCandidates(product: Product | null) {
+  const galleryGroups = buildGalleryImageGroups(product);
+  if (galleryGroups.length > 0) {
+    return galleryGroups[0].candidates;
   }
 
-  const suffixVariants = [
-    ["_st.", "_md."],
-    ["_md.", "_st."],
-    ["_st.", "_sm."],
-    ["_sm.", "_md."]
-  ] as const;
-
-  const expandedCandidates: string[] = [];
-
-  for (const candidate of baseCandidates) {
-    expandedCandidates.push(candidate);
-
-    for (const [from, to] of suffixVariants) {
-      if (candidate.includes(from)) {
-        expandedCandidates.push(candidate.replace(from, to));
-      }
-    }
-  }
-
-  return [...new Set(expandedCandidates)];
+  return collectProductImageCandidates(product);
 }
 
 function getVariantDisplayLabel(variant: ProductVariant) {
@@ -325,7 +427,7 @@ function formatUsd(value: string | number | null | undefined) {
 
 function ProductImage(props: { product: Product | null; alt: string; mode?: "line" | "card" }) {
   const { product, alt, mode = "card" } = props;
-  const candidates = buildProductImageCandidates(product);
+  const candidates = buildPrimaryImageCandidates(product);
   const [candidateIndex, setCandidateIndex] = useState(0);
   const [exhausted, setExhausted] = useState(false);
   const isCompact = mode === "line";
