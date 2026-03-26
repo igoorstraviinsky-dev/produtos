@@ -47,6 +47,30 @@ function formatWeight(value: string | number | null | undefined) {
   })} g`;
 }
 
+function getSupplierCode(product: Product | null) {
+  return product?.supplier_code ?? product?.supplierCode ?? "n/d";
+}
+
+function getCommercialDescription(product: Product | null, fallbackName: string) {
+  return product?.descricao ?? product?.description ?? fallbackName;
+}
+
+function getVariantStockTotal(product: Product | null) {
+  const variants = product?.variants ?? [];
+  if (variants.length === 0) {
+    return null;
+  }
+
+  return variants.reduce((total, variant) => {
+    const variantStock = toNumber(variant.individual_stock ?? variant.individualStock) ?? 0;
+    return total + variantStock;
+  }, 0);
+}
+
+function getCurrentDisplayStock(item: AdminInventoryItem, product: Product | null) {
+  return getVariantStockTotal(product) ?? item.effectiveStockQuantity;
+}
+
 function normalizeCandidateUrl(value: string | null | undefined) {
   const nextValue = value?.trim();
   return nextValue ? nextValue : null;
@@ -381,6 +405,18 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
         <div className="mt-6 flex flex-wrap gap-3">
           <button
             type="button"
+            onClick={() => onChangeTab("inventory")}
+            className={[
+              "rounded-full px-4 py-2 text-sm font-semibold transition",
+              activeTab === "inventory"
+                ? "bg-cyan-600 text-white"
+                : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            ].join(" ")}
+          >
+            Estoque da Empresa
+          </button>
+          <button
+            type="button"
             onClick={() => onChangeTab("profile")}
             className={[
               "rounded-full px-4 py-2 text-sm font-semibold transition",
@@ -402,18 +438,6 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
             ].join(" ")}
           >
             Gestao de credenciais
-          </button>
-          <button
-            type="button"
-            onClick={() => onChangeTab("inventory")}
-            className={[
-              "rounded-full px-4 py-2 text-sm font-semibold transition",
-              activeTab === "inventory"
-                ? "bg-cyan-600 text-white"
-                : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-            ].join(" ")}
-          >
-            Estoque da Empresa
           </button>
         </div>
       </div>
@@ -638,6 +662,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
               {inventory.map((item) => {
                 const product = productsById.get(item.productId) ?? null;
                 const variants = product?.variants ?? [];
+                const currentDisplayStock = getCurrentDisplayStock(item, product);
                 const isCardOpen = openInventoryProductId === item.productId;
                 const isVariantsExpanded = Boolean(expandedProductIds[item.productId]);
 
@@ -654,70 +679,72 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     <button
                       type="button"
                       onClick={() => toggleInventoryCard(item.productId)}
-                      className="flex w-full flex-col gap-4 p-4 text-left sm:p-5"
+                      className="flex w-full flex-col gap-3 p-3 text-left sm:p-4"
                     >
-                      <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
-                        <div className="flex items-center gap-4 xl:min-w-0 xl:flex-1">
-                          <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.7)]">
+                      <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                        <div className="flex items-center gap-3 xl:min-w-0 xl:flex-1">
+                          <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.7)]">
                             <ProductImage product={product} alt={item.name} mode="line" />
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-3">
-                              <p className="line-clamp-2 font-display text-xl tracking-tight text-slate-950 sm:text-2xl">
-                                {item.name}
+                            <div className="grid gap-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] lg:items-start">
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Cód
+                                </p>
+                                <p className="mt-1 truncate font-display text-lg tracking-tight text-slate-950">
+                                  {item.sku}
+                                </p>
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Cod fornecedor
+                                </p>
+                                <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                                  {getSupplierCode(product)}
+                                </p>
+                              </div>
+
+                              <div className="flex items-start lg:justify-end">
+                                <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
+                                  {variants.length} variacoes
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="mt-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Descricao comercial
                               </p>
-                              <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
-                                {variants.length} variacoes
-                              </span>
+                              <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-700">
+                                {getCommercialDescription(product, item.name)}
+                              </p>
                             </div>
 
-                            <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.16em]">
-                              <span className="rounded-full bg-slate-950 px-3 py-1 text-white">
-                                {item.sku}
-                              </span>
-                              {product?.categoria ? (
-                                <span className="rounded-full bg-white px-3 py-1 text-slate-600">
-                                  {product.categoria}
-                                </span>
-                              ) : null}
-                              {product?.subcategoria ? (
-                                <span className="rounded-full bg-white px-3 py-1 text-slate-600">
-                                  {product.subcategoria}
-                                </span>
-                              ) : null}
-                            </div>
-
-                            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                              <div className="rounded-[1.1rem] border border-slate-200 bg-white px-3 py-3">
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-2.5">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                                   Catalogo mestre
                                 </p>
-                                <p className="mt-2 text-lg font-semibold text-slate-950">
+                                <p className="mt-1.5 text-base font-semibold text-slate-950">
                                   {item.masterStock}
                                 </p>
                               </div>
-                              <div className="rounded-[1.1rem] border border-emerald-200 bg-emerald-50 px-3 py-3">
+                              <div className="rounded-[1rem] border border-emerald-200 bg-emerald-50 px-3 py-2.5">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
                                   Estoque atual
                                 </p>
-                                <p className="mt-2 text-lg font-semibold text-emerald-900">
-                                  {item.effectiveStockQuantity}
+                                <p className="mt-1.5 text-base font-semibold text-emerald-900">
+                                  {currentDisplayStock}
                                 </p>
                               </div>
-                              <div className="rounded-[1.1rem] border border-slate-200 bg-white px-3 py-3">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Peso base
-                                </p>
-                                <p className="mt-2 text-sm font-semibold text-slate-950">
-                                  {formatWeight(product?.weight_grams ?? product?.peso_gramas ?? null)}
-                                </p>
-                              </div>
-                              <div className="rounded-[1.1rem] border border-slate-200 bg-white px-3 py-3">
+                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-2.5">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                                   Atualizado
                                 </p>
-                                <p className="mt-2 text-sm font-semibold text-slate-950">
+                                <p className="mt-1.5 text-sm font-semibold text-slate-950">
                                   {formatDate(item.updatedAt)}
                                 </p>
                               </div>
@@ -725,13 +752,13 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between gap-3 xl:w-[13rem] xl:flex-col xl:items-stretch">
-                          <div className="rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3">
+                        <div className="flex items-center justify-between gap-3 xl:w-[11rem] xl:flex-col xl:items-stretch">
+                          <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-2.5">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                               Estoque loja
                             </p>
-                            <p className="mt-2 text-xl font-semibold text-slate-950">
-                              {inventoryDrafts[item.productId] ?? item.effectiveStockQuantity}
+                            <p className="mt-1.5 text-lg font-semibold text-slate-950">
+                              {inventoryDrafts[item.productId] ?? currentDisplayStock}
                             </p>
                           </div>
                           <div className="flex items-center justify-end">
