@@ -681,19 +681,18 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                       onClick={() => toggleInventoryCard(item.productId)}
                       className="flex w-full flex-col gap-3 p-3 text-left sm:p-4"
                     >
-                      <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-                        <div className="flex items-center gap-3 xl:min-w-0 xl:flex-1">
+                      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex min-w-0 items-center gap-3 xl:flex-1">
                           <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.7)]">
                             <ProductImage product={product} alt={item.name} mode="line" />
                           </div>
 
-                          <div className="min-w-0 flex-1">
-                            <div className="grid gap-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] lg:items-start">
+                          <div className="grid min-w-0 flex-1 gap-3 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,0.55fr)_minmax(0,1.2fr)] xl:items-center">
                               <div className="min-w-0">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                                   Cód
                                 </p>
-                                <p className="mt-1 truncate font-display text-lg tracking-tight text-slate-950">
+                                <p className="mt-1 truncate font-display text-base tracking-tight text-slate-950">
                                   {item.sku}
                                 </p>
                               </div>
@@ -707,14 +706,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                 </p>
                               </div>
 
-                              <div className="flex items-start lg:justify-end">
-                                <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
-                                  {variants.length} variacoes
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="mt-3">
+                            <div className="min-w-0">
                               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                                 Descricao comercial
                               </p>
@@ -722,38 +714,14 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                 {getCommercialDescription(product, item.name)}
                               </p>
                             </div>
-
-                            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-2.5">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Catalogo mestre
-                                </p>
-                                <p className="mt-1.5 text-base font-semibold text-slate-950">
-                                  {item.masterStock}
-                                </p>
-                              </div>
-                              <div className="rounded-[1rem] border border-emerald-200 bg-emerald-50 px-3 py-2.5">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                                  Estoque atual
-                                </p>
-                                <p className="mt-1.5 text-base font-semibold text-emerald-900">
-                                  {currentDisplayStock}
-                                </p>
-                              </div>
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-2.5">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Atualizado
-                                </p>
-                                <p className="mt-1.5 text-sm font-semibold text-slate-950">
-                                  {formatDate(item.updatedAt)}
-                                </p>
-                              </div>
-                            </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between gap-3 xl:w-[11rem] xl:flex-col xl:items-stretch">
-                          <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-2.5">
+                        <div className="flex flex-wrap items-center gap-3 xl:ml-4 xl:shrink-0 xl:flex-nowrap">
+                          <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
+                            {variants.length} variacoes
+                          </span>
+                          <div className="min-w-[8.5rem] rounded-[1rem] border border-slate-200 bg-white px-3 py-2.5">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                               Estoque loja
                             </p>
@@ -761,18 +729,16 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                               {inventoryDrafts[item.productId] ?? currentDisplayStock}
                             </p>
                           </div>
-                          <div className="flex items-center justify-end">
-                            <span
-                              className={[
-                                "inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold transition",
-                                isCardOpen
-                                  ? "bg-slate-950 text-white"
-                                  : "border border-slate-200 bg-white text-slate-700"
-                              ].join(" ")}
-                            >
-                              {isCardOpen ? "Fechar card" : "Abrir card"}
-                            </span>
-                          </div>
+                          <span
+                            className={[
+                              "inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold transition",
+                              isCardOpen
+                                ? "bg-slate-950 text-white"
+                                : "border border-slate-200 bg-white text-slate-700"
+                            ].join(" ")}
+                          >
+                            {isCardOpen ? "Fechar card" : "Abrir card"}
+                          </span>
                         </div>
                       </div>
                     </button>
