@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { Toggle } from "./Toggle";
 import { EmptyState, StatusChip } from "./ui";
 import type { AdminInventoryItem, ApiKeySummary, Company, Product, ProductVariant } from "../types";
@@ -63,6 +65,29 @@ function resolveProductImageUrl(product: Product | null) {
   return PRODUCT_IMAGE_BASE_URL ? `${PRODUCT_IMAGE_BASE_URL}/${key.replace(/^\/+/, "")}` : null;
 }
 
+function buildProductImageCandidates(product: Product | null) {
+  const primaryUrl = resolveProductImageUrl(product);
+  if (!primaryUrl) {
+    return [];
+  }
+
+  const candidates = [primaryUrl];
+  const suffixVariants = [
+    ["_st.", "_md."],
+    ["_md.", "_st."],
+    ["_st.", "_sm."],
+    ["_sm.", "_md."]
+  ] as const;
+
+  for (const [from, to] of suffixVariants) {
+    if (primaryUrl.includes(from)) {
+      candidates.push(primaryUrl.replace(from, to));
+    }
+  }
+
+  return [...new Set(candidates)];
+}
+
 function getVariantOptionChips(variant: ProductVariant) {
   const sizeChips = variant.size_labels.map((label) => ({
     key: `size:${label}`,
@@ -83,6 +108,40 @@ function getVariantOptionChips(variant: ProductVariant) {
     }));
 
   return [...sizeChips, ...colorChips, ...extraChips];
+}
+
+function ProductImage(props: { product: Product | null; alt: string }) {
+  const { product, alt } = props;
+  const candidates = buildProductImageCandidates(product);
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const [exhausted, setExhausted] = useState(false);
+
+  if (candidates.length === 0 || exhausted) {
+    return (
+      <div className="flex h-full w-full items-center justify-center px-4 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+        Sem foto
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={candidates[candidateIndex]}
+      alt={alt}
+      className="h-full w-full object-cover"
+      loading="lazy"
+      onError={() => {
+        setCandidateIndex((current) => {
+          if (current >= candidates.length - 1) {
+            setExhausted(true);
+            return current;
+          }
+
+          return current + 1;
+        });
+      }}
+    />
+  );
 }
 
 type CompanyDetailPageProps = {
@@ -144,6 +203,14 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
   } = props;
 
   const productsById = new Map(products.map((product) => [product.id, product]));
+  const [expandedProductIds, setExpandedProductIds] = useState<Record<string, boolean>>({});
+
+  function toggleVariants(productId: string) {
+    setExpandedProductIds((current) => ({
+      ...current,
+      [productId]: !current[productId]
+    }));
+  }
 
   return (
     <section className="space-y-6">
@@ -415,32 +482,21 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
           ) : null}
 
           {inventory.length > 0 ? (
-            <div className="mt-6 grid gap-5 xl:grid-cols-2">
+            <div className="mt-6 space-y-5">
               {inventory.map((item) => {
                 const product = productsById.get(item.productId) ?? null;
-                const imageUrl = resolveProductImageUrl(product);
                 const variants = product?.variants ?? [];
+                const isExpanded = Boolean(expandedProductIds[item.productId]);
 
                 return (
                   <article
                     key={item.productId}
                     className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-50/70 shadow-[0_18px_40px_rgba(15,23,42,0.06)]"
                   >
-                    <div className="flex flex-col gap-5 p-5 lg:flex-row">
-                      <div className="w-full lg:max-w-[11rem]">
+                    <div className="flex flex-col gap-5 p-5 xl:flex-row">
+                      <div className="w-full xl:max-w-[14rem]">
                         <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white">
-                          {imageUrl ? (
-                            <img
-                              src={imageUrl}
-                              alt={item.name}
-                              className="h-full w-full object-cover"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="px-4 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                              Sem foto
-                            </div>
-                          )}
+                          <ProductImage product={product} alt={item.name} />
                         </div>
                       </div>
 
@@ -478,7 +534,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                             </div>
                           </div>
 
-                          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                             <div className="rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3">
                               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                                 Catalogo mestre
@@ -515,7 +571,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                         </div>
 
                         <div className="rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                             <div className="max-w-md">
                               <p className="text-sm font-semibold text-slate-900">
                                 Estoque isolado da empresa
@@ -546,11 +602,26 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                               </button>
                             </div>
                           </div>
+
+                          {variants.length > 0 ? (
+                            <div className="mt-4 border-t border-slate-200 pt-4">
+                              <button
+                                type="button"
+                                onClick={() => toggleVariants(item.productId)}
+                                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-white"
+                              >
+                                {isExpanded
+                                  ? `Ocultar variacoes (${variants.length})`
+                                  : `Ver variacoes (${variants.length})`}
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-200 bg-white/80 px-5 py-5">
+                    {isExpanded ? (
+                      <div className="border-t border-slate-200 bg-white/80 px-5 py-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -581,14 +652,8 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                         </div>
                       ) : null}
 
-                      {product && variants.length === 0 ? (
-                        <div className="mt-4 rounded-[1.25rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                          Produto simples. Nenhuma variante cadastrada para este item.
-                        </div>
-                      ) : null}
-
                       {product && variants.length > 0 ? (
-                        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                        <div className="mt-4 grid gap-3 lg:grid-cols-3">
                           {variants.map((variant) => {
                             const chips = getVariantOptionChips(variant);
 
@@ -627,6 +692,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                         </div>
                       ) : null}
                     </div>
+                    ) : null}
                   </article>
                 );
               })}
