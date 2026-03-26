@@ -177,6 +177,32 @@ function getCanonicalImageKey(value: string | null | undefined) {
   return normalized.toLowerCase();
 }
 
+function getImageDisplayName(value: string | null | undefined, fallback?: string | null) {
+  const nextValue = normalizeCandidateUrl(value);
+  if (!nextValue) {
+    return fallback?.trim() || "Imagem";
+  }
+
+  let normalized = nextValue;
+
+  if (/^https?:\/\//i.test(normalized)) {
+    try {
+      const url = new URL(normalized);
+      normalized = decodeURIComponent(url.pathname);
+    } catch {
+      normalized = normalized.replace(/^https?:\/\/[^/]+/i, "");
+    }
+  } else {
+    normalized = decodeURIComponent(normalized);
+  }
+
+  const fileName = normalized.split("/").filter(Boolean).pop() ?? normalized;
+  const baseName = fileName.replace(/\.[a-z0-9]+$/i, "").replace(/_(st|md|sm)$/i, "");
+  const label = baseName.replace(/[_-]+/g, " ").trim();
+
+  return label || fallback?.trim() || "Imagem";
+}
+
 function buildGalleryImageGroups(product: Product | null) {
   if (!product) {
     return [];
@@ -189,23 +215,30 @@ function buildGalleryImageGroups(product: Product | null) {
     return leftOrder - rightOrder;
   });
 
-  const groups = new Map<string, string[]>();
+  const groups = new Map<string, { candidates: string[]; label: string }>();
 
-  function addGroup(keySource: string | null | undefined, urls: Array<string | null | undefined>) {
+  function addGroup(
+    keySource: string | null | undefined,
+    urls: Array<string | null | undefined>,
+    fallbackLabel?: string | null
+  ) {
     const key = getCanonicalImageKey(keySource ?? urls[0]);
     if (!key) {
       return;
     }
 
-    const current = groups.get(key) ?? [];
+    const current = groups.get(key) ?? {
+      candidates: [],
+      label: getImageDisplayName(keySource ?? urls[0], fallbackLabel)
+    };
     for (const url of urls) {
       const normalizedUrl = normalizeCandidateUrl(url);
-      if (normalizedUrl && !current.includes(normalizedUrl)) {
-        current.push(normalizedUrl);
+      if (normalizedUrl && !current.candidates.includes(normalizedUrl)) {
+        current.candidates.push(normalizedUrl);
       }
     }
 
-    if (current.length > 0) {
+    if (current.candidates.length > 0) {
       groups.set(key, current);
     }
   }
@@ -216,7 +249,7 @@ function buildGalleryImageGroups(product: Product | null) {
       asset.url,
       buildStableMediaApiUrl(storageKey),
       buildPublicBucketUrl(storageKey)
-    ]);
+    ], asset.role);
   });
 
   [...(product.media_urls ?? []), ...(product.mediaUrls ?? [])].forEach((url) => {
@@ -233,9 +266,10 @@ function buildGalleryImageGroups(product: Product | null) {
     buildPublicBucketUrl(product.s3_key_silver ?? product.silverImageKey)
   ]);
 
-  return Array.from(groups.entries()).map(([key, candidates]) => ({
+  return Array.from(groups.entries()).map(([key, entry]) => ({
     key,
-    candidates
+    candidates: entry.candidates,
+    label: entry.label
   }));
 }
 
@@ -364,7 +398,9 @@ function ProductImage(props: { product: Product | null; alt: string; mode?: "lin
 function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
   const { product, alt } = props;
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [validCandidates, setValidCandidates] = useState<Array<{ key: string; url: string }>>([]);
+  const [validCandidates, setValidCandidates] = useState<
+    Array<{ key: string; url: string; label: string }>
+  >([]);
   const galleryGroups = buildGalleryImageGroups(product);
 
   useEffect(() => {
@@ -397,6 +433,7 @@ function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
     void Promise.all(
       galleryGroups.map(async (group) => ({
         key: group.key,
+        label: group.label,
         url: await findFirstValidUrl(group.candidates)
       }))
     ).then((results) => {
@@ -406,7 +443,9 @@ function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
 
       setValidCandidates(
         results
-          .filter((result): result is { key: string; url: string } => Boolean(result.url))
+          .filter((result): result is { key: string; url: string; label: string } =>
+            Boolean(result.url)
+          )
           .slice(0, 4)
       );
     });
@@ -477,6 +516,11 @@ function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
                     className="h-full w-full object-contain p-2"
                     loading="lazy"
                   />
+                </div>
+                <div className="border-t border-slate-100 px-2 py-2">
+                  <p className="truncate text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    {candidate.label}
+                  </p>
                 </div>
               </button>
             ))
