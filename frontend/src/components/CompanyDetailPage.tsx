@@ -42,13 +42,6 @@ function toNumber(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value);
-}
-
 function formatWeight(value: string | number | null | undefined) {
   const parsed = toNumber(value);
   if (parsed === null) {
@@ -67,10 +60,6 @@ function getSupplierCode(product: Product | null) {
 
 function getCommercialDescription(product: Product | null, fallbackName: string) {
   return product?.descricao ?? product?.description ?? fallbackName;
-}
-
-function getTechnicalDescription(product: Product | null, fallbackName: string) {
-  return product?.description ?? product?.descricao ?? fallbackName;
 }
 
 function getVariantStockTotal(product: Product | null) {
@@ -416,15 +405,6 @@ function getVariantDisplayLabel(variant: ProductVariant) {
   return firstOption?.label ?? "Sem atributo";
 }
 
-function formatUsd(value: string | number | null | undefined) {
-  const parsed = toNumber(value);
-  if (parsed === null) {
-    return "n/d";
-  }
-
-  return `US$ ${formatNumber(parsed)}`;
-}
-
 function ProductImage(props: { product: Product | null; alt: string; mode?: "line" | "card" }) {
   const { product, alt, mode = "card" } = props;
   const candidates = buildPrimaryImageCandidates(product);
@@ -494,161 +474,6 @@ function ProductImage(props: { product: Product | null; alt: string; mode?: "lin
         Abrir foto
       </span>
     </button>
-  );
-}
-
-function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
-  const { product, alt } = props;
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [validCandidates, setValidCandidates] = useState<
-    Array<{ key: string; url: string; label: string }>
-  >([]);
-  const galleryGroups = buildGalleryImageGroups(product);
-
-  useEffect(() => {
-    let isCancelled = false;
-    const loaders: HTMLImageElement[] = [];
-
-    if (galleryGroups.length === 0) {
-      setValidCandidates([]);
-      return;
-    }
-
-    async function findFirstValidUrl(candidates: string[]) {
-      for (const candidate of candidates) {
-        const result = await new Promise<{ url: string; ok: boolean }>((resolve) => {
-          const image = new Image();
-          loaders.push(image);
-          image.onload = () => resolve({ url: candidate, ok: true });
-          image.onerror = () => resolve({ url: candidate, ok: false });
-          image.src = candidate;
-        });
-
-        if (result.ok) {
-          return result.url;
-        }
-      }
-
-      return null;
-    }
-
-    void Promise.all(
-      galleryGroups.map(async (group) => ({
-        key: group.key,
-        label: group.label,
-        url: await findFirstValidUrl(group.candidates)
-      }))
-    ).then((results) => {
-      if (isCancelled) {
-        return;
-      }
-
-      setValidCandidates(
-        results
-          .filter((result): result is { key: string; url: string; label: string } =>
-            Boolean(result.url)
-          )
-          .slice(0, 4)
-      );
-    });
-
-    return () => {
-      isCancelled = true;
-      loaders.forEach((image) => {
-        image.onload = null;
-        image.onerror = null;
-        image.src = "";
-      });
-    };
-  }, [galleryGroups.map((group) => `${group.key}:${group.candidates.join("|")}`).join("||")]);
-
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [product?.id, validCandidates.map((candidate) => candidate.url).join("|")]);
-
-  const previewCandidates = validCandidates;
-  const selectedCandidate = previewCandidates[selectedIndex]?.url ?? previewCandidates[0]?.url ?? null;
-  const thumbnailCandidates = previewCandidates
-    .filter((_, index) => index !== selectedIndex)
-    .slice(0, 3);
-
-  return (
-    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
-      <p className="text-sm font-semibold text-slate-900">Fotos</p>
-      <div className="mt-4 grid gap-3 lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <div className="overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-          <div className="aspect-square">
-            {selectedCandidate ? (
-              <button
-                type="button"
-                onClick={() => window.open(selectedCandidate, "_blank", "noopener,noreferrer")}
-                className="block h-full w-full"
-                title="Abrir foto principal"
-              >
-                <img
-                  src={selectedCandidate}
-                  alt={alt}
-                  className="h-full w-full object-contain p-5"
-                  loading="lazy"
-                />
-              </button>
-            ) : (
-              <ProductImage product={product} alt={alt} />
-            )}
-          </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          {thumbnailCandidates.length > 0 ? (
-            thumbnailCandidates.map((candidate) => {
-              const originalIndex = previewCandidates.findIndex(
-                (previewCandidate) => previewCandidate.url === candidate.url
-              );
-
-              return (
-              <button
-                key={`${candidate.key}-${candidate.url}`}
-                type="button"
-                onClick={() => {
-                  if (originalIndex >= 0) {
-                    setSelectedIndex(originalIndex);
-                  }
-                  window.open(candidate.url, "_blank", "noopener,noreferrer");
-                }}
-                className={[
-                  "overflow-hidden rounded-[1.2rem] border bg-white shadow-[0_8px_20px_rgba(15,23,42,0.05)] transition hover:border-cyan-300",
-                  selectedCandidate === candidate.url ? "border-cyan-300" : "border-slate-200"
-                ].join(" ")}
-                title={`Abrir ${candidate.label}`}
-              >
-                <div className="aspect-square">
-                  <img
-                    src={candidate.url}
-                    alt={`${alt} ${candidate.label}`}
-                    className="h-full w-full object-contain p-2"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="border-t border-slate-100 px-2 py-2">
-                  <p className="truncate text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    {candidate.label}
-                  </p>
-                </div>
-              </button>
-              );
-            })
-          ) : (
-            <div className="sm:col-span-3">
-              <div className="h-full overflow-hidden rounded-[1.2rem] border border-dashed border-slate-300 bg-white">
-                <div className="aspect-square">
-                  <ProductImage product={product} alt={alt} mode="card" />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -1054,7 +879,6 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                 const variants = product?.variants ?? [];
                 const currentDisplayStock = getCurrentDisplayStock(item, product);
                 const commercialDescription = product?.name ?? item.name;
-                const technicalDescription = getTechnicalDescription(product, item.name);
                 const isCardOpen = openInventoryProductId === item.productId;
 
                 return (
@@ -1137,97 +961,21 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     {isCardOpen ? (
                       <div className="border-t border-slate-200 bg-white px-5 py-5">
                         <div className="space-y-5">
-                          <ProductPhotoGallery product={product} alt={commercialDescription} />
-
                           <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 px-4 py-4">
-                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  SKU
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-slate-950">{item.sku}</p>
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                              <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.7)]">
+                                <ProductImage product={product} alt={commercialDescription} mode="line" />
                               </div>
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Codigo Fornecedor
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-slate-950">
-                                  {getSupplierCode(product)}
-                                </p>
-                              </div>
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  NCM
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-slate-950">
-                                  {product?.ncm ?? "n/d"}
-                                </p>
-                              </div>
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Tabela
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-slate-950">
-                                  {product?.labor_rate_table_name ?? product?.laborRateTableName ?? "n/d"}
-                                </p>
-                              </div>
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Mao de Obra
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-slate-950">
-                                  {product?.labor_rate_label ?? product?.laborRateLabel ?? "n/d"}
-                                </p>
-                              </div>
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Ref Tabela
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-slate-950">
-                                  {formatUsd(product?.labor_cost ?? product?.laborCost)}
-                                </p>
-                              </div>
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Tipo de Material
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-slate-950">
-                                  {product?.material_base ?? product?.baseMaterial ?? "n/d"}
-                                </p>
-                              </div>
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Categoria
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-slate-950">
-                                  {product?.categoria ?? product?.category ?? "n/d"}
-                                </p>
-                              </div>
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Subcategorias
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-slate-950">
-                                  {product?.subcategoria ?? product?.subcategory ?? "n/d"}
-                                </p>
-                              </div>
-                            </div>
 
-                            <div className="mt-3 grid gap-3">
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
+                              <div className="min-w-0 flex-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Descricao Comercial
+                                  Miniatura do produto
                                 </p>
-                                <p className="mt-1 text-sm leading-6 text-slate-700">
+                                <p className="mt-2 truncate text-sm font-semibold text-slate-900">
                                   {commercialDescription}
                                 </p>
-                              </div>
-                              <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Descricao Tecnica
-                                </p>
-                                <p className="mt-1 text-sm leading-6 text-slate-700">
-                                  {technicalDescription}
+                                <p className="mt-1 text-sm text-slate-500">
+                                  {variants.length} variacoes disponiveis para consulta
                                 </p>
                               </div>
                             </div>
@@ -1320,12 +1068,12 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                           ) : null}
 
                           {!product && productsState === "loading" ? (
-                            <p className="text-sm text-slate-500">Carregando detalhes do catalogo mestre...</p>
+                            <p className="text-sm text-slate-500">Carregando variantes do catalogo mestre...</p>
                           ) : null}
 
                           {!product && productsState !== "loading" ? (
                             <div className="rounded-[1.25rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                              Nao foi possivel carregar a ficha completa desse produto no catalogo mestre.
+                              Nao foi possivel carregar as variantes desse produto no catalogo mestre.
                             </div>
                           ) : null}
                         </div>
