@@ -98,6 +98,8 @@ Esse token pode ser o que voce preencheu em `.env.production` ou o gerado automa
 Comandos uteis:
 
 ```bash
+cd /opt/produtos && npm install --include=dev
+cd /opt/produtos/frontend && npm install --include=dev
 sudo systemctl status produtos-api
 sudo journalctl -u produtos-api -n 200 --no-pager
 sudo nginx -t
@@ -110,3 +112,4 @@ sudo systemctl reload nginx
 - O `VITE_ADMIN_TOKEN` nao precisa ser embutido no frontend de producao.
 - O backend continua validando `ADMIN_TOKEN` para criar a sessao do painel.
 - O backend continua ouvindo em `127.0.0.1:3000`, e o acesso externo deve passar pelo `nginx`.
+- Se a VPS estiver com `NODE_ENV=production` no shell, use `npm install --include=dev` no backend e no frontend para nao perder `vite`, `typescript` e plugins de build.

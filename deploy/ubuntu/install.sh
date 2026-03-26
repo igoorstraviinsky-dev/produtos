@@ -285,11 +285,11 @@ ensure_postgres_db() {
 install_node_dependencies() {
   log "Instalando dependencias do backend"
   cd "${APP_DIR}"
-  npm install
+  npm install --include=dev
 
   log "Instalando dependencias do frontend"
   cd "${APP_DIR}/frontend"
-  npm install
+  npm install --include=dev
 }
 
 build_application() {

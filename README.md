@@ -72,3 +72,5 @@ Fluxo resumido:
 4. entre no painel com o token salvo em `ADMIN_TOKEN`
 
 Se a porta `3000` da VPS ja estiver ocupada por outra aplicacao, use o instalador com `--app-port 3100` e o Nginx sera configurado automaticamente para essa porta.
+
+Se o shell da VPS estiver com `NODE_ENV=production`, instale dependencias com `npm install --include=dev` no backend e no `frontend` para garantir `vite`, `typescript` e plugins de build.
