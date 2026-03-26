@@ -93,6 +93,14 @@ export function LoginPage(props: LoginPageProps) {
                 ? "Autenticamos a sessao no backend e liberamos o painel sem expor o segredo nas chamadas seguintes."
                 : "Se o ambiente estiver usando token administrativo, basta informar o token como senha para abrir a sessao segura."}
             </p>
+            <div className="mt-4">
+              <a
+                href="/docs/api-estoque"
+                className="inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-400/20"
+              >
+                Ver documentacao publica da API
+              </a>
+            </div>
 
             <form className="mt-8 space-y-5" onSubmit={onSubmit}>
               {usesCredentials ? (

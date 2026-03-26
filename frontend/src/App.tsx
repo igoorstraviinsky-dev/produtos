@@ -5,6 +5,7 @@ import { CompanyDetailPage } from "./components/CompanyDetailPage";
 import { CostCalculatorPage } from "./components/CostCalculatorPage";
 import { LoginPage } from "./components/LoginPage";
 import { Modal } from "./components/Modal";
+import { PublicInventoryApiDocsPage } from "./components/PublicInventoryApiDocsPage";
 import { Field, StatCard } from "./components/ui";
 import { ApiError, api } from "./lib/api";
 import type {
@@ -19,11 +20,18 @@ import type {
 } from "./types";
 
 type AsyncState = "idle" | "loading" | "success" | "error";
-type AppPage = "dashboard" | "company" | "costs";
+type AppPage = "dashboard" | "company" | "costs" | "docs";
 type CompanyTab = "profile" | "keys" | "inventory";
 type AuthState = "checking" | "authenticated" | "unauthenticated";
 
 function getRouteState(pathname: string) {
+  if (pathname === "/docs" || pathname === "/docs/api-estoque") {
+    return {
+      page: "docs" as const,
+      companyId: ""
+    };
+  }
+
   if (pathname === "/custos") {
     return {
       page: "costs" as const,
@@ -348,6 +356,12 @@ function App() {
     setSelectedCompanyId("");
   }
 
+  function openDocs() {
+    window.history.pushState({}, "", "/docs/api-estoque");
+    setCurrentPage("docs");
+    setSelectedCompanyId("");
+  }
+
   function openCostHistory() {
     setCostHistoryOpen(true);
     void refreshCostSettingsHistory();
@@ -366,7 +380,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const handlePopState = () => {
+      const handlePopState = () => {
       const route = getRouteState(window.location.pathname);
       setCurrentPage(route.page);
       setSelectedCompanyId(route.companyId);
@@ -645,6 +659,10 @@ function App() {
     setFeedback("Chave copiada para a area de transferencia.");
   }
 
+  if (currentPage === "docs") {
+    return <PublicInventoryApiDocsPage />;
+  }
+
   if (authState === "checking") {
     return (
       <div className="relative overflow-hidden">
@@ -735,6 +753,13 @@ function App() {
                   ].join(" ")}
                 >
                   Custos
+                </button>
+                <button
+                  type="button"
+                  onClick={openDocs}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+                >
+                  Docs API
                 </button>
                 {selectedCompany ? (
                   <button

@@ -44,6 +44,7 @@ Supabase e estoque isolado por parceiro.
 ## Frontend
 
 - Painel admin: `http://127.0.0.1:5173/`
+- Documentacao publica da API de estoque: `http://127.0.0.1:5173/docs/api-estoque`
 - Catalogo mestre: `http://127.0.0.1:5173/produtos`
 - Meu Estoque: `http://127.0.0.1:5173/meu-estoque`
 
