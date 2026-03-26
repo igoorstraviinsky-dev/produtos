@@ -268,13 +268,57 @@ function ProductImage(props: { product: Product | null; alt: string; mode?: "lin
 function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
   const { product, alt } = props;
   const candidates = buildProductImageCandidates(product);
-  const previewCandidates = [...new Set(candidates)].slice(0, 4);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [validCandidates, setValidCandidates] = useState<string[]>([]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const loaders: HTMLImageElement[] = [];
+
+    if (candidates.length === 0) {
+      setValidCandidates([]);
+      return;
+    }
+
+    void Promise.all(
+      candidates.map(
+        (candidate) =>
+          new Promise<{ candidate: string; ok: boolean }>((resolve) => {
+            const image = new Image();
+            loaders.push(image);
+            image.onload = () => resolve({ candidate, ok: true });
+            image.onerror = () => resolve({ candidate, ok: false });
+            image.src = candidate;
+          })
+      )
+    ).then((results) => {
+      if (isCancelled) {
+        return;
+      }
+
+      setValidCandidates(
+        results
+          .filter((result) => result.ok)
+          .map((result) => result.candidate)
+          .slice(0, 4)
+      );
+    });
+
+    return () => {
+      isCancelled = true;
+      loaders.forEach((image) => {
+        image.onload = null;
+        image.onerror = null;
+        image.src = "";
+      });
+    };
+  }, [candidates.join("|")]);
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [product?.id, previewCandidates.join("|")]);
+  }, [product?.id, validCandidates.join("|")]);
 
+  const previewCandidates = validCandidates;
   const selectedCandidate = previewCandidates[selectedIndex] ?? previewCandidates[0] ?? null;
 
   return (
@@ -704,7 +748,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
               onClick={onSyncCatalog}
               className="inline-flex items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 px-5 py-3 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
             >
-              {syncingCatalog ? "Sincronizando..." : "Sincronizar catalogo"}
+              {syncingCatalog ? "Verificando..." : "Verificar alteracoes"}
             </button>
           </div>
 

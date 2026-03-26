@@ -113,7 +113,6 @@ function App() {
     dollarRate: "5.00"
   });
   const lastPersistedCostVariablesRef = useRef("");
-  const autoSyncedCompanyIdsRef = useRef<Set<string>>(new Set());
 
   const selectedCompany =
     companies.find((company) => company.id === selectedCompanyId) ?? null;
@@ -413,38 +412,6 @@ function App() {
       void refreshProducts();
     }
   }, [activeTab, currentPage, selectedCompanyId]);
-
-  useEffect(() => {
-    if (
-      authState !== "authenticated" ||
-      currentPage !== "company" ||
-      activeTab !== "inventory" ||
-      !selectedCompanyId ||
-      inventoryState !== "success" ||
-      inventory.length > 0 ||
-      syncCatalogState === "syncing"
-    ) {
-      return;
-    }
-
-    if (autoSyncedCompanyIdsRef.current.has(selectedCompanyId)) {
-      return;
-    }
-
-    autoSyncedCompanyIdsRef.current.add(selectedCompanyId);
-    void handleSyncMasterCatalog({
-      silent: true,
-      companyId: selectedCompanyId
-    });
-  }, [
-    activeTab,
-    authState,
-    currentPage,
-    inventory.length,
-    inventoryState,
-    selectedCompanyId,
-    syncCatalogState
-  ]);
 
   async function handleSaveCostSettings(options?: { silent?: boolean }) {
     try {
