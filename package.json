@@ -17,6 +17,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1017.0",
     "@prisma/client": "^6.8.2",
     "@supabase/supabase-js": "^2.49.11",
     "fastify": "^5.2.1",

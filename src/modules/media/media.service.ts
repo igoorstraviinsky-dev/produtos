@@ -3,6 +3,7 @@ import { access } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 import { Readable } from "node:stream";
 
+import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { SupabaseClient } from "@supabase/supabase-js";
 
 import { AppEnv } from "../../config/env";
@@ -23,6 +24,8 @@ const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
 
 type StorageIntegrationRow = {
   provider?: string | null;
+  aws_access_key_id?: string | null;
+  aws_secret_access_key?: string | null;
   aws_default_region?: string | null;
   s3_bronze_bucket?: string | null;
   s3_gold_bucket?: string | null;
@@ -67,6 +70,31 @@ function normalizeStorageKey(storageKey: string) {
   return storageKey.replace(/^\/+/, "");
 }
 
+function toNodeReadableStream(body: unknown) {
+  if (body instanceof Readable) {
+    return body;
+  }
+
+  if (
+    body &&
+    typeof body === "object" &&
+    "transformToWebStream" in body &&
+    typeof body.transformToWebStream === "function"
+  ) {
+    return Readable.fromWeb(body.transformToWebStream() as globalThis.ReadableStream);
+  }
+
+  if (
+    body &&
+    typeof body === "object" &&
+    Symbol.asyncIterator in body
+  ) {
+    return Readable.from(body as AsyncIterable<Uint8Array>);
+  }
+
+  return Readable.from(Buffer.alloc(0));
+}
+
 export function inferMediaContentType(storageKey: string) {
   return MIME_TYPES_BY_EXTENSION[extname(storageKey).toLowerCase()] ?? "application/octet-stream";
 }
@@ -100,7 +128,36 @@ export class SupabaseProductMediaService implements ProductMediaService {
   }
 
   private async getRemoteObject(storageKey: string): Promise<ProductMediaObject> {
-    const remoteUrl = await this.resolveRemoteObjectUrl(storageKey);
+    const config = await this.getActiveStorageConfig();
+    const normalizedStorageKey = normalizeStorageKey(storageKey);
+
+    if (config?.cloudfront_domain) {
+      const remoteUrl = `https://${sanitizeCloudfrontDomain(config.cloudfront_domain)}/${normalizedStorageKey}`;
+      return this.getRemoteObjectFromUrl(remoteUrl, storageKey);
+    }
+
+    const bucketName = config?.s3_bronze_bucket ?? config?.s3_gold_bucket ?? null;
+    if (config?.provider === "s3" && bucketName) {
+      if (config.aws_access_key_id && config.aws_secret_access_key) {
+        return this.getRemoteObjectFromS3(bucketName, normalizedStorageKey, config);
+      }
+
+      const region = config.aws_default_region?.trim() || "us-east-2";
+      const remoteUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${normalizedStorageKey}`;
+      return this.getRemoteObjectFromUrl(remoteUrl, storageKey);
+    }
+
+    throw new AppError(
+      503,
+      "MEDIA_CONFIGURATION_UNAVAILABLE",
+      "No stable public media origin is configured for the storage backend",
+      {
+        storageKey
+      }
+    );
+  }
+
+  private async getRemoteObjectFromUrl(remoteUrl: string, storageKey: string): Promise<ProductMediaObject> {
     const response = await fetch(remoteUrl);
 
     if (response.status === 404) {
@@ -131,11 +188,66 @@ export class SupabaseProductMediaService implements ProductMediaService {
     };
   }
 
-  private async resolveRemoteObjectUrl(storageKey: string) {
+  private async getRemoteObjectFromS3(
+    bucketName: string,
+    storageKey: string,
+    config: StorageIntegrationRow
+  ): Promise<ProductMediaObject> {
+    const region = config.aws_default_region?.trim() || "us-east-2";
+    const client = new S3Client({
+      region,
+      credentials: {
+        accessKeyId: config.aws_access_key_id ?? "",
+        secretAccessKey: config.aws_secret_access_key ?? ""
+      }
+    });
+
+    try {
+      const response = await client.send(
+        new GetObjectCommand({
+          Bucket: bucketName,
+          Key: storageKey
+        })
+      );
+
+      return {
+        body: toNodeReadableStream(response.Body),
+        cacheControl: LONG_LIVED_CACHE_CONTROL,
+        contentLength:
+          typeof response.ContentLength === "number"
+            ? String(response.ContentLength)
+            : null,
+        contentType: response.ContentType ?? inferMediaContentType(storageKey),
+        etag: response.ETag ?? null,
+        lastModified: response.LastModified?.toUTCString() ?? null
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown";
+      const code =
+        typeof error === "object" && error && "name" in error ? String(error.name) : undefined;
+
+      if (code === "NoSuchKey") {
+        throw new AppError(404, "MEDIA_NOT_FOUND", "Media object not found");
+      }
+
+      throw new AppError(
+        502,
+        "MEDIA_UPSTREAM_UNAVAILABLE",
+        "Could not fetch the media object from the storage origin",
+        {
+          cause: message,
+          code,
+          storageKey
+        }
+      );
+    }
+  }
+
+  private async getActiveStorageConfig() {
     const { data, error } = await this.supabase
       .from("storage_integration_configs")
       .select(
-        "provider, aws_default_region, s3_bronze_bucket, s3_gold_bucket, cloudfront_domain, is_active"
+        "provider, aws_access_key_id, aws_secret_access_key, aws_default_region, s3_bronze_bucket, s3_gold_bucket, cloudfront_domain, is_active"
       )
       .eq("is_active", true)
       .limit(1)
@@ -152,27 +264,7 @@ export class SupabaseProductMediaService implements ProductMediaService {
       );
     }
 
-    const config = data as StorageIntegrationRow | null;
-    const normalizedStorageKey = normalizeStorageKey(storageKey);
-
-    if (config?.cloudfront_domain) {
-      return `https://${sanitizeCloudfrontDomain(config.cloudfront_domain)}/${normalizedStorageKey}`;
-    }
-
-    const bucketName = config?.s3_bronze_bucket ?? config?.s3_gold_bucket ?? null;
-    if (config?.provider === "s3" && bucketName) {
-      const region = config.aws_default_region?.trim() || "us-east-2";
-      return `https://${bucketName}.s3.${region}.amazonaws.com/${normalizedStorageKey}`;
-    }
-
-    throw new AppError(
-      503,
-      "MEDIA_CONFIGURATION_UNAVAILABLE",
-      "No stable public media origin is configured for the storage backend",
-      {
-        storageKey
-      }
-    );
+    return data as StorageIntegrationRow | null;
   }
 
   private async getLocalObject(storageKey: string): Promise<ProductMediaObject> {
