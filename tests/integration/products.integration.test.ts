@@ -51,6 +51,9 @@ describe("Products integration", () => {
     assert.equal(firstResponse.json().data[0].variants.length, 1);
     assert.equal(firstResponse.json().data[0].variants[0].sku, "SKU-001-ARO-16");
     assert.equal(firstResponse.json().data[0].baseMaterial, "Prata 925");
+    assert.equal(firstResponse.json().data[0].supplierCode, "001");
+    assert.equal(firstResponse.json().data[0].supplierName, "Fornecedor Teste");
+    assert.equal(firstResponse.json().data[0].supplierProductSku, "REF-SKU-001");
     assert.equal(firstResponse.json().data[0].costFinal, 56.15);
     assert.equal(secondResponse.statusCode, 200);
     assert.equal(secondResponse.json().meta.source, "cache");
@@ -115,6 +118,12 @@ describe("Products integration", () => {
           s3_key_silver: null,
           supplierCode: null,
           supplier_code: null,
+          supplierId: null,
+          supplier_id: null,
+          supplierName: null,
+          supplier_name: null,
+          supplierProductSku: null,
+          supplier_product_sku: null,
           fiscalCode: null,
           fiscal_code: null,
           categoryId: null,

@@ -69,6 +69,12 @@ export type Product = {
   s3_key_silver: string | null;
   supplierCode: string | null;
   supplier_code: string | null;
+  supplierId: string | null;
+  supplier_id: string | null;
+  supplierName: string | null;
+  supplier_name: string | null;
+  supplierProductSku: string | null;
+  supplier_product_sku: string | null;
   fiscalCode: string | null;
   fiscal_code: string | null;
   categoryId: string | null;

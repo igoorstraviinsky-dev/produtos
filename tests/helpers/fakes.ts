@@ -492,8 +492,14 @@ export async function createTestApp(options?: {
             createdAt: "2026-03-23T00:00:00.000Z"
           }
         ],
-        supplierCode: null,
-        supplier_code: null,
+        supplierCode: "001",
+        supplier_code: "001",
+        supplierId: "supplier-1",
+        supplier_id: "supplier-1",
+        supplierName: "Fornecedor Teste",
+        supplier_name: "Fornecedor Teste",
+        supplierProductSku: "REF-SKU-001",
+        supplier_product_sku: "REF-SKU-001",
         fiscalCode: null,
         fiscal_code: null,
         categoryId: null,

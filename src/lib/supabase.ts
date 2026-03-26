@@ -68,6 +68,12 @@ export type ProductRecord = {
   s3_key_silver: string | null;
   supplierCode: string | null;
   supplier_code: string | null;
+  supplierId: string | null;
+  supplier_id: string | null;
+  supplierName: string | null;
+  supplier_name: string | null;
+  supplierProductSku: string | null;
+  supplier_product_sku: string | null;
   fiscalCode: string | null;
   fiscal_code: string | null;
   categoryId: string | null;
@@ -138,6 +144,7 @@ type RemoteProductRow = {
   s3_key_bronze?: string | null;
   s3_key_silver?: string | null;
   supplier_code?: string | null;
+  supplier_product_sku?: string | null;
   fiscal_code?: string | null;
   category_id?: string | null;
   tipo?: string | null;
@@ -160,6 +167,12 @@ type RemoteProductRow = {
   created_at?: string | null;
   price?: number | null;
   updated_at?: string | null;
+};
+
+type RemoteSupplierRow = {
+  id: string;
+  code: string;
+  name: string;
 };
 
 type RemoteProductVariantRow = {
@@ -243,14 +256,19 @@ function mapRemoteProductVariantRow(
   };
 }
 
-function mapRemoteProductRow(row: RemoteProductRow, variants: ProductVariantRecord[]): ProductRecord {
-  return mapRemoteProductRowWithMedia(row, variants, []);
+function mapRemoteProductRow(
+  row: RemoteProductRow,
+  variants: ProductVariantRecord[],
+  supplier: RemoteSupplierRow | null
+): ProductRecord {
+  return mapRemoteProductRowWithMedia(row, variants, [], supplier);
 }
 
 function mapRemoteProductRowWithMedia(
   row: RemoteProductRow,
   variants: ProductVariantRecord[],
-  mediaAssets: ProductMediaAssetRecord[]
+  mediaAssets: ProductMediaAssetRecord[],
+  supplier: RemoteSupplierRow | null
 ): ProductRecord {
   const code = row.numero_serie ?? row.sku ?? row.id;
 
@@ -293,6 +311,12 @@ function mapRemoteProductRowWithMedia(
     s3_key_silver: row.s3_key_silver ?? null,
     supplierCode: row.supplier_code ?? null,
     supplier_code: row.supplier_code ?? null,
+    supplierId: supplier?.id ?? null,
+    supplier_id: supplier?.id ?? null,
+    supplierName: supplier?.name ?? null,
+    supplier_name: supplier?.name ?? null,
+    supplierProductSku: row.supplier_product_sku ?? null,
+    supplier_product_sku: row.supplier_product_sku ?? null,
     fiscalCode: row.fiscal_code ?? null,
     fiscal_code: row.fiscal_code ?? null,
     categoryId: row.category_id ?? null,
@@ -439,6 +463,11 @@ export class SupabaseProductGateway implements ProductGateway {
 
     const productRows = (productsData ?? []) as RemoteProductRow[];
     const productIds = productRows.map((product) => product.id);
+    const supplierCodes = [...new Set(
+      productRows
+        .map((product) => product.supplier_code?.trim() ?? null)
+        .filter((supplierCode): supplierCode is string => Boolean(supplierCode))
+    )];
 
     if (productIds.length === 0) {
       return [];
@@ -462,6 +491,7 @@ export class SupabaseProductGateway implements ProductGateway {
     let linkRows: RemoteVariantOptionLinkRow[] = [];
     let optionRows: RemoteTreatmentOptionRow[] = [];
     let mediaAssetRows: RemoteProductMediaAssetRow[] = [];
+    let supplierRows: RemoteSupplierRow[] = [];
 
     if (variantIds.length > 0) {
       const { data: linksData, error: linksError } = await this.supabase
@@ -507,8 +537,26 @@ export class SupabaseProductGateway implements ProductGateway {
 
     mediaAssetRows = (mediaAssetsData ?? []) as RemoteProductMediaAssetRow[];
 
+    if (supplierCodes.length > 0) {
+      const { data: suppliersData, error: suppliersError } = await this.supabase
+        .from("suppliers")
+        .select("id, code, name")
+        .in("code", supplierCodes);
+
+      if (suppliersError) {
+        throw new Error(`supabase suppliers query failed: ${suppliersError.message}`);
+      }
+
+      supplierRows = (suppliersData ?? []) as RemoteSupplierRow[];
+    }
+
     const variantsByProductId = buildVariantsByProductId(variantRows, linkRows, optionRows);
     const mediaAssetsByProductId = new Map<string, ProductMediaAssetRecord[]>();
+    const suppliersByCode = new Map<string, RemoteSupplierRow>();
+
+    for (const supplierRow of supplierRows) {
+      suppliersByCode.set(supplierRow.code, supplierRow);
+    }
 
     for (const mediaAssetRow of mediaAssetRows) {
       const mappedAsset = mapRemoteMediaAssetRow(mediaAssetRow);
@@ -525,7 +573,8 @@ export class SupabaseProductGateway implements ProductGateway {
       mapRemoteProductRowWithMedia(
         row,
         variantsByProductId.get(row.id) ?? [],
-        mediaAssetsByProductId.get(row.id) ?? []
+        mediaAssetsByProductId.get(row.id) ?? [],
+        suppliersByCode.get(row.supplier_code?.trim() ?? "") ?? null
       )
     );
   }

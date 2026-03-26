@@ -615,6 +615,24 @@ components:
         supplier_code:
           type: string
           nullable: true
+        supplierId:
+          type: string
+          nullable: true
+        supplier_id:
+          type: string
+          nullable: true
+        supplierName:
+          type: string
+          nullable: true
+        supplier_name:
+          type: string
+          nullable: true
+        supplierProductSku:
+          type: string
+          nullable: true
+        supplier_product_sku:
+          type: string
+          nullable: true
         fiscalCode:
           type: string
           nullable: true
