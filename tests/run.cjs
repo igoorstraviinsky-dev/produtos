@@ -70,6 +70,7 @@ class FakeControlPlaneRepository {
       legalName: input.legalName,
       externalCode: input.externalCode,
       isActive: input.isActive ?? true,
+      syncStoreInventory: false,
       createdAt: now,
       updatedAt: now
     };
@@ -123,6 +124,9 @@ class FakeControlPlaneRepository {
       ...company,
       ...(input.legalName !== undefined ? { legalName: input.legalName } : {}),
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+      ...(input.syncStoreInventory !== undefined
+        ? { syncStoreInventory: input.syncStoreInventory }
+        : {}),
       updatedAt: new Date()
     };
     this.companies.set(companyId, updated);
@@ -230,6 +234,10 @@ class FakeControlPlaneRepository {
 
   async findMasterProductById(productId) {
     return this.masterProducts.get(productId) ?? null;
+  }
+
+  async findMasterProductBySku(sku) {
+    return [...this.masterProducts.values()].find((product) => product.sku === sku) ?? null;
   }
 
   async getCostSettings() {
@@ -1057,6 +1065,91 @@ const cases = [
     }
   },
   {
+    name: "Partner inventory sync accepts batch updates by sku and returns item errors",
+    fn: async () => {
+      const { app, controlPlane, env } = await createTestApp();
+      try {
+        const company = controlPlane.seedCompany({
+          legalName: "Empresa Sync",
+          externalCode: "empresa-sync"
+        });
+        const apiKey = "b2b_inventory_sync_key";
+
+        controlPlane.seedApiKey({
+          companyId: company.id,
+          keyPrefix: deriveApiKeyPrefix(apiKey),
+          keyHash: hashApiKey(apiKey, env.API_KEY_PEPPER),
+          rateLimitPerMinute: 20
+        });
+
+        await controlPlane.replaceMasterProducts([
+          {
+            id: "prod-sync-1",
+            sku: "SYNC-001",
+            name: "Produto Sync 1",
+            masterStock: 8,
+            updatedAt: new Date("2026-03-24T00:00:00.000Z")
+          },
+          {
+            id: "prod-sync-2",
+            sku: "SYNC-002",
+            name: "Produto Sync 2",
+            masterStock: 11,
+            updatedAt: new Date("2026-03-24T00:00:00.000Z")
+          }
+        ]);
+
+        const syncResponse = await app.inject({
+          method: "POST",
+          url: "/api/v1/my-inventory",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          },
+          payload: {
+            items: [
+              {
+                sku: "SYNC-001",
+                custom_stock_quantity: 14
+              },
+              {
+                code: "SYNC-002",
+                custom_stock_quantity: 5
+              },
+              {
+                numero_serie: "SYNC-404",
+                custom_stock_quantity: 1
+              }
+            ]
+          }
+        });
+
+        assert.equal(syncResponse.statusCode, 200);
+        assert.equal(syncResponse.json().meta.receivedCount, 3);
+        assert.equal(syncResponse.json().meta.updatedCount, 2);
+        assert.equal(syncResponse.json().meta.errorCount, 1);
+        assert.equal(syncResponse.json().data[0].sku, "SYNC-001");
+        assert.equal(syncResponse.json().data[0].customStockQuantity, 14);
+        assert.equal(syncResponse.json().data[1].sku, "SYNC-002");
+        assert.equal(syncResponse.json().data[1].customStockQuantity, 5);
+        assert.equal(syncResponse.json().errors[0].numeroSerie, "SYNC-404");
+
+        const getResponse = await app.inject({
+          method: "GET",
+          url: "/api/v1/my-inventory",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          }
+        });
+
+        assert.equal(getResponse.statusCode, 200);
+        assert.equal(getResponse.json().data[0].customStockQuantity, 14);
+        assert.equal(getResponse.json().data[1].customStockQuantity, 5);
+      } finally {
+        await app.close();
+      }
+    }
+  },
+  {
     name: "Sync webhook refreshes local master catalog",
     fn: async () => {
       const productGateway = new FakeProductGateway([
@@ -1455,6 +1548,7 @@ const cases = [
       assert.ok(openApiDocument.paths["/api/v1/media/object/{storageKey}"]);
       assert.ok(openApiDocument.paths["/api/v1/my-inventory"]);
       assert.ok(openApiDocument.paths["/api/v1/my-inventory"].get);
+      assert.ok(openApiDocument.paths["/api/v1/my-inventory"].post);
       assert.ok(openApiDocument.paths["/api/v1/my-inventory/{productId}"]);
       assert.ok(openApiDocument.paths["/api/v1/my-inventory/{productId}"].patch);
       assert.ok(openApiDocument.paths["/api/internal/webhooks/supabase-sync"]);

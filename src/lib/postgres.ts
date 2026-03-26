@@ -152,6 +152,7 @@ export interface ControlPlaneRepository {
   replaceMasterProducts(products: UpsertMasterProductInput[]): Promise<MasterProductRecord[]>;
   listMasterProducts(): Promise<MasterProductRecord[]>;
   findMasterProductById(productId: string): Promise<MasterProductRecord | null>;
+  findMasterProductBySku(sku: string): Promise<MasterProductRecord | null>;
   getCostSettings(): Promise<CostSettingsRecord>;
   updateCostSettings(input: UpdateCostSettingsInput): Promise<CostSettingsRecord>;
   listCostSettingsHistory(limit?: number): Promise<CostSettingsHistoryRecord[]>;
@@ -672,6 +673,19 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
     const product = await this.prisma.masterProduct.findUnique({
       where: {
         id: productId
+      }
+    });
+
+    return product ? mapMasterProduct(product) : null;
+  }
+
+  async findMasterProductBySku(sku: string) {
+    const product = await this.prisma.masterProduct.findFirst({
+      where: {
+        sku
+      },
+      orderBy: {
+        updatedAt: "desc"
       }
     });
 

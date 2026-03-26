@@ -59,6 +59,17 @@ export function createTestEnv(overrides: Partial<AppEnv> = {}): AppEnv {
 export class FakeControlPlaneRepository implements ControlPlaneRepository {
   private readonly companies = new Map<string, CompanyRecord>();
   private readonly apiKeys = new Map<string, ApiKeyRecord>();
+  private readonly masterProducts = new Map<
+    string,
+    { id: string; sku: string; name: string; masterStock: number; updatedAt: Date }
+  >();
+  private readonly companyInventory = new Map<
+    string,
+    {
+      customStockQuantity: number;
+      updatedAt: Date;
+    }
+  >();
   private readonly costSettingsHistory: Array<{
     id: string;
     previousSilverPricePerGram: number;
@@ -87,6 +98,7 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
       legalName: input.legalName,
       externalCode: input.externalCode,
       isActive: input.isActive ?? true,
+      syncStoreInventory: false,
       apiKeyCount: 0,
       activeKeyCount: 0,
       createdAt: now,
@@ -192,7 +204,10 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
     });
   }
 
-  async updateCompany(companyId: string, input: { legalName?: string; isActive?: boolean }) {
+  async updateCompany(
+    companyId: string,
+    input: { legalName?: string; isActive?: boolean; syncStoreInventory?: boolean }
+  ) {
     const company = this.companies.get(companyId);
     if (!company) {
       return null;
@@ -202,6 +217,9 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
       ...company,
       ...(input.legalName !== undefined ? { legalName: input.legalName } : {}),
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+      ...(input.syncStoreInventory !== undefined
+        ? { syncStoreInventory: input.syncStoreInventory }
+        : {}),
       updatedAt: new Date()
     };
     this.companies.set(companyId, updated);
@@ -223,23 +241,73 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
   }
 
   async listMasterProducts() {
-    return [];
+    return [...this.masterProducts.values()];
   }
 
-  async replaceMasterProducts() {
-    return [];
+  async replaceMasterProducts(products = []) {
+    this.masterProducts.clear();
+    for (const product of products) {
+      this.masterProducts.set(product.id, {
+        id: product.id,
+        sku: product.sku,
+        name: product.name,
+        masterStock: product.masterStock,
+        updatedAt: product.updatedAt
+      });
+    }
+
+    return this.listMasterProducts();
   }
 
-  async findMasterProductById() {
-    return null;
+  async findMasterProductById(productId: string) {
+    return this.masterProducts.get(productId) ?? null;
   }
 
-  async listEffectiveInventoryByCompany() {
-    return [];
+  async findMasterProductBySku(sku: string) {
+    return [...this.masterProducts.values()].find((product) => product.sku === sku) ?? null;
   }
 
-  async upsertCompanyInventory() {
-    return null;
+  async listEffectiveInventoryByCompany(companyId: string) {
+    return [...this.masterProducts.values()].map((product) => {
+      const key = `${companyId}:${product.id}`;
+      const customInventory = this.companyInventory.get(key);
+      return {
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        masterStock: product.masterStock,
+        customStockQuantity: customInventory?.customStockQuantity ?? null,
+        effectiveStockQuantity: customInventory?.customStockQuantity ?? product.masterStock,
+        updatedAt: customInventory?.updatedAt ?? product.updatedAt
+      };
+    });
+  }
+
+  async upsertCompanyInventory(
+    companyId: string,
+    productId: string,
+    customStockQuantity: number
+  ) {
+    const product = this.masterProducts.get(productId);
+    if (!product) {
+      return null;
+    }
+
+    const updatedAt = new Date();
+    this.companyInventory.set(`${companyId}:${productId}`, {
+      customStockQuantity,
+      updatedAt
+    });
+
+    return {
+      productId: product.id,
+      sku: product.sku,
+      name: product.name,
+      masterStock: product.masterStock,
+      customStockQuantity,
+      effectiveStockQuantity: customStockQuantity,
+      updatedAt
+    };
   }
 
   async getCostSettings() {

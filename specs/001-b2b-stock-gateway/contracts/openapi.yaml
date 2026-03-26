@@ -103,6 +103,33 @@ paths:
           description: Company inactive or key revoked
         '429':
           description: Rate limit exceeded
+    post:
+      summary: Sync one or more partner stock quantities
+      tags:
+        - Partner Inventory
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartnerInventorySyncRequest'
+      responses:
+        '200':
+          description: Partner stock synchronized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerInventorySyncResponse'
+        '400':
+          description: Invalid sync payload
+        '401':
+          description: Missing or invalid credential
+        '403':
+          description: Company inactive or key revoked
+        '429':
+          description: Rate limit exceeded
   /api/v1/my-inventory/{productId}:
     patch:
       summary: Update the authenticated partner stock for one product
@@ -1001,3 +1028,87 @@ components:
         updatedAt:
           type: string
           format: date-time
+    PartnerInventorySyncRequest:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PartnerInventorySyncItem'
+    PartnerInventorySyncItem:
+      type: object
+      properties:
+        product_id:
+          type: string
+        productId:
+          type: string
+        sku:
+          type: string
+        code:
+          type: string
+        numero_serie:
+          type: string
+        numeroSerie:
+          type: string
+        custom_stock_quantity:
+          type: integer
+          minimum: 0
+        customStockQuantity:
+          type: integer
+          minimum: 0
+    PartnerInventorySyncError:
+      type: object
+      required:
+        - index
+        - message
+      properties:
+        index:
+          type: integer
+        productId:
+          type: string
+          nullable: true
+        sku:
+          type: string
+          nullable: true
+        code:
+          type: string
+          nullable: true
+        numeroSerie:
+          type: string
+          nullable: true
+        message:
+          type: string
+    PartnerInventorySyncResponse:
+      type: object
+      required:
+        - data
+        - errors
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartnerInventoryItem'
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartnerInventorySyncError'
+        meta:
+          type: object
+          required:
+            - companyId
+            - receivedCount
+            - updatedCount
+            - errorCount
+          properties:
+            companyId:
+              type: string
+            receivedCount:
+              type: integer
+            updatedCount:
+              type: integer
+            errorCount:
+              type: integer
