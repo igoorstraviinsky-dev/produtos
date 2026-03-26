@@ -568,6 +568,9 @@ function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
 
   const previewCandidates = validCandidates;
   const selectedCandidate = previewCandidates[selectedIndex]?.url ?? previewCandidates[0]?.url ?? null;
+  const thumbnailCandidates = previewCandidates
+    .filter((_, index) => index !== selectedIndex)
+    .slice(0, 3);
 
   return (
     <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
@@ -595,26 +598,33 @@ function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
-          {previewCandidates.length > 0 ? (
-            previewCandidates.map((candidate, index) => (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {thumbnailCandidates.length > 0 ? (
+            thumbnailCandidates.map((candidate) => {
+              const originalIndex = previewCandidates.findIndex(
+                (previewCandidate) => previewCandidate.url === candidate.url
+              );
+
+              return (
               <button
-                key={`${candidate.key}-${index}`}
+                key={`${candidate.key}-${candidate.url}`}
                 type="button"
                 onClick={() => {
-                  setSelectedIndex(index);
+                  if (originalIndex >= 0) {
+                    setSelectedIndex(originalIndex);
+                  }
                   window.open(candidate.url, "_blank", "noopener,noreferrer");
                 }}
                 className={[
                   "overflow-hidden rounded-[1.2rem] border bg-white shadow-[0_8px_20px_rgba(15,23,42,0.05)] transition hover:border-cyan-300",
                   selectedCandidate === candidate.url ? "border-cyan-300" : "border-slate-200"
                 ].join(" ")}
-                title={`Abrir foto ${index + 1}`}
+                title={`Abrir ${candidate.label}`}
               >
                 <div className="aspect-square">
                   <img
                     src={candidate.url}
-                    alt={`${alt} ${index + 1}`}
+                    alt={`${alt} ${candidate.label}`}
                     className="h-full w-full object-contain p-2"
                     loading="lazy"
                   />
@@ -625,9 +635,10 @@ function ProductPhotoGallery(props: { product: Product | null; alt: string }) {
                   </p>
                 </div>
               </button>
-            ))
+              );
+            })
           ) : (
-            <div className="sm:col-span-4 lg:col-span-2 xl:col-span-4">
+            <div className="sm:col-span-3">
               <div className="h-full overflow-hidden rounded-[1.2rem] border border-dashed border-slate-300 bg-white">
                 <div className="aspect-square">
                   <ProductImage product={product} alt={alt} mode="card" />
