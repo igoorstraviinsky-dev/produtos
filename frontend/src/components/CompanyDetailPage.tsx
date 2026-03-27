@@ -556,16 +556,6 @@ function ProductImage(props: { product: Product | null; alt: string; mode?: "lin
           });
         }}
       />
-      <span
-        className={[
-          "absolute rounded-full bg-slate-950/78 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white transition",
-          isCompact
-            ? "bottom-2 left-2 opacity-100"
-            : "bottom-3 left-3 opacity-0 group-hover:opacity-100"
-        ].join(" ")}
-      >
-        Abrir foto
-      </span>
     </button>
   );
 }
@@ -1028,7 +1018,6 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                 const displayedVariants =
                   matchingVariants.length > 0 ? matchingVariants : variants;
                 const currentDisplayStock = getCurrentDisplayStock(item, product);
-                const commercialDescription = product?.name ?? item.name;
                 const isCardOpen = openInventoryProductId === item.productId;
                 const variantCountLabel =
                   normalizedInventorySearch &&
@@ -1117,26 +1106,6 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     {isCardOpen ? (
                       <div className="border-t border-slate-200 bg-white px-5 py-5">
                         <div className="space-y-5">
-                          <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 px-4 py-4">
-                            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                              <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.7)]">
-                                <ProductImage product={product} alt={commercialDescription} mode="line" />
-                              </div>
-
-                              <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Miniatura do produto
-                                </p>
-                                <p className="mt-2 truncate text-sm font-semibold text-slate-900">
-                                  {commercialDescription}
-                                </p>
-                                <p className="mt-1 text-sm text-slate-500">
-                                  {displayedVariants.length} variacoes disponiveis para consulta
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-
                           <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 px-4 py-4">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                               <div className="max-w-md">
