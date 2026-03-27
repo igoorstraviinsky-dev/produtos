@@ -1,5 +1,7 @@
 import type { CostSettingsHistoryEntry, Product } from "../types";
 
+const DEFAULT_COST_PREVIEW_PRODUCT_CODE = "XCN0254126001/01";
+
 function parseNumericValue(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") {
     return 0;
@@ -99,7 +101,20 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
         : costSettingsSaveState === "error"
           ? "Erro ao salvar automaticamente"
           : "Salvamento automatico ativo";
-  const previewProducts = products.slice(0, 1);
+  const fallbackPreviewProduct = [...products].sort((left, right) => {
+    const leftKey = left.serialNumber ?? left.sku ?? left.code ?? left.id;
+    const rightKey = right.serialNumber ?? right.sku ?? right.code ?? right.id;
+    return leftKey.localeCompare(rightKey, "pt-BR");
+  })[0] ?? null;
+  const previewProduct =
+    products.find((product) =>
+      [
+        product.serialNumber,
+        product.sku,
+        product.code,
+        product.numero_serie
+      ].includes(DEFAULT_COST_PREVIEW_PRODUCT_CODE)
+    ) ?? fallbackPreviewProduct;
 
   return (
     <section className="space-y-6">
@@ -279,7 +294,7 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {previewProducts.map((product) => {
+                {previewProduct ? [previewProduct].map((product) => {
                   const weightGrams = parseNumericValue(product.weightGrams);
 
                   return (
@@ -320,7 +335,7 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
                       </td>
                     </tr>
                   );
-                })}
+                }) : null}
               </tbody>
             </table>
           </div>
