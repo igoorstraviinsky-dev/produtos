@@ -71,10 +71,12 @@ function formatUnits(value: number | null | undefined) {
     return "n/d";
   }
 
+  const roundedDown = Math.floor(value);
+
   return new Intl.NumberFormat("pt-BR", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  }).format(value);
+    maximumFractionDigits: 0
+  }).format(roundedDown);
 }
 
 function formatWeightStock(value: number | null | undefined) {
