@@ -944,7 +944,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                   ].join(" ")}
                 >
                   {company.syncStoreInventory
-                    ? "Sincronizacao da loja habilitada"
+                    ? "Sincronizacao automatica da loja ativa"
                     : "Sincronizacao da loja desabilitada"}
                 </span>
               </div>
@@ -955,7 +955,11 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
               onClick={onSyncCatalog}
               className="inline-flex items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 px-5 py-3 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
             >
-              {syncingCatalog ? "Verificando..." : "Verificar alteracoes"}
+              {syncingCatalog
+                ? "Atualizando..."
+                : company.syncStoreInventory
+                  ? "Atualizar agora"
+                  : "Verificar alteracoes"}
             </button>
           </div>
 
@@ -1006,7 +1010,11 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
               <div className="space-y-4">
                 <EmptyState
                   title="Sem produtos sincronizados"
-                  description="Sincronize o catalogo mestre primeiro para habilitar o estoque por empresa."
+                  description={
+                    company.syncStoreInventory
+                      ? "Estamos sincronizando o catalogo automaticamente para habilitar o estoque da empresa."
+                      : "Sincronize o catalogo mestre primeiro para habilitar o estoque por empresa."
+                  }
                 />
                 <div className="flex justify-center">
                   <button
@@ -1015,7 +1023,11 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     onClick={onSyncCatalog}
                     className="inline-flex items-center justify-center rounded-full bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
-                    {syncingCatalog ? "Sincronizando..." : "Sincronizar agora"}
+                    {syncingCatalog
+                      ? "Sincronizando..."
+                      : company.syncStoreInventory
+                        ? "Atualizar agora"
+                        : "Sincronizar agora"}
                   </button>
                 </div>
               </div>

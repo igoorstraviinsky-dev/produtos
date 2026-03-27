@@ -68,6 +68,8 @@ function createInventoryDrafts(items: AdminInventoryItem[]) {
 }
 
 function App() {
+  const AUTO_INVENTORY_REFRESH_INTERVAL_MS = 15000;
+  const AUTO_CATALOG_SYNC_INTERVAL_MS = 60000;
   const initialRoute = getRouteState(window.location.pathname);
   const [authState, setAuthState] = useState<AuthState>("checking");
   const [sessionConfig, setSessionConfig] = useState<AdminSessionConfig | null>(null);
@@ -118,6 +120,7 @@ function App() {
     dollarRate: "5.00"
   });
   const lastPersistedCostVariablesRef = useRef("");
+  const lastAutoInventorySyncKeyRef = useRef("");
 
   const selectedCompany =
     companies.find((company) => company.id === selectedCompanyId) ?? null;
@@ -367,6 +370,18 @@ function App() {
     void refreshCostSettingsHistory(selectedCompanyId || undefined);
   }
 
+  const autoRefreshCompanyInventory = useEffectEvent(async (companyId: string) => {
+    await refreshCompanyDetail(companyId);
+    await refreshProducts();
+  });
+
+  const autoSyncCompanyCatalog = useEffectEvent(async (companyId: string) => {
+    await handleSyncMasterCatalog({
+      silent: true,
+      companyId
+    });
+  });
+
   function openCompany(companyId: string) {
     window.history.pushState({}, "", `/empresas/${encodeURIComponent(companyId)}`);
     setCurrentPage("company");
@@ -426,6 +441,46 @@ function App() {
       void refreshProducts(selectedCompanyId);
     }
   }, [activeTab, currentPage, selectedCompanyId]);
+
+  useEffect(() => {
+    if (
+      authState !== "authenticated" ||
+      currentPage !== "company" ||
+      activeTab !== "inventory" ||
+      !selectedCompanyId ||
+      !selectedCompany?.syncStoreInventory
+    ) {
+      lastAutoInventorySyncKeyRef.current = "";
+      return;
+    }
+
+    const syncKey = `${selectedCompanyId}:${activeTab}`;
+    if (lastAutoInventorySyncKeyRef.current !== syncKey) {
+      lastAutoInventorySyncKeyRef.current = syncKey;
+      void autoSyncCompanyCatalog(selectedCompanyId);
+    }
+
+    const refreshIntervalId = window.setInterval(() => {
+      void autoRefreshCompanyInventory(selectedCompanyId);
+    }, AUTO_INVENTORY_REFRESH_INTERVAL_MS);
+
+    const syncIntervalId = window.setInterval(() => {
+      void autoSyncCompanyCatalog(selectedCompanyId);
+    }, AUTO_CATALOG_SYNC_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(refreshIntervalId);
+      window.clearInterval(syncIntervalId);
+    };
+  }, [
+    activeTab,
+    authState,
+    autoRefreshCompanyInventory,
+    autoSyncCompanyCatalog,
+    currentPage,
+    selectedCompany?.syncStoreInventory,
+    selectedCompanyId
+  ]);
 
   async function handleSaveCostSettings(options?: { silent?: boolean }) {
     if (!selectedCompanyId) {
