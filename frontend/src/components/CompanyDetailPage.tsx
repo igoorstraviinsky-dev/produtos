@@ -571,6 +571,23 @@ function ProductImage(props: { product: Product | null; alt: string; mode?: "lin
   );
 }
 
+function InventorySummaryBox(props: {
+  label: string;
+  value: string | number;
+  valueClassName?: string;
+}) {
+  const { label, value, valueClassName = "text-slate-50" } = props;
+
+  return (
+    <div className="surface-stat flex h-[4.85rem] min-w-[8.75rem] flex-col justify-between rounded-[1.1rem] px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        {label}
+      </p>
+      <p className={["text-lg font-semibold leading-none", valueClassName].join(" ")}>{value}</p>
+    </div>
+  );
+}
+
 type CompanyDetailPageProps = {
   company: Company;
   activeTab: "profile" | "keys" | "inventory" | "costs";
@@ -1089,29 +1106,19 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-3 xl:ml-4 xl:shrink-0 xl:flex-nowrap">
-                          <span className="rounded-full border border-cyan-400/20 bg-cyan-400/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100">
-                            {variantCountLabel}
-                          </span>
-                          <div className="min-w-[8.5rem] rounded-[1rem] border border-white/8 bg-white/[0.03] px-3 py-2.5">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Custo
-                            </p>
-                            <p className="mt-1.5 text-lg font-semibold text-cyan-100">
-                              {productCost}
-                            </p>
-                          </div>
-                          <div className="min-w-[8.5rem] rounded-[1rem] border border-white/8 bg-white/[0.03] px-3 py-2.5">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Estoque loja
-                            </p>
-                            <p className="mt-1.5 text-lg font-semibold text-slate-50">
-                              {currentDisplayStock}
-                            </p>
-                          </div>
-                          <span
-                            className={[
-                              "inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold transition",
+                          <div className="flex flex-wrap items-center gap-3 xl:ml-4 xl:shrink-0 xl:flex-nowrap">
+                            <span className="rounded-full border border-cyan-400/20 bg-cyan-400/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100">
+                              {variantCountLabel}
+                            </span>
+                            <InventorySummaryBox
+                              label="Custo"
+                              value={productCost}
+                              valueClassName="text-cyan-100"
+                            />
+                            <InventorySummaryBox label="Estoque loja" value={currentDisplayStock} />
+                            <span
+                              className={[
+                                "inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold transition",
                               isCardOpen
                                 ? "surface-button-primary text-white"
                                 : "surface-button-secondary text-slate-100"
