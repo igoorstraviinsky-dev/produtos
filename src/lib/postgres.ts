@@ -283,6 +283,45 @@ function mapCostSettings(settings: {
   };
 }
 
+function parseChangedFields(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  }
+
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  const rawValue = value.trim();
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (item): item is string => typeof item === "string" && item.trim().length > 0
+      );
+    }
+  } catch {
+    // Keep going and try legacy formats below.
+  }
+
+  if (rawValue.startsWith("{") && rawValue.endsWith("}")) {
+    return rawValue
+      .slice(1, -1)
+      .split(",")
+      .map((item) => item.trim().replace(/^"(.*)"$/, "$1"))
+      .filter(Boolean);
+  }
+
+  return rawValue
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function mapCostSettingsHistory(history: {
   id: string;
   companyId?: string | null;
@@ -308,7 +347,7 @@ function mapCostSettingsHistory(history: {
     nextTransportFee: history.nextTransportFee,
     previousDollarRate: history.previousDollarRate,
     nextDollarRate: history.nextDollarRate,
-    changedFields: JSON.parse(history.changedFields) as string[],
+    changedFields: parseChangedFields(history.changedFields),
     createdAt: history.createdAt
   };
 }
