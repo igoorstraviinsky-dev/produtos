@@ -116,7 +116,7 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
             </h2>
             <p className="mt-3 text-sm leading-7 text-slate-400">
               Formula aplicada: `(Mao de Obra + Prata Internacional) = R1`, `R1 + (R1 x Taxa ZF%) = R2`, `R2 + Transporte = R3`, `R3 x Dolar = Custo Final`.
-              A mao de obra original continua em dolar dentro da formula e abaixo ela aparece convertida para real apenas para leitura rapida. A Taxa ZF e aplicada como percentual sobre o R1.
+              A mao de obra original continua em dolar dentro da formula e abaixo ela aparece como `Mao de obra convertida` apenas para conferencia rapida. Os blocos `R1`, `R2` e `R3` mostram cada etapa intermediaria antes da conversao final pelo dolar.
             </p>
           </div>
 
@@ -270,8 +270,11 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
                   <th className="px-4 py-4 font-semibold">Produto</th>
                   <th className="px-4 py-4 font-semibold">Peso (g)</th>
                   <th className="px-4 py-4 font-semibold">Mao de obra (USD)</th>
-                  <th className="px-4 py-4 font-semibold">Mao de obra (BRL)</th>
+                  <th className="px-4 py-4 font-semibold">Mao de obra convertida</th>
                   <th className="px-4 py-4 font-semibold">Prata</th>
+                  <th className="px-4 py-4 font-semibold">R1</th>
+                  <th className="px-4 py-4 font-semibold">R2</th>
+                  <th className="px-4 py-4 font-semibold">R3</th>
                   <th className="px-4 py-4 font-semibold">Custo Final</th>
                 </tr>
               </thead>
@@ -300,6 +303,15 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
                       </td>
                       <td className="px-4 py-4 text-sm text-slate-300">
                         {formatCurrency(product.costBreakdown.silverCost)}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-slate-300">
+                        {formatNumber(product.costBreakdown.r1)}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-slate-300">
+                        {formatNumber(product.costBreakdown.r2)}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-slate-300">
+                        {formatNumber(product.costBreakdown.r3)}
                       </td>
                       <td className="px-4 py-4">
                         <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/12 px-3 py-1 text-sm font-semibold text-cyan-100">
