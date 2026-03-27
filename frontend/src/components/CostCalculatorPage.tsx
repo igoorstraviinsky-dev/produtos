@@ -103,38 +103,38 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
 
   return (
     <section className="space-y-6">
-      <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-        <div className="flex flex-col gap-5 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <section className="surface-panel rounded-[2rem] p-6">
+        <div className="surface-divider flex flex-col gap-5 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">
+            <p className="surface-kicker">
               {companyName ? "Custos da Empresa" : "Custos"}
             </p>
-            <h2 className="mt-2 font-display text-4xl tracking-tight text-slate-950">
+            <h2 className="mt-2 font-display text-4xl tracking-tight text-slate-50">
               {companyName
                 ? `Calculadora de custo da mercadoria de ${companyName}`
                 : "Calculadora de custo da mercadoria"}
             </h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
+            <p className="mt-3 text-sm leading-7 text-slate-400">
               Formula aplicada: `(Mao de Obra + Prata Internacional) = R1`, `R1 + Taxa ZF = R2`, `R2 + Transporte = R3`, `R3 x Dolar = Custo Final`.
               A mao de obra original vem em dolar no produto, e abaixo ela e convertida automaticamente para real pela cotacao informada no topo.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">
+            <div className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-400/12 px-4 py-2 text-sm font-semibold text-emerald-200">
               {autosaveLabel}
             </div>
             <button
               type="button"
               onClick={onOpenHistory}
-              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              className="surface-button-secondary inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition"
             >
               Ver historico
             </button>
             <button
               type="button"
               onClick={onRefresh}
-              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              className="surface-button-secondary inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition"
             >
               Atualizar produtos
             </button>
@@ -143,53 +143,53 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-slate-700">
+            <span className="mb-2 block text-sm font-semibold text-slate-300">
               Prata internacional por grama
             </span>
             <input
               value={variables.silverPricePerGram}
               onChange={(event) => onVariableChange("silverPricePerGram", event.target.value)}
-              className="w-full rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+              className="surface-input w-full rounded-[1.2rem] px-4 py-3 text-sm outline-none transition"
             />
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-slate-700">
+            <span className="mb-2 block text-sm font-semibold text-slate-300">
               Taxa ZF (%)
             </span>
             <input
               value={variables.zonaFrancaRatePercent}
               onChange={(event) => onVariableChange("zonaFrancaRatePercent", event.target.value)}
-              className="w-full rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+              className="surface-input w-full rounded-[1.2rem] px-4 py-3 text-sm outline-none transition"
             />
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-slate-700">
+            <span className="mb-2 block text-sm font-semibold text-slate-300">
               Transporte
             </span>
             <input
               value={variables.transportFee}
               onChange={(event) => onVariableChange("transportFee", event.target.value)}
-              className="w-full rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+              className="surface-input w-full rounded-[1.2rem] px-4 py-3 text-sm outline-none transition"
             />
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-slate-700">
+            <span className="mb-2 block text-sm font-semibold text-slate-300">
               Dolar
             </span>
             <input
               value={variables.dollarRate}
               onChange={(event) => onVariableChange("dollarRate", event.target.value)}
-              className="w-full rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+              className="surface-input w-full rounded-[1.2rem] px-4 py-3 text-sm outline-none transition"
             />
           </label>
         </div>
       </section>
 
       {costSettingsState === "loading" ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-400">
           Carregando parametros persistidos do backend...
         </p>
       ) : null}
@@ -199,43 +199,43 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
         </p>
       ) : null}
 
-      <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-        <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <section className="surface-panel rounded-[2rem] p-6">
+        <div className="surface-divider flex flex-col gap-3 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">
+            <p className="surface-kicker">
               Atualizacoes
             </p>
-            <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-950">
+            <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-50">
               Historico recente das variaveis
             </h3>
-            <p className="mt-2 text-sm text-slate-600">
+            <p className="mt-2 text-sm text-slate-400">
               Visualize as ultimas alteracoes de prata, taxa ZF, transporte e dolar aplicadas na calculadora.
             </p>
           </div>
         </div>
 
         {costHistoryState === "loading" ? (
-          <p className="mt-4 text-sm text-slate-500">Carregando historico...</p>
+          <p className="mt-4 text-sm text-slate-400">Carregando historico...</p>
         ) : null}
         {costHistoryState === "error" ? (
           <p className="mt-4 text-sm text-rose-600">Nao foi possivel carregar o historico.</p>
         ) : null}
         {costHistoryState === "success" && costHistoryEntries.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-500">Nenhuma alteracao registrada ainda.</p>
+          <p className="mt-4 text-sm text-slate-400">Nenhuma alteracao registrada ainda.</p>
         ) : null}
         {costHistoryEntries.length > 0 ? (
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
             {costHistoryEntries.slice(0, 3).map((entry) => (
               <article
                 key={entry.id}
-                className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 px-4 py-4"
+                className="surface-card rounded-[1.5rem] px-4 py-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap gap-2">
                     {entry.changedFields.map((field) => (
                       <span
                         key={field}
-                        className="rounded-full bg-cyan-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-800"
+                        className="rounded-full border border-cyan-400/20 bg-cyan-400/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-100"
                       >
                         {formatHistoryField(field)}
                       </span>
@@ -246,10 +246,10 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
                   </p>
                 </div>
 
-                <div className="mt-4 space-y-2 text-sm text-slate-700">
+                <div className="mt-4 space-y-2 text-sm text-slate-300">
                   {entry.changedFields.map((field) => (
                     <p key={field}>
-                      <span className="font-semibold text-slate-950">{formatHistoryField(field)}:</span>{" "}
+                      <span className="font-semibold text-slate-50">{formatHistoryField(field)}:</span>{" "}
                       {entry.previous[field as keyof typeof entry.previous]} {"->"}{" "}
                       {entry.next[field as keyof typeof entry.next]}
                     </p>
@@ -261,11 +261,11 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
         ) : null}
       </section>
 
-      <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-        <div className="overflow-hidden rounded-[1.75rem] border border-slate-200">
+      <section className="surface-panel rounded-[2rem] p-6">
+        <div className="overflow-hidden rounded-[1.75rem] border border-white/8">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-left">
-              <thead className="bg-slate-50/80 text-xs uppercase tracking-[0.16em] text-slate-500">
+            <table className="surface-table min-w-full divide-y divide-white/8 text-left">
+              <thead className="text-xs uppercase tracking-[0.16em]">
                 <tr>
                   <th className="px-4 py-4 font-semibold">Produto</th>
                   <th className="px-4 py-4 font-semibold">Peso (g)</th>
@@ -275,34 +275,34 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
                   <th className="px-4 py-4 font-semibold">Custo Final</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
+              <tbody className="divide-y divide-white/5">
                 {previewProducts.map((product) => {
                   const weightGrams = parseNumericValue(product.weightGrams);
 
                   return (
-                    <tr key={product.id} className="align-top hover:bg-slate-50/80">
+                    <tr key={product.id} className="align-top">
                       <td className="px-4 py-4">
                         <div className="max-w-[300px]">
-                          <p className="font-semibold text-slate-950">{product.name}</p>
+                          <p className="font-semibold text-slate-50">{product.name}</p>
                           <p className="mt-1 text-xs text-slate-500">{product.serialNumber}</p>
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">
+                      <td className="px-4 py-4 text-sm text-slate-300">
                         {formatNumber(weightGrams)}
                       </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">
+                      <td className="px-4 py-4 text-sm text-slate-300">
                         {formatNumber(product.costBreakdown.laborCostUsd)}
                       </td>
                       <td className="px-4 py-4">
-                        <div className="min-w-[180px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900">
+                        <div className="surface-input min-w-[180px] rounded-xl px-3 py-2 text-sm text-slate-100">
                           {formatCurrency(product.costBreakdown.laborCostBrl)}
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">
+                      <td className="px-4 py-4 text-sm text-slate-300">
                         {formatCurrency(product.costBreakdown.silverCost)}
                       </td>
                       <td className="px-4 py-4">
-                        <div className="inline-flex rounded-full bg-cyan-50 px-3 py-1 text-sm font-semibold text-cyan-800">
+                        <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/12 px-3 py-1 text-sm font-semibold text-cyan-100">
                           {formatCurrency(product.costFinal)}
                         </div>
                       </td>
@@ -315,7 +315,7 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
         </div>
 
         {productsState === "loading" ? (
-          <p className="mt-4 text-sm text-slate-500">Carregando produtos para calcular custos...</p>
+          <p className="mt-4 text-sm text-slate-400">Carregando produtos para calcular custos...</p>
         ) : null}
         {productsState === "error" ? (
           <p className="mt-4 text-sm text-rose-600">

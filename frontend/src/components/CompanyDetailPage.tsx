@@ -654,7 +654,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
 
   return (
     <section className="space-y-6">
-      <div className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
+      <div className="surface-panel rounded-[2rem] p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <button
@@ -911,16 +911,16 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
       ) : null}
 
       {activeTab === "inventory" ? (
-        <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <section className="surface-panel rounded-[2rem] p-6">
+          <div className="surface-divider flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">
+              <p className="surface-kicker">
                 Estoque da Empresa
               </p>
-              <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-950">
+              <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-50">
                 Catalogo mestre com fotos e variacoes
               </h3>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-2 text-sm text-slate-400">
                 Edite o estoque isolado da empresa e visualize foto, SKU principal e todas as
                 variacoes cadastradas no catalogo mestre.
               </p>
@@ -929,7 +929,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
               type="button"
               disabled={syncingCatalog}
               onClick={onSyncCatalog}
-              className="inline-flex items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 px-5 py-3 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+              className="surface-button-secondary inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
             >
               {company.syncStoreInventory ? "Atualizar agora" : "Verificar alteracoes"}
             </button>
@@ -946,20 +946,20 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                   value={inventorySearch}
                   onChange={(event) => setInventorySearch(event.target.value)}
                   placeholder="Busque por sku, descricao comercial, cod fornecedor, variante ou tamanho"
-                  className="mt-2 w-full rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+                  className="surface-input mt-2 w-full rounded-[1.2rem] px-4 py-3 text-sm outline-none transition"
                 />
               </label>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+              <span className="surface-chip rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
                 {filteredInventory.length} de {inventory.length} produto(s)
               </span>
               {inventorySearch ? (
                 <button
                   type="button"
                   onClick={() => setInventorySearch("")}
-                  className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+                  className="surface-button-secondary inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition"
                 >
                   Limpar busca
                 </button>
@@ -968,7 +968,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
           </div>
 
           {inventoryState === "loading" ? (
-            <p className="mt-6 text-sm text-slate-500">Carregando estoque da empresa...</p>
+            <p className="mt-6 text-sm text-slate-400">Carregando estoque da empresa...</p>
           ) : null}
 
           {inventory.length === 0 && inventoryState !== "loading" ? (
@@ -987,7 +987,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     type="button"
                     disabled={syncingCatalog}
                     onClick={onSyncCatalog}
-                    className="inline-flex items-center justify-center rounded-full bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    className="surface-button-primary inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {company.syncStoreInventory ? "Atualizar agora" : "Sincronizar agora"}
                   </button>
@@ -1032,8 +1032,8 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     className={[
                       "overflow-hidden rounded-[1.75rem] border transition",
                       isCardOpen
-                        ? "border-cyan-200 bg-white shadow-[0_22px_55px_rgba(14,165,233,0.12)]"
-                        : "border-slate-200 bg-slate-50/70 shadow-[0_12px_28px_rgba(15,23,42,0.05)] hover:border-cyan-200 hover:bg-white hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+                        ? "border-cyan-400/25 bg-white/[0.04] shadow-[0_22px_55px_rgba(8,145,178,0.18)]"
+                        : "border-white/8 bg-white/[0.02] shadow-[0_12px_28px_rgba(0,0,0,0.22)] hover:border-cyan-400/20 hover:bg-white/[0.04] hover:shadow-[0_18px_40px_rgba(0,0,0,0.28)]"
                     ].join(" ")}
                   >
                     <button
@@ -1043,7 +1043,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     >
                       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex min-w-0 items-center gap-3 xl:flex-1">
-                          <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.7)]">
+                          <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[1.25rem] border border-white/8 bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                             <ProductImage product={product} alt={item.name} mode="line" />
                           </div>
 
@@ -1052,7 +1052,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                                   Cód
                                 </p>
-                                <p className="mt-1 truncate font-display text-base tracking-tight text-slate-950">
+                                  <p className="mt-1 truncate font-display text-base tracking-tight text-slate-50">
                                   {item.sku}
                                 </p>
                               </div>
@@ -1061,7 +1061,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                                   Cod fornecedor
                                 </p>
-                                <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                                <p className="mt-1 truncate text-sm font-semibold text-slate-200">
                                   {getSupplierCode(product)}
                                 </p>
                               </div>
@@ -1070,7 +1070,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                                 Descricao comercial
                               </p>
-                              <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-700">
+                              <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-300">
                                 {getCommercialDescription(product, item.name)}
                               </p>
                             </div>
@@ -1078,14 +1078,14 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3 xl:ml-4 xl:shrink-0 xl:flex-nowrap">
-                          <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
+                          <span className="rounded-full border border-cyan-400/20 bg-cyan-400/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100">
                             {variantCountLabel}
                           </span>
-                          <div className="min-w-[8.5rem] rounded-[1rem] border border-slate-200 bg-white px-3 py-2.5">
+                          <div className="min-w-[8.5rem] rounded-[1rem] border border-white/8 bg-white/[0.04] px-3 py-2.5">
                               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                               Estoque loja
                             </p>
-                            <p className="mt-1.5 text-lg font-semibold text-slate-950">
+                            <p className="mt-1.5 text-lg font-semibold text-slate-50">
                               {currentDisplayStock}
                             </p>
                           </div>
@@ -1093,8 +1093,8 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                             className={[
                               "inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold transition",
                               isCardOpen
-                                ? "bg-slate-950 text-white"
-                                : "border border-slate-200 bg-white text-slate-700"
+                                ? "surface-button-primary text-white"
+                                : "surface-button-secondary text-slate-100"
                             ].join(" ")}
                           >
                             {isCardOpen ? "Fechar card" : "Abrir card"}
@@ -1104,15 +1104,15 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     </button>
 
                     {isCardOpen ? (
-                      <div className="border-t border-slate-200 bg-white px-5 py-5">
+                      <div className="surface-divider border-t bg-white/[0.02] px-5 py-5">
                         <div className="space-y-5">
-                          <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 px-4 py-4">
+                          <div className="surface-card rounded-[1.5rem] px-4 py-4">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                               <div className="max-w-md">
-                                <p className="text-sm font-semibold text-slate-900">
+                                <p className="text-sm font-semibold text-slate-100">
                                   Estoque isolado da empresa
                                 </p>
-                                <p className="mt-1 text-sm text-slate-500">
+                                <p className="mt-1 text-sm text-slate-400">
                                   O valor salvo aqui substitui o estoque mestre desse produto para a empresa selecionada.
                                 </p>
                                 {item.hasVariantInventory ? (
@@ -1131,13 +1131,13 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                   onChange={(event) =>
                                     onInventoryDraftChange(item.productId, event.target.value)
                                   }
-                                  className="w-32 rounded-[1rem] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+                                  className="surface-input w-32 rounded-[1rem] px-3 py-2 text-sm outline-none transition"
                                 />
                                 <button
                                   type="button"
                                   disabled={savingInventoryId === item.productId}
                                   onClick={() => onSaveInventory(item.productId)}
-                                  className="inline-flex items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                  className="surface-button-secondary inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   {savingInventoryId === item.productId ? "Salvando..." : "Salvar"}
                                 </button>
@@ -1146,28 +1146,28 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                           </div>
 
                           {product && displayedVariants.length > 0 ? (
-                            <div className="rounded-[1.5rem] border border-slate-200 bg-white/90 px-4 py-4">
+                            <div className="surface-card rounded-[1.5rem] px-4 py-4">
                               <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                  <p className="text-sm font-semibold text-slate-900">
+                                  <p className="text-sm font-semibold text-slate-100">
                                     Variantes ({displayedVariants.length})
                                   </p>
-                                  <p className="mt-1 text-sm text-slate-600">
+                                  <p className="mt-1 text-sm text-slate-400">
                                     {normalizedInventorySearch && matchingVariants.length > 0
                                       ? "Variacoes filtradas pela busca atual."
                                       : "Variacoes oficiais do catalogo mestre para consulta rapida da empresa."}
                                   </p>
                                 </div>
                                 {product?.material_base ? (
-                                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                                  <span className="surface-chip rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
                                     {product.material_base}
                                   </span>
                                 ) : null}
                               </div>
 
                               <div className="mt-4 overflow-x-auto">
-                                <table className="min-w-full divide-y divide-slate-200 text-left">
-                                  <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                                <table className="surface-table min-w-full divide-y divide-white/8 text-left">
+                                  <thead className="text-[11px] uppercase tracking-[0.16em]">
                                     <tr>
                                       <th className="px-3 py-3 font-semibold">Tamanho</th>
                                       <th className="px-3 py-3 font-semibold">SKU</th>
@@ -1175,10 +1175,10 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                       <th className="px-3 py-3 font-semibold">Estoque</th>
                                     </tr>
                                   </thead>
-                                  <tbody className="divide-y divide-slate-100 bg-white">
+                                  <tbody className="divide-y divide-white/5">
                                     {displayedVariants.map((variant) => (
-                                      <tr key={variant.variant_id} className="text-sm text-slate-700">
-                                        <td className="px-3 py-3 font-semibold text-slate-900">
+                                      <tr key={variant.variant_id} className="text-sm text-slate-300">
+                                        <td className="px-3 py-3 font-semibold text-slate-100">
                                           {getVariantDisplayLabel(variant)}
                                         </td>
                                         <td className="px-3 py-3">{variant.sku}</td>

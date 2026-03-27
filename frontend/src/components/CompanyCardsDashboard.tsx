@@ -8,33 +8,161 @@ type CompanyCardsDashboardProps = {
   onOpenCompany: (companyId: string) => void;
 };
 
+function CompanyWorkspaceCard(props: {
+  company: Company;
+  onOpenCompany: (companyId: string) => void;
+}) {
+  const { company, onOpenCompany } = props;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenCompany(company.id)}
+      className="surface-card group flex h-full flex-col rounded-[1.9rem] p-5 text-left transition hover:-translate-y-1 hover:border-cyan-400/30 hover:shadow-[0_18px_50px_rgba(8,145,178,0.16)]"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="surface-chip-active inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em]">
+            Workspace
+          </div>
+          <p className="mt-4 font-display text-[1.65rem] leading-tight tracking-tight text-slate-50">
+            {company.legalName}
+          </p>
+          <p className="mt-2 text-sm text-slate-400">{company.externalCode}</p>
+        </div>
+        <StatusChip active={company.isActive}>
+          {company.isActive ? "Ativa" : "Inativa"}
+        </StatusChip>
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-3">
+        <div className="surface-card-muted rounded-[1.3rem] px-4 py-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+            Chaves emitidas
+          </p>
+          <p className="mt-3 font-display text-3xl tracking-tight text-slate-50">
+            {String(company.apiKeyCount).padStart(2, "0")}
+          </p>
+        </div>
+
+        <div className="rounded-[1.3rem] border border-fuchsia-500/20 bg-[linear-gradient(135deg,rgba(168,85,247,0.24),rgba(217,70,239,0.12))] px-4 py-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-fuchsia-100/80">
+            Chaves ativas
+          </p>
+          <p className="mt-3 font-display text-3xl tracking-tight text-white">
+            {String(company.activeKeyCount).padStart(2, "0")}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 flex items-center justify-between text-xs uppercase tracking-[0.22em] text-slate-500">
+        <span>Abrir empresa</span>
+        <span className="text-cyan-300 transition group-hover:text-cyan-200">Entrar</span>
+      </div>
+    </button>
+  );
+}
+
 export function CompanyCardsDashboard(props: CompanyCardsDashboardProps) {
   const { companies, companiesState, onOpenCreate, onOpenCompany } = props;
 
   return (
-    <section className="space-y-6">
-      <div className="rounded-[2rem] border border-white/70 bg-white/85 p-5 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur sm:p-6">
-        <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-teal-700">
-              Dashboard de Clientes
-            </p>
-            <h2 className="mt-2 font-display text-4xl tracking-tight text-slate-950">
-              Super Admin
-            </h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              Abra qualquer empresa para editar configuracoes, gerenciar chaves de API
-              e ajustar o estoque isolado daquela operacao sem usar API key no painel.
-            </p>
-          </div>
+    <section className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className="surface-panel rounded-[2.1rem] p-5">
+        <div className="surface-chip-active inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em]">
+          Partner OS
+        </div>
 
+        <div className="mt-6 space-y-3">
+          {[
+            "Inbox de operacoes",
+            "Empresas ativas",
+            "Custos por parceiro",
+            "Documentacao publica"
+          ].map((item, index) => (
+            <div
+              key={item}
+              className={[
+                "surface-card flex items-center gap-3 rounded-[1.35rem] px-4 py-3",
+                index === 1 ? "border-cyan-400/20 bg-cyan-400/[0.08]" : ""
+              ].join(" ")}
+            >
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/6 text-xs font-semibold text-slate-200">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="text-sm text-slate-300">{item}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-8 rounded-[1.7rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-4">
+          <p className="surface-kicker">Workspace</p>
+          <p className="mt-3 text-sm leading-7 text-slate-300">
+            Cada empresa funciona como um ambiente isolado de estoque, chaves e custos.
+          </p>
           <button
             type="button"
             onClick={onOpenCreate}
-            className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            className="surface-button-primary mt-5 inline-flex w-full items-center justify-center rounded-full px-4 py-3 text-sm font-semibold transition"
           >
             Nova empresa
           </button>
+        </div>
+      </aside>
+
+      <section className="surface-panel rounded-[2.2rem] p-6 sm:p-7">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_320px]">
+          <div className="surface-card overflow-hidden rounded-[2rem] p-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="surface-chip rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">
+                Operacao central
+              </div>
+              <div className="surface-chip-active rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em]">
+                Estoque B2B
+              </div>
+            </div>
+
+            <h2 className="mt-6 max-w-3xl font-display text-4xl tracking-tight text-slate-50 sm:text-5xl">
+              Central de empresas, estoque isolado e automacoes comerciais.
+            </h2>
+            <p className="mt-4 max-w-2xl text-sm leading-8 text-slate-400 sm:text-base">
+              Abra qualquer parceiro para operar estoque proprio, credenciais de API e custos
+              individualizados em uma interface unica inspirada em workspace SaaS.
+            </p>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={onOpenCreate}
+                className="surface-button-primary rounded-full px-5 py-3 text-sm font-semibold transition"
+              >
+                Criar empresa
+              </button>
+              <div className="surface-button-secondary rounded-full px-5 py-3 text-sm font-semibold">
+                Supervisao em tempo real
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="surface-card rounded-[1.8rem] p-5">
+              <p className="surface-kicker">Leitura rapida</p>
+              <p className="mt-4 font-display text-3xl tracking-tight text-slate-50">
+                {String(companies.length).padStart(2, "0")}
+              </p>
+              <p className="mt-2 text-sm text-slate-400">Empresas disponiveis para operar</p>
+            </div>
+
+            <div className="rounded-[1.8rem] border border-cyan-400/20 bg-[linear-gradient(160deg,rgba(34,211,238,0.18),rgba(168,85,247,0.12),rgba(15,23,42,0.9))] p-5">
+              <p className="surface-kicker text-cyan-100">Visao atual</p>
+              <p className="mt-4 font-display text-2xl tracking-tight text-white">
+                Dashboard modular
+              </p>
+              <p className="mt-3 text-sm leading-7 text-cyan-50/80">
+                Cards reaproveitaveis, foco em contraste alto e camadas de vidro escuro.
+              </p>
+            </div>
+          </div>
         </div>
 
         {companies.length === 0 && companiesState !== "loading" ? (
@@ -46,56 +174,20 @@ export function CompanyCardsDashboard(props: CompanyCardsDashboardProps) {
           </div>
         ) : null}
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-7 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {companies.map((company) => (
-            <button
+            <CompanyWorkspaceCard
               key={company.id}
-              type="button"
-              onClick={() => onOpenCompany(company.id)}
-              className="group rounded-[1.75rem] border border-slate-200 bg-white p-5 text-left shadow-[0_16px_40px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-[0_20px_50px_rgba(15,118,110,0.12)]"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-display text-2xl tracking-tight text-slate-950">
-                    {company.legalName}
-                  </p>
-                  <p className="mt-2 text-sm text-slate-500">{company.externalCode}</p>
-                </div>
-                <StatusChip active={company.isActive}>
-                  {company.isActive ? "Ativa" : "Inativa"}
-                </StatusChip>
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Chaves emitidas
-                  </p>
-                  <p className="mt-2 font-display text-3xl tracking-tight text-slate-950">
-                    {company.apiKeyCount}
-                  </p>
-                </div>
-                <div className="rounded-[1.2rem] border border-emerald-200 bg-emerald-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                    Chaves ativas
-                  </p>
-                  <p className="mt-2 font-display text-3xl tracking-tight text-emerald-900">
-                    {company.activeKeyCount}
-                  </p>
-                </div>
-              </div>
-
-              <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 transition group-hover:text-teal-700">
-                Abrir visao da empresa
-              </p>
-            </button>
+              company={company}
+              onOpenCompany={onOpenCompany}
+            />
           ))}
         </div>
 
         {companiesState === "loading" ? (
-          <p className="mt-4 text-sm text-slate-500">Carregando empresas...</p>
+          <p className="mt-5 text-sm text-slate-400">Carregando empresas...</p>
         ) : null}
-      </div>
+      </section>
     </section>
   );
 }

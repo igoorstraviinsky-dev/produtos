@@ -759,16 +759,16 @@ function App() {
   if (authState === "checking") {
     return (
       <div className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_38%),radial-gradient(circle_at_bottom_right,_rgba(250,204,21,0.18),_transparent_28%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(168,85,247,0.18),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.14),_transparent_24%)]" />
         <div className="mx-auto flex min-h-screen max-w-5xl items-center justify-center px-4 py-10">
-          <div className="rounded-[2rem] border border-white/60 bg-white/85 px-10 py-12 text-center shadow-[0_25px_80px_rgba(15,23,42,0.10)] backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-700">
+          <div className="surface-panel rounded-[2rem] px-10 py-12 text-center">
+            <p className="surface-kicker">
               Super Admin
             </p>
-            <h1 className="mt-4 font-display text-4xl tracking-tight text-slate-950">
+            <h1 className="mt-4 font-display text-4xl tracking-tight text-slate-50">
               Validando sessao
             </h1>
-            <p className="mt-3 text-sm text-slate-600">
+            <p className="mt-3 text-sm text-slate-400">
               Estamos conferindo o acesso administrativo e a disponibilidade da API local.
             </p>
           </div>
@@ -805,19 +805,19 @@ function App() {
 
   return (
     <div className="relative overflow-hidden">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.2),_transparent_42%),radial-gradient(circle_at_top_right,_rgba(250,204,21,0.2),_transparent_32%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-96 bg-[radial-gradient(circle_at_top_left,_rgba(168,85,247,0.18),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(34,211,238,0.14),_transparent_26%),linear-gradient(180deg,_rgba(255,255,255,0.02),_transparent)]" />
       <div className="mx-auto flex min-h-screen max-w-[1500px] flex-col gap-8 px-4 py-6 sm:px-6 lg:px-10">
-        <header className="rounded-[2rem] border border-white/60 bg-white/80 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
+        <header className="surface-panel rounded-[2.25rem] p-6">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-700">
+              <div className="surface-chip-active inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em]">
                 Super Admin
-                <span className="h-2 w-2 rounded-full bg-cyan-500" />
+                <span className="h-2 w-2 rounded-full bg-cyan-300" />
               </div>
-              <h1 className="mt-4 font-display text-4xl tracking-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-4 font-display text-4xl tracking-tight text-slate-50 sm:text-5xl">
                 Dashboard operacional de parceiros
               </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
                 Visualize todas as empresas cadastradas, ajuste configuracoes criticas e
                 administre o estoque isolado de cada parceiro a partir de uma unica
                 interface.
@@ -829,8 +829,8 @@ function App() {
                   className={[
                     "rounded-full px-4 py-2 text-sm font-semibold transition",
                     currentPage === "dashboard"
-                      ? "bg-slate-950 text-white"
-                      : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                      ? "surface-button-primary text-white"
+                      : "surface-button-secondary text-slate-100"
                   ].join(" ")}
                 >
                   Dashboard
@@ -838,7 +838,7 @@ function App() {
                 <button
                   type="button"
                   onClick={openDocs}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+                  className="surface-button-secondary rounded-full px-4 py-2 text-sm font-semibold transition"
                 >
                   Docs API
                 </button>
@@ -849,8 +849,8 @@ function App() {
                     className={[
                       "rounded-full px-4 py-2 text-sm font-semibold transition",
                       currentPage === "company"
-                        ? "bg-cyan-600 text-white"
-                        : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                        ? "surface-button-primary text-white"
+                        : "surface-button-secondary text-slate-100"
                     ].join(" ")}
                   >
                     Visao da empresa
@@ -859,14 +859,14 @@ function App() {
               </div>
               {adminSession ? (
                 <div className="mt-6 flex flex-wrap items-center gap-3">
-                  <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
-                    Sessao: <span className="font-semibold text-slate-950">{adminSession.admin.displayName}</span>
+                  <div className="surface-chip rounded-full px-4 py-2 text-sm text-slate-300">
+                    Sessao: <span className="font-semibold text-slate-50">{adminSession.admin.displayName}</span>
                   </div>
                   {sessionConfig?.requiresAuth ? (
                     <button
                       type="button"
                       onClick={handleAdminLogout}
-                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+                      className="surface-button-secondary rounded-full px-4 py-2 text-sm font-semibold transition"
                     >
                       Sair
                     </button>
@@ -896,7 +896,7 @@ function App() {
         </header>
 
         {feedback ? (
-          <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950">
+          <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
             {feedback}
           </div>
         ) : null}
