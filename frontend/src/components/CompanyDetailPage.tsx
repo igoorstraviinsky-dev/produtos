@@ -934,20 +934,6 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                 Edite o estoque isolado da empresa e visualize foto, SKU principal e todas as
                 variacoes cadastradas no catalogo mestre.
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span
-                  className={[
-                    "rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em]",
-                    company.syncStoreInventory
-                      ? "bg-cyan-100 text-cyan-800"
-                      : "bg-slate-100 text-slate-600"
-                  ].join(" ")}
-                >
-                  {company.syncStoreInventory
-                    ? "Sincronizacao automatica da loja ativa"
-                    : "Sincronizacao da loja desabilitada"}
-                </span>
-              </div>
             </div>
             <button
               type="button"
@@ -955,11 +941,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
               onClick={onSyncCatalog}
               className="inline-flex items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 px-5 py-3 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
             >
-              {syncingCatalog
-                ? "Atualizando..."
-                : company.syncStoreInventory
-                  ? "Atualizar agora"
-                  : "Verificar alteracoes"}
+              {company.syncStoreInventory ? "Atualizar agora" : "Verificar alteracoes"}
             </button>
           </div>
 
@@ -999,12 +981,6 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
             <p className="mt-6 text-sm text-slate-500">Carregando estoque da empresa...</p>
           ) : null}
 
-          {productsState === "loading" && inventory.length > 0 ? (
-            <p className="mt-3 text-sm text-slate-500">
-              Carregando fotos e variacoes do catalogo mestre...
-            </p>
-          ) : null}
-
           {inventory.length === 0 && inventoryState !== "loading" ? (
             <div className="mt-6">
               <div className="space-y-4">
@@ -1012,7 +988,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                   title="Sem produtos sincronizados"
                   description={
                     company.syncStoreInventory
-                      ? "Estamos sincronizando o catalogo automaticamente para habilitar o estoque da empresa."
+                      ? "Nenhum produto foi carregado para essa empresa ainda."
                       : "Sincronize o catalogo mestre primeiro para habilitar o estoque por empresa."
                   }
                 />
@@ -1023,11 +999,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     onClick={onSyncCatalog}
                     className="inline-flex items-center justify-center rounded-full bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
-                    {syncingCatalog
-                      ? "Sincronizando..."
-                      : company.syncStoreInventory
-                        ? "Atualizar agora"
-                        : "Sincronizar agora"}
+                    {company.syncStoreInventory ? "Atualizar agora" : "Sincronizar agora"}
                   </button>
                 </div>
               </div>
