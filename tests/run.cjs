@@ -988,7 +988,7 @@ const cases = [
     }
   },
   {
-    name: "Cost calculator applies company formula in USD before dollar conversion",
+    name: "Cost calculator applies additive company formula before dollar conversion",
     fn: async () => {
       const result = calculateProductCost(
         {
@@ -1010,9 +1010,9 @@ const cases = [
         laborCostBrl: 14.3,
         silverCost: 2.1,
         r1: 4.85,
-        r2: 5.14,
-        r3: 5.24,
-        finalCost: 27.25
+        r2: 10.85,
+        r3: 10.95,
+        finalCost: 56.94
       });
     }
   },

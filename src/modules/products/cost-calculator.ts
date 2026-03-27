@@ -35,10 +35,11 @@ export function calculateProductCost(
 ): ProductCostBreakdown {
   const laborCostUsd = parseNumericValue(product.laborCost);
   const weightGrams = parseNumericValue(product.weightGrams);
+  const zonaFrancaFee = settings.zonaFrancaRatePercent;
   const laborCostBrl = laborCostUsd * settings.dollarRate;
   const silverCost = weightGrams * settings.silverPricePerGram;
   const r1 = laborCostUsd + silverCost;
-  const r2 = r1 * (1 + settings.zonaFrancaRatePercent / 100);
+  const r2 = r1 + zonaFrancaFee;
   const r3 = r2 + settings.transportFee;
   const finalCost = r3 * settings.dollarRate;
 

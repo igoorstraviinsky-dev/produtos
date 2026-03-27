@@ -115,8 +115,8 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
                 : "Calculadora de custo da mercadoria"}
             </h2>
             <p className="mt-3 text-sm leading-7 text-slate-400">
-              Formula aplicada: `(Mao de Obra + Prata Internacional) = R1`, `R1 x (1 + Taxa ZF%) = R2`, `R2 + Transporte = R3`, `R3 x Dolar = Custo Final`.
-              A mao de obra original continua em dolar dentro da formula e abaixo ela aparece convertida para real apenas para leitura rapida.
+              Formula aplicada: `(Mao de Obra + Prata Internacional) = R1`, `R1 + Taxa ZF = R2`, `R2 + Transporte = R3`, `R3 x Dolar = Custo Final`.
+              A mao de obra original continua em dolar dentro da formula e abaixo ela aparece convertida para real apenas para leitura rapida. A Taxa ZF e tratada como valor aditivo nesta etapa.
             </p>
           </div>
 
@@ -155,7 +155,7 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
 
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-300">
-              Taxa ZF (%)
+              Taxa ZF
             </span>
             <input
               value={variables.zonaFrancaRatePercent}
