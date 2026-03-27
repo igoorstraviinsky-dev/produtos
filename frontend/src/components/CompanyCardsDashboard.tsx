@@ -1,3 +1,5 @@
+import { useRef, useState } from "react";
+
 import type { Company } from "../types";
 import { EmptyState, StatusChip } from "./ui";
 
@@ -6,6 +8,8 @@ type CompanyCardsDashboardProps = {
   companiesState: "idle" | "loading" | "success" | "error";
   onOpenCreate: () => void;
   onOpenCompany: (companyId: string) => void;
+  onOpenDocs: () => void;
+  onOpenPartnerCosts: () => void;
 };
 
 function CompanyWorkspaceCard(props: {
@@ -64,7 +68,60 @@ function CompanyWorkspaceCard(props: {
 }
 
 export function CompanyCardsDashboard(props: CompanyCardsDashboardProps) {
-  const { companies, companiesState, onOpenCreate, onOpenCompany } = props;
+  const {
+    companies,
+    companiesState,
+    onOpenCreate,
+    onOpenCompany,
+    onOpenDocs,
+    onOpenPartnerCosts
+  } = props;
+  const heroSectionRef = useRef<HTMLDivElement | null>(null);
+  const companiesSectionRef = useRef<HTMLDivElement | null>(null);
+  const [activeWorkspaceItem, setActiveWorkspaceItem] = useState("Empresas ativas");
+
+  function scrollToSection(target: "hero" | "companies") {
+    const element = target === "hero" ? heroSectionRef.current : companiesSectionRef.current;
+    element?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
+
+  const workspaceItems = [
+    {
+      id: "inbox",
+      label: "Inbox de operacoes",
+      action: () => {
+        setActiveWorkspaceItem("Inbox de operacoes");
+        scrollToSection("hero");
+      }
+    },
+    {
+      id: "companies",
+      label: "Empresas ativas",
+      action: () => {
+        setActiveWorkspaceItem("Empresas ativas");
+        scrollToSection("companies");
+      }
+    },
+    {
+      id: "costs",
+      label: "Custos por parceiro",
+      action: () => {
+        setActiveWorkspaceItem("Custos por parceiro");
+        onOpenPartnerCosts();
+      }
+    },
+    {
+      id: "docs",
+      label: "Documentacao publica",
+      action: () => {
+        setActiveWorkspaceItem("Documentacao publica");
+        onOpenDocs();
+      }
+    }
+  ];
 
   return (
     <section className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
@@ -74,24 +131,21 @@ export function CompanyCardsDashboard(props: CompanyCardsDashboardProps) {
         </div>
 
         <div className="mt-6 space-y-3">
-          {[
-            "Inbox de operacoes",
-            "Empresas ativas",
-            "Custos por parceiro",
-            "Documentacao publica"
-          ].map((item, index) => (
-            <div
-              key={item}
+          {workspaceItems.map((item, index) => (
+            <button
+              type="button"
+              key={item.id}
+              onClick={item.action}
               className={[
-                "surface-card flex items-center gap-3 rounded-[1.35rem] px-4 py-3",
-                index === 1 ? "border-cyan-400/20 bg-cyan-400/[0.08]" : ""
+                "surface-card flex w-full items-center gap-3 rounded-[1.35rem] px-4 py-3 text-left transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.08]",
+                activeWorkspaceItem === item.label ? "border-cyan-400/20 bg-cyan-400/[0.08]" : ""
               ].join(" ")}
             >
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/6 text-xs font-semibold text-slate-200">
                 {String(index + 1).padStart(2, "0")}
               </span>
-              <span className="text-sm text-slate-300">{item}</span>
-            </div>
+              <span className="text-sm text-slate-300">{item.label}</span>
+            </button>
           ))}
         </div>
 
@@ -111,7 +165,7 @@ export function CompanyCardsDashboard(props: CompanyCardsDashboardProps) {
       </aside>
 
       <section className="surface-panel rounded-[2.2rem] p-6 sm:p-7">
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_320px]">
+        <div ref={heroSectionRef} className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_320px]">
           <div className="surface-card overflow-hidden rounded-[2rem] p-6">
             <div className="flex flex-wrap items-center gap-3">
               <div className="surface-chip rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">
@@ -174,7 +228,7 @@ export function CompanyCardsDashboard(props: CompanyCardsDashboardProps) {
           </div>
         ) : null}
 
-        <div className="mt-7 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+        <div ref={companiesSectionRef} className="mt-7 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {companies.map((company) => (
             <CompanyWorkspaceCard
               key={company.id}

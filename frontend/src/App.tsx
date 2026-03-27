@@ -363,6 +363,21 @@ function App() {
     setSelectedCompanyId("");
   }
 
+  function openPartnerCostsFromDashboard() {
+    const targetCompany =
+      companies.find((company) => company.isActive) ??
+      companies.find((company) => company.id === selectedCompanyId) ??
+      companies[0] ??
+      null;
+
+    if (!targetCompany) {
+      setFeedback("Cadastre uma empresa para abrir custos por parceiro.");
+      return;
+    }
+
+    openCosts(targetCompany.id);
+  }
+
   function openCostHistory() {
     setCostHistoryOpen(true);
     void refreshCostSettingsHistory(selectedCompanyId || undefined);
@@ -904,6 +919,12 @@ function App() {
             companies={companies}
             companiesState={companiesState}
             onOpenCreate={() => setCreateCompanyOpen(true)}
+            onOpenDocs={openDocs}
+            onOpenPartnerCosts={() => {
+              startTransition(() => {
+                openPartnerCostsFromDashboard();
+              });
+            }}
             onOpenCompany={(companyId) => {
               startTransition(() => {
                 openCompany(companyId);
