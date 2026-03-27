@@ -66,6 +66,29 @@ function formatCurrency(value: number | null | undefined) {
   }).format(value);
 }
 
+function formatUnits(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "n/d";
+  }
+
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(value);
+}
+
+function formatWeightStock(value: number | null | undefined) {
+  const parsed = typeof value === "number" ? value : null;
+  if (parsed === null || !Number.isFinite(parsed)) {
+    return "0 g";
+  }
+
+  return `${new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(parsed)} g`;
+}
+
 function getSupplierCode(product: Product | null) {
   return product?.supplier_code ?? product?.supplierCode ?? "n/d";
 }
@@ -507,6 +530,17 @@ function getInventoryVariantRecord(
 function getVariantDisplayStock(item: AdminInventoryItem, variant: ProductVariant) {
   const inventoryVariant = getInventoryVariantRecord(item, variant);
   return inventoryVariant?.effectiveStockQuantity ?? variant.individual_stock;
+}
+
+function getVariantUnitsStock(item: AdminInventoryItem, variant: ProductVariant) {
+  const stock = getVariantDisplayStock(item, variant);
+  const weight = toNumber(variant.individual_weight ?? variant.individualWeight);
+
+  if (weight === null || weight <= 0) {
+    return null;
+  }
+
+  return stock / weight;
 }
 
 function ProductImage(props: { product: Product | null; alt: string; mode?: "line" | "card" }) {
@@ -1194,17 +1228,18 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
 
                               <div className="mt-4 overflow-x-auto">
                                 <table className="surface-table min-w-full divide-y divide-white/8 text-left">
-                                  <thead className="text-[11px] uppercase tracking-[0.16em]">
-                                    <tr>
-                                      <th className="px-3 py-3 font-semibold">Tamanho</th>
-                                      <th className="px-3 py-3 font-semibold">SKU</th>
-                                      <th className="px-3 py-3 font-semibold">Peso (g)</th>
-                                      <th className="px-3 py-3 font-semibold">Estoque</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-white/5">
-                                    {displayedVariants.map((variant) => (
-                                      <tr key={variant.variant_id} className="text-sm text-slate-300">
+                                    <thead className="text-[11px] uppercase tracking-[0.16em]">
+                                      <tr>
+                                        <th className="px-3 py-3 font-semibold">Tamanho</th>
+                                        <th className="px-3 py-3 font-semibold">SKU</th>
+                                        <th className="px-3 py-3 font-semibold">Peso (g)</th>
+                                        <th className="px-3 py-3 font-semibold">Estoque/Peso (g)</th>
+                                        <th className="px-3 py-3 font-semibold">Estoque (UN)</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                      {displayedVariants.map((variant) => (
+                                        <tr key={variant.variant_id} className="text-sm text-slate-300">
                                         <td className="px-3 py-3 font-semibold text-slate-100">
                                           {getVariantDisplayLabel(variant)}
                                         </td>
@@ -1213,17 +1248,20 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                           {formatWeight(
                                             variant.individual_weight ?? variant.individualWeight
                                           )}
-                                        </td>
-                                        <td className="px-3 py-3">
-                                          <span className="inline-flex min-w-10 items-center justify-center rounded-full border border-rose-400/20 bg-rose-500/18 px-2 py-1 text-xs font-semibold text-rose-100">
-                                            {getVariantDisplayStock(item, variant)}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
+                                          </td>
+                                          <td className="px-3 py-3">
+                                            <span className="inline-flex min-w-10 items-center justify-center rounded-full border border-rose-400/20 bg-rose-500/18 px-2 py-1 text-xs font-semibold text-rose-100">
+                                              {formatWeightStock(getVariantDisplayStock(item, variant))}
+                                            </span>
+                                          </td>
+                                          <td className="px-3 py-3 text-slate-200">
+                                            {formatUnits(getVariantUnitsStock(item, variant))}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
                             </div>
                           ) : null}
 
