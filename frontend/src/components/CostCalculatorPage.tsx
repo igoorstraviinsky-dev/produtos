@@ -130,8 +130,8 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
                 : "Calculadora de custo da mercadoria"}
             </h2>
             <p className="mt-3 text-sm leading-7 text-slate-400">
-              Formula aplicada: `(Mao de Obra + Prata Internacional) = R1`, `R1 + (R1 x Taxa ZF%) = R2`, `R2 + Transporte = R3`, `R3 x Dolar = Custo Final`.
-              A mao de obra original continua em dolar dentro da formula e abaixo ela aparece como `Mao de obra convertida` apenas para conferencia rapida. Os blocos `R1`, `R2` e `R3` mostram cada etapa intermediaria antes da conversao final pelo dolar.
+              Formula aplicada: `((Mao de Obra + Prata Internacional) x (1 + Taxa ZF/100) + Transporte) x Dolar = Custo Final`.
+              A mao de obra original continua em dolar dentro da formula e abaixo ela aparece como `Mao de obra convertida` apenas para conferencia rapida. O campo `Prata internacional` entra direto na conta, sem multiplicar pelo peso. Os blocos `R1`, `R2` e `R3` mostram cada etapa intermediaria antes da conversao final pelo dolar.
             </p>
           </div>
 
@@ -159,7 +159,7 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-300">
-              Prata internacional por grama
+              Prata internacional
             </span>
             <input
               value={variables.silverPricePerGram}

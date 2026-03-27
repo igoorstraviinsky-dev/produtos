@@ -987,35 +987,35 @@ const cases = [
       assert.equal(response.meta.stale, true);
     }
   },
-  {
-    name: "Cost calculator applies percentual zona franca formula before dollar conversion",
-    fn: async () => {
-      const result = calculateProductCost(
-        {
-          weightGrams: "2.21",
-          laborCost: "3"
-        },
-        {
-          companyId: null,
-          silverPricePerGram: 1,
-          zonaFrancaRatePercent: 6,
-          transportFee: 0.1,
-          dollarRate: 5.28,
-          updatedAt: new Date("2026-03-27T00:00:00.000Z")
-        }
-      );
+    {
+      name: "Cost calculator uses direct silver value before zona franca and dollar conversion",
+      fn: async () => {
+        const result = calculateProductCost(
+          {
+            weightGrams: "0.80",
+            laborCost: "1.50"
+          },
+          {
+            companyId: null,
+            silverPricePerGram: 2.21,
+            zonaFrancaRatePercent: 6,
+            transportFee: 0.1,
+            dollarRate: 5.28,
+            updatedAt: new Date("2026-03-27T00:00:00.000Z")
+          }
+        );
 
-      assert.deepEqual(result, {
-        laborCostUsd: 3,
-        laborCostBrl: 15.84,
-        silverCost: 2.21,
-        r1: 5.21,
-        r2: 5.52,
-        r3: 5.62,
-        finalCost: 29.69
-      });
-    }
-  },
+        assert.deepEqual(result, {
+          laborCostUsd: 1.5,
+          laborCostBrl: 7.92,
+          silverCost: 2.21,
+          r1: 3.71,
+          r2: 3.93,
+          r3: 4.03,
+          finalCost: 21.29
+        });
+      }
+    },
   {
     name: "Products endpoint exposes stable media URLs and proxy route streams content",
     fn: async () => {
