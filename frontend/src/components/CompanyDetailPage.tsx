@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Toggle } from "./Toggle";
 import { EmptyState, StatusChip } from "./ui";
@@ -76,6 +76,14 @@ function getVariantStockTotal(product: Product | null) {
 
 function getCurrentDisplayStock(item: AdminInventoryItem, product: Product | null) {
   return getVariantStockTotal(product) ?? item.effectiveStockQuantity;
+}
+
+function normalizeSearchTerm(value: string | null | undefined) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function normalizeCandidateUrl(value: string | null | undefined) {
@@ -405,6 +413,62 @@ function getVariantDisplayLabel(variant: ProductVariant) {
   return firstOption?.label ?? "Sem atributo";
 }
 
+function variantMatchesInventorySearch(variant: ProductVariant, normalizedQuery: string) {
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  const variantSearchText = [
+    variant.sku,
+    ...variant.size_labels,
+    ...variant.color_labels,
+    ...variant.options.map((option) => option.label)
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return normalizeSearchTerm(variantSearchText).includes(normalizedQuery);
+}
+
+function itemMatchesInventorySearch(
+  item: AdminInventoryItem,
+  product: Product | null,
+  normalizedQuery: string
+) {
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  const productSearchText = [
+    item.sku,
+    item.name,
+    product?.sku,
+    product?.code,
+    product?.numero_serie,
+    product?.name,
+    product?.nome,
+    product?.description,
+    product?.descricao,
+    product?.supplier_code,
+    product?.supplierCode,
+    product?.supplier_product_sku,
+    product?.supplierProductSku,
+    product?.material_base,
+    product?.categoria,
+    product?.subcategoria
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (normalizeSearchTerm(productSearchText).includes(normalizedQuery)) {
+    return true;
+  }
+
+  return (product?.variants ?? []).some((variant) =>
+    variantMatchesInventorySearch(variant, normalizedQuery)
+  );
+}
+
 function ProductImage(props: { product: Product | null; alt: string; mode?: "line" | "card" }) {
   const { product, alt, mode = "card" } = props;
   const candidates = buildPrimaryImageCandidates(product);
@@ -540,6 +604,19 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
 
   const productsById = new Map(products.map((product) => [product.id, product]));
   const [openInventoryProductId, setOpenInventoryProductId] = useState<string | null>(null);
+  const [inventorySearch, setInventorySearch] = useState("");
+  const normalizedInventorySearch = normalizeSearchTerm(inventorySearch);
+  const filteredInventory = useMemo(
+    () =>
+      inventory.filter((item) =>
+        itemMatchesInventorySearch(
+          item,
+          productsById.get(item.productId) ?? null,
+          normalizedInventorySearch
+        )
+      ),
+    [inventory, normalizedInventorySearch, products]
+  );
 
   useEffect(() => {
     if (!openInventoryProductId) {
@@ -841,6 +918,38 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
             </button>
           </div>
 
+          <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="w-full max-w-2xl">
+              <label className="block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Buscar produto ou variante
+                </span>
+                <input
+                  type="search"
+                  value={inventorySearch}
+                  onChange={(event) => setInventorySearch(event.target.value)}
+                  placeholder="Busque por sku, descricao comercial, cod fornecedor, variante ou tamanho"
+                  className="mt-2 w-full rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                {filteredInventory.length} de {inventory.length} produto(s)
+              </span>
+              {inventorySearch ? (
+                <button
+                  type="button"
+                  onClick={() => setInventorySearch("")}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+                >
+                  Limpar busca
+                </button>
+              ) : null}
+            </div>
+          </div>
+
           {inventoryState === "loading" ? (
             <p className="mt-6 text-sm text-slate-500">Carregando estoque da empresa...</p>
           ) : null}
@@ -872,14 +981,36 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
             </div>
           ) : null}
 
-          {inventory.length > 0 ? (
+          {inventory.length > 0 && filteredInventory.length === 0 ? (
+            <div className="mt-6">
+              <EmptyState
+                title="Nenhum produto encontrado"
+                description="Tente buscar por SKU, descricao comercial, codigo do fornecedor ou por uma variante especifica."
+              />
+            </div>
+          ) : null}
+
+          {filteredInventory.length > 0 ? (
             <div className="mt-6 space-y-3">
-              {inventory.map((item) => {
+              {filteredInventory.map((item) => {
                 const product = productsById.get(item.productId) ?? null;
                 const variants = product?.variants ?? [];
+                const matchingVariants = normalizedInventorySearch
+                  ? variants.filter((variant) =>
+                      variantMatchesInventorySearch(variant, normalizedInventorySearch)
+                    )
+                  : variants;
+                const displayedVariants =
+                  matchingVariants.length > 0 ? matchingVariants : variants;
                 const currentDisplayStock = getCurrentDisplayStock(item, product);
                 const commercialDescription = product?.name ?? item.name;
                 const isCardOpen = openInventoryProductId === item.productId;
+                const variantCountLabel =
+                  normalizedInventorySearch &&
+                  matchingVariants.length > 0 &&
+                  matchingVariants.length !== variants.length
+                    ? `${matchingVariants.length} de ${variants.length} variacoes`
+                    : `${variants.length} variacoes`;
 
                 return (
                   <article
@@ -934,7 +1065,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
 
                         <div className="flex flex-wrap items-center gap-3 xl:ml-4 xl:shrink-0 xl:flex-nowrap">
                           <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
-                            {variants.length} variacoes
+                            {variantCountLabel}
                           </span>
                           <div className="min-w-[8.5rem] rounded-[1rem] border border-slate-200 bg-white px-3 py-2.5">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -975,7 +1106,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                   {commercialDescription}
                                 </p>
                                 <p className="mt-1 text-sm text-slate-500">
-                                  {variants.length} variacoes disponiveis para consulta
+                                  {displayedVariants.length} variacoes disponiveis para consulta
                                 </p>
                               </div>
                             </div>
@@ -1014,15 +1145,17 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                             </div>
                           </div>
 
-                          {product && variants.length > 0 ? (
+                          {product && displayedVariants.length > 0 ? (
                             <div className="rounded-[1.5rem] border border-slate-200 bg-white/90 px-4 py-4">
                               <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div>
                                   <p className="text-sm font-semibold text-slate-900">
-                                    Variantes ({variants.length})
+                                    Variantes ({displayedVariants.length})
                                   </p>
                                   <p className="mt-1 text-sm text-slate-600">
-                                    Variacoes oficiais do catalogo mestre para consulta rapida da empresa.
+                                    {normalizedInventorySearch && matchingVariants.length > 0
+                                      ? "Variacoes filtradas pela busca atual."
+                                      : "Variacoes oficiais do catalogo mestre para consulta rapida da empresa."}
                                   </p>
                                 </div>
                                 {product?.material_base ? (
@@ -1043,7 +1176,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-100 bg-white">
-                                    {variants.map((variant) => (
+                                    {displayedVariants.map((variant) => (
                                       <tr key={variant.variant_id} className="text-sm text-slate-700">
                                         <td className="px-3 py-3 font-semibold text-slate-900">
                                           {getVariantDisplayLabel(variant)}
