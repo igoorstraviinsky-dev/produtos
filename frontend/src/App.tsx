@@ -292,9 +292,7 @@ function App() {
       }
 
       if (currentPage === "company") {
-        await refreshProducts(
-          activeTab === "costs" ? options?.companyId || selectedCompanyId || undefined : undefined
-        );
+        await refreshProducts(options?.companyId || selectedCompanyId || undefined);
       }
 
       if (!options?.silent) {
@@ -372,7 +370,7 @@ function App() {
 
   const autoRefreshCompanyInventory = useEffectEvent(async (companyId: string) => {
     await refreshCompanyDetail(companyId);
-    await refreshProducts();
+    await refreshProducts(companyId);
   });
 
   const autoSyncCompanyCatalog = useEffectEvent(async (companyId: string) => {
@@ -433,7 +431,7 @@ function App() {
       void refreshCompanyDetail(selectedCompanyId);
     }
     if (currentPage === "company" && activeTab === "inventory") {
-      void refreshProducts();
+      void refreshProducts(selectedCompanyId || undefined);
     }
     if (currentPage === "company" && activeTab === "costs" && selectedCompanyId) {
       void refreshCostSettings(selectedCompanyId);

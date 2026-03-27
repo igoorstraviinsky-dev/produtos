@@ -55,6 +55,17 @@ function formatWeight(value: string | number | null | undefined) {
   })} g`;
 }
 
+function formatCurrency(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "Custo n/d";
+  }
+
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL"
+  }).format(value);
+}
+
 function getSupplierCode(product: Product | null) {
   return product?.supplier_code ?? product?.supplierCode ?? "n/d";
 }
@@ -1019,6 +1030,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                   matchingVariants.length > 0 ? matchingVariants : variants;
                 const currentDisplayStock = getCurrentDisplayStock(item, product);
                 const isCardOpen = openInventoryProductId === item.productId;
+                const productCost = formatCurrency(product?.costFinal);
                 const variantCountLabel =
                   normalizedInventorySearch &&
                   matchingVariants.length > 0 &&
@@ -1081,6 +1093,14 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                           <span className="rounded-full border border-cyan-400/20 bg-cyan-400/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100">
                             {variantCountLabel}
                           </span>
+                          <div className="min-w-[8.5rem] rounded-[1rem] border border-white/8 bg-white/[0.03] px-3 py-2.5">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                              Custo
+                            </p>
+                            <p className="mt-1.5 text-lg font-semibold text-cyan-100">
+                              {productCost}
+                            </p>
+                          </div>
                           <div className="min-w-[8.5rem] rounded-[1rem] border border-white/8 bg-white/[0.03] px-3 py-2.5">
                               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                               Estoque loja
