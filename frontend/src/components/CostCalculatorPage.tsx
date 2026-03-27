@@ -99,6 +99,8 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
         : costSettingsSaveState === "error"
           ? "Erro ao salvar automaticamente"
           : "Salvamento automatico ativo";
+  const previewProducts = products.slice(0, 1);
+  const hiddenProductsCount = Math.max(products.length - previewProducts.length, 0);
 
   return (
     <section className="space-y-6">
@@ -261,6 +263,26 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
       </section>
 
       <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
+        <div className="mb-4 flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">
+              Exemplo visual
+            </p>
+            <h3 className="mt-2 font-display text-2xl tracking-tight text-slate-950">
+              Preview com um produto
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              A calculadora continua usando os parametros da empresa, mas a tela mostra apenas um
+              item de exemplo para facilitar a leitura.
+            </p>
+          </div>
+          {hiddenProductsCount > 0 ? (
+            <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600">
+              {hiddenProductsCount} produto(s) ocultos nesta visualizacao
+            </div>
+          ) : null}
+        </div>
+
         <div className="overflow-hidden rounded-[1.75rem] border border-slate-200">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-left">
@@ -275,7 +297,7 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {products.map((product) => {
+                {previewProducts.map((product) => {
                   const weightGrams = parseNumericValue(product.weightGrams);
 
                   return (
