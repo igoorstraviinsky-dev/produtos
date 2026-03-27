@@ -83,6 +83,14 @@ function getCurrentDisplayStock(item: AdminInventoryItem, product: Product | nul
   return getVariantStockTotal(product) ?? item.effectiveStockQuantity;
 }
 
+function getManualInventoryValue(item: AdminInventoryItem, draftValue: string | undefined) {
+  if (item.hasVariantInventory) {
+    return draftValue ?? "";
+  }
+
+  return draftValue ?? String(item.customStockQuantity ?? item.effectiveStockQuantity);
+}
+
 function normalizeSearchTerm(value: string | null | undefined) {
   return (value ?? "")
     .normalize("NFD")
@@ -1089,11 +1097,11 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                             {variantCountLabel}
                           </span>
                           <div className="min-w-[8.5rem] rounded-[1rem] border border-slate-200 bg-white px-3 py-2.5">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                               Estoque loja
                             </p>
                             <p className="mt-1.5 text-lg font-semibold text-slate-950">
-                              {inventoryDrafts[item.productId] ?? currentDisplayStock}
+                              {currentDisplayStock}
                             </p>
                           </div>
                           <span
@@ -1142,13 +1150,19 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                 <p className="mt-1 text-sm text-slate-500">
                                   O valor salvo aqui substitui o estoque mestre desse produto para a empresa selecionada.
                                 </p>
+                                {item.hasVariantInventory ? (
+                                  <p className="mt-2 text-sm font-medium text-cyan-700">
+                                    Total atual pelas variantes: {currentDisplayStock}
+                                  </p>
+                                ) : null}
                               </div>
 
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                                 <input
                                   type="number"
                                   min="0"
-                                  value={inventoryDrafts[item.productId] ?? ""}
+                                  value={getManualInventoryValue(item, inventoryDrafts[item.productId])}
+                                  placeholder={item.hasVariantInventory ? String(currentDisplayStock) : undefined}
                                   onChange={(event) =>
                                     onInventoryDraftChange(item.productId, event.target.value)
                                   }
