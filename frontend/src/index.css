@@ -91,6 +91,17 @@ textarea {
     background: rgba(255, 255, 255, 0.03);
   }
 
+  .surface-modal {
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+      rgba(11, 11, 15, 0.96);
+    box-shadow:
+      0 32px 90px rgba(0, 0, 0, 0.52),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(28px);
+  }
+
   .surface-kicker {
     color: #67e8f9;
     font-size: 0.72rem;
@@ -131,6 +142,27 @@ textarea {
 
   .surface-button-secondary:hover {
     background: rgba(255, 255, 255, 0.08);
+  }
+
+  .surface-button-warning {
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(217, 119, 6, 0.14));
+    color: #fde68a;
+    box-shadow: 0 12px 28px rgba(180, 83, 9, 0.22);
+  }
+
+  .surface-button-warning:hover {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.28), rgba(217, 119, 6, 0.2));
+  }
+
+  .surface-button-danger {
+    border: 1px solid rgba(251, 113, 133, 0.26);
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.22), rgba(244, 63, 94, 0.14));
+    color: #fecdd3;
+  }
+
+  .surface-button-danger:hover {
+    background: linear-gradient(135deg, rgba(153, 27, 27, 0.26), rgba(244, 63, 94, 0.18));
   }
 
   .surface-input {
@@ -180,5 +212,17 @@ textarea {
 
   .surface-divider {
     border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .surface-note {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: #cbd5e1;
+  }
+
+  .surface-note-warning {
+    border: 1px solid rgba(245, 158, 11, 0.22);
+    background: rgba(245, 158, 11, 0.1);
+    color: #fde68a;
   }
 }

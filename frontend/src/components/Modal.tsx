@@ -14,20 +14,20 @@ export function Modal({ open, title, description, actions, onClose, children }: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-xl overflow-hidden rounded-[2rem] border border-white/60 bg-white shadow-[0_30px_80px_rgba(12,42,56,0.18)]">
-        <div className="border-b border-slate-200/80 px-6 py-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 p-4 backdrop-blur-md">
+      <div className="surface-modal w-full max-w-xl overflow-hidden rounded-[2rem]">
+        <div className="surface-divider border-b px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="font-display text-2xl tracking-tight text-slate-950">{title}</p>
+              <p className="font-display text-2xl tracking-tight text-slate-50">{title}</p>
               {description ? (
-                <p className="mt-2 text-sm text-slate-600">{description}</p>
+                <p className="mt-2 text-sm leading-7 text-slate-400">{description}</p>
               ) : null}
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-slate-300 hover:text-slate-900"
+              className="surface-button-secondary inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-200 transition"
             >
               x
             </button>
@@ -35,7 +35,7 @@ export function Modal({ open, title, description, actions, onClose, children }: 
         </div>
         <div className="px-6 py-5">{children}</div>
         {actions ? (
-          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-200/80 bg-slate-50 px-6 py-4">
+          <div className="surface-divider flex flex-wrap items-center justify-end gap-3 border-t bg-white/[0.02] px-6 py-4">
             {actions}
           </div>
         ) : null}

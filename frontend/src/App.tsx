@@ -1010,27 +1010,27 @@ function App() {
       >
         <div className="space-y-4">
           {costHistoryState === "loading" ? (
-            <p className="text-sm text-slate-500">Carregando historico...</p>
+            <p className="text-sm text-slate-400">Carregando historico...</p>
           ) : null}
           {costHistoryState === "error" ? (
             <p className="text-sm text-rose-600">Nao foi possivel carregar o historico.</p>
           ) : null}
           {costHistoryState === "success" && costHistoryEntries.length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhuma alteracao registrada ainda.</p>
+            <p className="text-sm text-slate-400">Nenhuma alteracao registrada ainda.</p>
           ) : null}
           {costHistoryEntries.length > 0 ? (
             <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
               {costHistoryEntries.map((entry) => (
                 <article
                   key={entry.id}
-                  className="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4"
+                  className="surface-card rounded-[1.5rem] px-4 py-4"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex flex-wrap gap-2">
                       {entry.changedFields.map((field) => (
                         <span
                           key={field}
-                          className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-800"
+                          className="rounded-full border border-cyan-400/20 bg-cyan-400/12 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100"
                         >
                           {field}
                         </span>
@@ -1042,11 +1042,11 @@ function App() {
                   </div>
 
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="surface-card-muted rounded-2xl px-4 py-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Antes
                       </p>
-                      <div className="mt-3 space-y-2 text-sm text-slate-700">
+                      <div className="mt-3 space-y-2 text-sm text-slate-300">
                         <p>Prata: {entry.previous.silverPricePerGram}</p>
                         <p>Taxa ZF: {entry.previous.zonaFrancaRatePercent}</p>
                         <p>Transporte: {entry.previous.transportFee}</p>
@@ -1054,11 +1054,11 @@ function App() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                    <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200">
                         Depois
                       </p>
-                      <div className="mt-3 space-y-2 text-sm text-emerald-900">
+                      <div className="mt-3 space-y-2 text-sm text-emerald-100">
                         <p>Prata: {entry.next.silverPricePerGram}</p>
                         <p>Taxa ZF: {entry.next.zonaFrancaRatePercent}</p>
                         <p>Transporte: {entry.next.transportFee}</p>
@@ -1083,14 +1083,14 @@ function App() {
             <button
               type="button"
               onClick={() => setCreateCompanyOpen(false)}
-              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+              className="surface-button-secondary rounded-full px-4 py-2 text-sm font-semibold transition"
             >
               Cancelar
             </button>
             <button
               type="submit"
               form="create-company-form"
-              className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="surface-button-primary rounded-full px-4 py-2 text-sm font-semibold transition"
             >
               Criar empresa
             </button>
@@ -1125,14 +1125,14 @@ function App() {
             <button
               type="button"
               onClick={() => setIssueKeyOpen(false)}
-              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+              className="surface-button-secondary rounded-full px-4 py-2 text-sm font-semibold transition"
             >
               Cancelar
             </button>
             <button
               type="submit"
               form="issue-key-form"
-              className="rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+              className="surface-button-warning rounded-full px-4 py-2 text-sm font-semibold transition"
             >
               Gerar chave
             </button>
@@ -1160,7 +1160,7 @@ function App() {
             <button
               type="button"
               onClick={() => setCreatedKey(null)}
-              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+              className="surface-button-secondary rounded-full px-4 py-2 text-sm font-semibold transition"
             >
               Fechar
             </button>
@@ -1169,7 +1169,7 @@ function App() {
               onClick={() => {
                 void handleCopyCreatedKey();
               }}
-              className="rounded-full bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-500"
+              className="surface-button-primary rounded-full px-4 py-2 text-sm font-semibold transition"
             >
               Copiar chave
             </button>
@@ -1177,11 +1177,11 @@ function App() {
         }
       >
         <div className="space-y-4">
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="surface-note-warning rounded-2xl px-4 py-3 text-sm">
             Exiba essa chave apenas para o cliente certo. Depois de fechar este alerta,
             so o prefixo continuara visivel no painel.
           </div>
-          <div className="rounded-[1.5rem] border border-slate-200 bg-slate-950 p-4 text-slate-50">
+          <div className="surface-card rounded-[1.5rem] p-4 text-slate-50">
             <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Plaintext key</p>
             <pre className="mt-3 overflow-auto text-sm leading-7 text-cyan-300">
               {createdKey?.plaintextKey}

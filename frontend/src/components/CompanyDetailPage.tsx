@@ -513,15 +513,15 @@ function ProductImage(props: { product: Product | null; alt: string; mode?: "lin
   if (candidates.length === 0 || exhausted) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_transparent_55%),linear-gradient(145deg,_rgba(248,250,252,0.96),_rgba(241,245,249,0.92))] px-4 text-center">
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-sm text-slate-400">
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/45 text-sm text-slate-300">
           +
         </span>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
             Sem foto
           </p>
           {!isCompact ? (
-            <p className="mt-1 text-xs text-slate-400">Produto sem imagem valida no catalogo.</p>
+            <p className="mt-1 text-xs text-slate-300/80">Produto sem imagem valida no catalogo.</p>
           ) : null}
         </div>
       </div>
@@ -660,25 +660,25 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+              className="surface-button-secondary inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition"
             >
               Voltar ao dashboard
             </button>
-            <p className="mt-5 text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">
+            <p className="surface-kicker mt-5">
               Visao da Empresa
             </p>
-            <h2 className="mt-2 font-display text-4xl tracking-tight text-slate-950">
+            <h2 className="mt-2 font-display text-4xl tracking-tight text-slate-50">
               {company.legalName}
             </h2>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <StatusChip active={company.isActive}>
                 {company.isActive ? "Ativa" : "Inativa"}
               </StatusChip>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+              <span className="surface-chip rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em]">
                 Codigo {company.externalCode}
               </span>
               {company.syncStoreInventory ? (
-                <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">
+                <span className="rounded-full border border-cyan-400/24 bg-cyan-400/12 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-100">
                   Sync loja ativo
                 </span>
               ) : null}
@@ -686,27 +686,27 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4">
+            <div className="surface-stat rounded-[1.5rem] px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                 Chaves emitidas
               </p>
-              <p className="mt-3 font-display text-3xl tracking-tight text-slate-950">
+              <p className="mt-3 font-display text-3xl tracking-tight text-slate-50">
                 {company.apiKeyCount}
               </p>
             </div>
-            <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+            <div className="surface-stat rounded-[1.5rem] border border-emerald-400/22 bg-[linear-gradient(180deg,rgba(52,211,153,0.12),rgba(16,185,129,0.06)),rgba(18,18,24,0.92)] px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
                 Chaves ativas
               </p>
-              <p className="mt-3 font-display text-3xl tracking-tight text-emerald-900">
+              <p className="mt-3 font-display text-3xl tracking-tight text-emerald-100">
                 {company.activeKeyCount}
               </p>
             </div>
-            <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+            <div className="surface-stat rounded-[1.5rem] border border-amber-400/22 bg-[linear-gradient(180deg,rgba(251,191,36,0.12),rgba(245,158,11,0.06)),rgba(18,18,24,0.92)] px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">
                 Produtos no painel
               </p>
-              <p className="mt-3 font-display text-3xl tracking-tight text-amber-900">
+              <p className="mt-3 font-display text-3xl tracking-tight text-amber-100">
                 {inventory.length}
               </p>
             </div>
@@ -720,8 +720,8 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
             className={[
               "rounded-full px-4 py-2 text-sm font-semibold transition",
               activeTab === "inventory"
-                ? "bg-cyan-600 text-white"
-                : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                ? "surface-button-primary text-white"
+                : "surface-button-secondary text-slate-100"
             ].join(" ")}
           >
             Estoque da Empresa
@@ -732,8 +732,8 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
             className={[
               "rounded-full px-4 py-2 text-sm font-semibold transition",
               activeTab === "costs"
-                ? "bg-amber-500 text-slate-950"
-                : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                ? "surface-button-warning"
+                : "surface-button-secondary text-slate-100"
             ].join(" ")}
           >
             Custos
@@ -744,8 +744,8 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
             className={[
               "rounded-full px-4 py-2 text-sm font-semibold transition",
               activeTab === "profile"
-                ? "bg-slate-950 text-white"
-                : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                ? "surface-button-primary text-white"
+                : "surface-button-secondary text-slate-100"
             ].join(" ")}
           >
             Dados da empresa
@@ -756,8 +756,8 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
             className={[
               "rounded-full px-4 py-2 text-sm font-semibold transition",
               activeTab === "keys"
-                ? "bg-amber-500 text-slate-950"
-                : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                ? "surface-button-warning"
+                : "surface-button-secondary text-slate-100"
             ].join(" ")}
           >
             Gestao de credenciais
@@ -766,32 +766,32 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
       </div>
 
       {activeTab === "profile" ? (
-        <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="border-b border-slate-200 pb-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-700">
+        <section className="surface-panel rounded-[2rem] p-6">
+          <div className="surface-divider border-b pb-5">
+            <p className="surface-kicker">
               Dados da empresa
             </p>
-            <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-950">
+            <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-50">
               Configuracoes da operacao
             </h3>
           </div>
 
           <div className="mt-6 max-w-3xl space-y-5">
             <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-slate-700">
+              <span className="mb-2 block text-sm font-semibold text-slate-300">
                 Nome da empresa
               </span>
               <input
                 value={companyForm.legalName}
                 onChange={(event) => onCompanyFormChange({ legalName: event.target.value })}
-                className="w-full rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+                className="surface-input w-full rounded-[1.2rem] px-4 py-3 text-sm outline-none transition"
               />
             </label>
 
-            <div className="flex items-center justify-between rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4">
+            <div className="surface-card flex items-center justify-between rounded-[1.4rem] px-4 py-4">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Empresa ativa</p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="text-sm font-semibold text-slate-100">Empresa ativa</p>
+                <p className="mt-1 text-sm text-slate-400">
                   Bloqueia ou libera imediatamente as integracoes dessa company.
                 </p>
               </div>
@@ -801,12 +801,12 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-[1.4rem] border border-cyan-200 bg-cyan-50 px-4 py-4">
+            <div className="surface-card flex items-center justify-between rounded-[1.4rem] border border-cyan-400/16 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(255,255,255,0.02)),rgba(22,22,28,0.92)] px-4 py-4">
               <div className="pr-4">
-                <p className="text-sm font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-slate-100">
                   Sincronizar estoque loja
                 </p>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-slate-400">
                   Deixa esta empresa preparada para puxarmos o estoque diretamente da loja
                   usada na operacao, sem depender apenas do valor manual do painel.
                 </p>
@@ -821,7 +821,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
               <button
                 type="button"
                 onClick={onSaveCompany}
-                className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="surface-button-primary inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition"
               >
                 Salvar configuracoes
               </button>
@@ -829,7 +829,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                 type="button"
                 disabled={deletingCompany}
                 onClick={onDeleteCompany}
-                className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                className="surface-button-danger inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {deletingCompany ? "Excluindo..." : "Excluir empresa"}
               </button>
@@ -839,23 +839,23 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
       ) : null}
 
       {activeTab === "keys" ? (
-        <section className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <section className="surface-panel rounded-[2rem] p-6">
+          <div className="surface-divider flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
+              <p className="surface-kicker">
                 API Keys
               </p>
-              <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-950">
+              <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-50">
                 Gestao de credenciais
               </h3>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-2 text-sm text-slate-400">
                 Gere novas chaves para integracoes e revogue acessos comprometidos.
               </p>
             </div>
             <button
               type="button"
               onClick={onOpenIssueKey}
-              className="inline-flex items-center justify-center rounded-full bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+              className="surface-button-warning inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition"
             >
               Gerar nova chave
             </button>
@@ -863,7 +863,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
 
           <div className="mt-6 space-y-4">
             {apiKeysState === "loading" ? (
-              <p className="text-sm text-slate-500">Atualizando chaves da empresa...</p>
+              <p className="text-sm text-slate-400">Atualizando chaves da empresa...</p>
             ) : null}
 
             {apiKeys.length === 0 && apiKeysState !== "loading" ? (
@@ -876,19 +876,19 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
             {apiKeys.map((apiKey) => (
               <article
                 key={apiKey.id}
-                className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4"
+                className="surface-card rounded-[1.5rem] p-4"
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-display text-xl tracking-tight text-slate-950">
+                      <p className="font-display text-xl tracking-tight text-slate-50">
                         {apiKey.keyPrefix}
                       </p>
                       <StatusChip active={!apiKey.isRevoked}>
                         {apiKey.isRevoked ? "Revogada" : "Ativa"}
                       </StatusChip>
                     </div>
-                    <div className="mt-3 grid gap-2 text-sm text-slate-600">
+                    <div className="mt-3 grid gap-2 text-sm text-slate-400">
                       <p>Rate limit: {apiKey.rateLimitPerMinute} req/min</p>
                       <p>Criada: {formatDate(apiKey.createdAt)}</p>
                       <p>Ultimo uso: {formatDate(apiKey.lastUsedAt)}</p>
@@ -899,7 +899,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     type="button"
                     disabled={apiKey.isRevoked || keyActionId === apiKey.id}
                     onClick={() => onRevokeKey(apiKey.id)}
-                    className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                    className="surface-button-danger inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Revogar
                   </button>
@@ -1032,8 +1032,8 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     className={[
                       "overflow-hidden rounded-[1.75rem] border transition",
                       isCardOpen
-                        ? "border-cyan-400/25 bg-white/[0.04] shadow-[0_22px_55px_rgba(8,145,178,0.18)]"
-                        : "border-white/8 bg-white/[0.02] shadow-[0_12px_28px_rgba(0,0,0,0.22)] hover:border-cyan-400/20 hover:bg-white/[0.04] hover:shadow-[0_18px_40px_rgba(0,0,0,0.28)]"
+                        ? "border-cyan-400/25 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(255,255,255,0.02)),rgba(17,17,24,0.96)] shadow-[0_22px_55px_rgba(8,145,178,0.18)]"
+                        : "border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.008)),rgba(17,17,24,0.94)] shadow-[0_12px_28px_rgba(0,0,0,0.22)] hover:border-cyan-400/20 hover:bg-[linear-gradient(180deg,rgba(34,211,238,0.06),rgba(255,255,255,0.02)),rgba(17,17,24,0.96)] hover:shadow-[0_18px_40px_rgba(0,0,0,0.28)]"
                     ].join(" ")}
                   >
                     <button
@@ -1043,7 +1043,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     >
                       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex min-w-0 items-center gap-3 xl:flex-1">
-                          <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[1.25rem] border border-white/8 bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                          <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[1.25rem] border border-white/8 bg-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                             <ProductImage product={product} alt={item.name} mode="line" />
                           </div>
 
@@ -1081,7 +1081,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                           <span className="rounded-full border border-cyan-400/20 bg-cyan-400/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100">
                             {variantCountLabel}
                           </span>
-                          <div className="min-w-[8.5rem] rounded-[1rem] border border-white/8 bg-white/[0.04] px-3 py-2.5">
+                          <div className="min-w-[8.5rem] rounded-[1rem] border border-white/8 bg-white/[0.03] px-3 py-2.5">
                               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                               Estoque loja
                             </p>
@@ -1104,7 +1104,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     </button>
 
                     {isCardOpen ? (
-                      <div className="surface-divider border-t bg-white/[0.02] px-5 py-5">
+                      <div className="surface-divider border-t bg-white/[0.015] px-5 py-5">
                         <div className="space-y-5">
                           <div className="surface-card rounded-[1.5rem] px-4 py-4">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -1116,7 +1116,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                   O valor salvo aqui substitui o estoque mestre desse produto para a empresa selecionada.
                                 </p>
                                 {item.hasVariantInventory ? (
-                                  <p className="mt-2 text-sm font-medium text-cyan-700">
+                                  <p className="mt-2 text-sm font-medium text-cyan-200">
                                     Total atual pelas variantes: {currentDisplayStock}
                                   </p>
                                 ) : null}
@@ -1188,7 +1188,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                           )}
                                         </td>
                                         <td className="px-3 py-3">
-                                          <span className="inline-flex min-w-10 items-center justify-center rounded-full bg-rose-500 px-2 py-1 text-xs font-semibold text-white">
+                                          <span className="inline-flex min-w-10 items-center justify-center rounded-full border border-rose-400/20 bg-rose-500/18 px-2 py-1 text-xs font-semibold text-rose-100">
                                             {getVariantDisplayStock(item, variant)}
                                           </span>
                                         </td>
@@ -1205,7 +1205,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                           ) : null}
 
                           {!product && productsState !== "loading" ? (
-                            <div className="rounded-[1.25rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                            <div className="rounded-[1.25rem] border border-dashed border-white/12 bg-white/[0.03] px-4 py-4 text-sm text-slate-400">
                               Nao foi possivel carregar as variantes desse produto no catalogo mestre.
                             </div>
                           ) : null}
