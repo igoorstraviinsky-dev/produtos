@@ -216,18 +216,18 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
 
       <section className="surface-panel rounded-[2rem] p-6">
         <div className="surface-divider flex flex-col gap-3 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="surface-kicker">
-              Atualizacoes
-            </p>
-            <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-50">
-              Historico recente das variaveis
-            </h3>
-            <p className="mt-2 text-sm text-slate-400">
-              Visualize as ultimas alteracoes de prata, taxa ZF, transporte e dolar aplicadas na calculadora.
-            </p>
+            <div>
+              <p className="surface-kicker">
+                Atualizacoes
+              </p>
+              <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-50">
+              Historico completo das variaveis
+              </h3>
+              <p className="mt-2 text-sm text-slate-400">
+              Visualize todas as alteracoes de prata, taxa ZF, transporte e dolar aplicadas na calculadora desta empresa.
+              </p>
+            </div>
           </div>
-        </div>
 
         {costHistoryState === "loading" ? (
           <p className="mt-4 text-sm text-slate-400">Carregando historico...</p>
@@ -239,8 +239,8 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
           <p className="mt-4 text-sm text-slate-400">Nenhuma alteracao registrada ainda.</p>
         ) : null}
         {costHistoryEntries.length > 0 ? (
-          <div className="mt-5 grid gap-3 lg:grid-cols-3">
-            {costHistoryEntries.slice(0, 3).map((entry) => (
+          <div className="mt-5 max-h-[34rem] space-y-3 overflow-y-auto pr-1">
+            {costHistoryEntries.map((entry) => (
               <article
                 key={entry.id}
                 className="surface-card rounded-[1.5rem] px-4 py-4"
