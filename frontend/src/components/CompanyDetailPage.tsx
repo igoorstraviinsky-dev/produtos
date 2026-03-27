@@ -543,6 +543,17 @@ function getVariantUnitsStock(item: AdminInventoryItem, variant: ProductVariant)
   return stock / weight;
 }
 
+function getVariantCost(product: Product | null, variant: ProductVariant) {
+  const variantWeight = toNumber(variant.individual_weight ?? variant.individualWeight);
+  const productCost = typeof product?.costFinal === "number" ? product.costFinal : null;
+
+  if (variantWeight === null || variantWeight <= 0 || productCost === null || !Number.isFinite(productCost)) {
+    return null;
+  }
+
+  return variantWeight * productCost;
+}
+
 function ProductImage(props: { product: Product | null; alt: string; mode?: "line" | "card" }) {
   const { product, alt, mode = "card" } = props;
   const candidates = buildPrimaryImageCandidates(product);
@@ -1233,6 +1244,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                         <th className="px-3 py-3 font-semibold">Tamanho</th>
                                         <th className="px-3 py-3 font-semibold">SKU</th>
                                         <th className="px-3 py-3 font-semibold">Peso (g)</th>
+                                        <th className="px-3 py-3 font-semibold">Custo</th>
                                         <th className="px-3 py-3 font-semibold">Estoque/Peso (g)</th>
                                         <th className="px-3 py-3 font-semibold">Estoque (UN)</th>
                                       </tr>
@@ -1244,10 +1256,13 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                           {getVariantDisplayLabel(variant)}
                                         </td>
                                         <td className="px-3 py-3">{variant.sku}</td>
-                                        <td className="px-3 py-3">
-                                          {formatWeight(
-                                            variant.individual_weight ?? variant.individualWeight
-                                          )}
+                                          <td className="px-3 py-3">
+                                            {formatWeight(
+                                              variant.individual_weight ?? variant.individualWeight
+                                            )}
+                                          </td>
+                                          <td className="px-3 py-3 text-slate-200">
+                                            {formatCurrency(getVariantCost(product, variant))}
                                           </td>
                                           <td className="px-3 py-3">
                                             <span className="inline-flex min-w-10 items-center justify-center rounded-full border border-rose-400/20 bg-rose-500/18 px-2 py-1 text-xs font-semibold text-rose-100">
