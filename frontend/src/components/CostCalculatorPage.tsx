@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { CostSettingsHistoryEntry, Product } from "../types";
 
 const DEFAULT_COST_PREVIEW_PRODUCT_CODE = "XCN0254126001/01";
@@ -115,6 +117,7 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
         product.numero_serie
       ].includes(DEFAULT_COST_PREVIEW_PRODUCT_CODE)
     ) ?? fallbackPreviewProduct;
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
 
   return (
     <section className="space-y-6">
@@ -216,18 +219,29 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
 
       <section className="surface-panel rounded-[2rem] p-6">
         <div className="surface-divider flex flex-col gap-3 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="surface-kicker">
-                Atualizacoes
-              </p>
-              <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-50">
+          <div>
+            <p className="surface-kicker">
+              Atualizacoes
+            </p>
+            <h3 className="mt-2 font-display text-3xl tracking-tight text-slate-50">
               Historico completo das variaveis
-              </h3>
-              <p className="mt-2 text-sm text-slate-400">
+            </h3>
+            <p className="mt-2 text-sm text-slate-400">
               Visualize todas as alteracoes de prata, taxa ZF, transporte e dolar aplicadas na calculadora desta empresa.
-              </p>
-            </div>
+            </p>
           </div>
+          {costHistoryEntries.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setIsHistoryExpanded((current) => !current)}
+              className="surface-button-secondary inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition"
+            >
+              {isHistoryExpanded
+                ? "Recolher historico"
+                : `Expandir historico (${costHistoryEntries.length})`}
+            </button>
+          ) : null}
+        </div>
 
         {costHistoryState === "loading" ? (
           <p className="mt-4 text-sm text-slate-400">Carregando historico...</p>
@@ -239,40 +253,51 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
           <p className="mt-4 text-sm text-slate-400">Nenhuma alteracao registrada ainda.</p>
         ) : null}
         {costHistoryEntries.length > 0 ? (
-          <div className="mt-5 max-h-[34rem] space-y-3 overflow-y-auto pr-1">
-            {costHistoryEntries.map((entry) => (
-              <article
-                key={entry.id}
-                className="surface-card rounded-[1.5rem] px-4 py-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap gap-2">
+          isHistoryExpanded ? (
+            <div className="mt-5 max-h-[34rem] space-y-3 overflow-y-auto pr-1">
+              {costHistoryEntries.map((entry) => (
+                <article
+                  key={entry.id}
+                  className="surface-card rounded-[1.5rem] px-4 py-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      {entry.changedFields.map((field) => (
+                        <span
+                          key={field}
+                          className="rounded-full border border-cyan-400/20 bg-cyan-400/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-100"
+                        >
+                          {formatHistoryField(field)}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs font-medium text-slate-500">
+                      {formatHistoryDate(entry.createdAt)}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 space-y-2 text-sm text-slate-300">
                     {entry.changedFields.map((field) => (
-                      <span
-                        key={field}
-                        className="rounded-full border border-cyan-400/20 bg-cyan-400/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-100"
-                      >
-                        {formatHistoryField(field)}
-                      </span>
+                      <p key={field}>
+                        <span className="font-semibold text-slate-50">{formatHistoryField(field)}:</span>{" "}
+                        {entry.previous[field as keyof typeof entry.previous]} {"->"}{" "}
+                        {entry.next[field as keyof typeof entry.next]}
+                      </p>
                     ))}
                   </div>
-                  <p className="text-xs font-medium text-slate-500">
-                    {formatHistoryDate(entry.createdAt)}
-                  </p>
-                </div>
-
-                <div className="mt-4 space-y-2 text-sm text-slate-300">
-                  {entry.changedFields.map((field) => (
-                    <p key={field}>
-                      <span className="font-semibold text-slate-50">{formatHistoryField(field)}:</span>{" "}
-                      {entry.previous[field as keyof typeof entry.previous]} {"->"}{" "}
-                      {entry.next[field as keyof typeof entry.next]}
-                    </p>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="surface-note mt-5 rounded-[1.4rem] px-4 py-4">
+              <p className="text-sm text-slate-300">
+                {costHistoryEntries.length} registro(s) disponivel(is). Expanda o historico para visualizar todas as alteracoes sem poluir a tela principal.
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                Ultima atualizacao: {formatHistoryDate(costHistoryEntries[0].createdAt)}
+              </p>
+            </div>
+          )
         ) : null}
       </section>
 
