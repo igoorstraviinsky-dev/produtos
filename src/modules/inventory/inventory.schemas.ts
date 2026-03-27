@@ -106,6 +106,8 @@ export type MyInventoryItem = {
   name: string;
   masterStock: number;
   customStockQuantity: number | null;
+  variantStockQuantityTotal: number | null;
+  hasVariantInventory: boolean;
   effectiveStockQuantity: number;
   updatedAt: string;
   variants: MyInventoryVariantItem[];

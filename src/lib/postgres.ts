@@ -80,6 +80,8 @@ export type EffectiveInventoryRecord = {
   name: string;
   masterStock: number;
   customStockQuantity: number | null;
+  variantStockQuantityTotal: number | null;
+  hasVariantInventory: boolean;
   effectiveStockQuantity: number;
   updatedAt: Date;
   variants: EffectiveInventoryVariantRecord[];
@@ -175,6 +177,7 @@ export interface ControlPlaneRepository {
     productId: string,
     customStockQuantity: number
   ): Promise<EffectiveInventoryRecord | null>;
+  deleteCompanyInventory(companyId: string, productId: string): Promise<void>;
   upsertCompanyVariantInventory(
     companyId: string,
     variantId: string,
@@ -366,9 +369,9 @@ function mapEffectiveInventory(product: {
     sku: product.sku,
     name: product.name,
     masterStock: fallbackMasterStock,
-    customStockQuantity: hasCustomVariantInventory
-      ? variantEffectiveStock
-      : companyInventory?.customStockQuantity ?? null,
+    customStockQuantity: companyInventory?.customStockQuantity ?? null,
+    variantStockQuantityTotal: hasCustomVariantInventory ? variantEffectiveStock : null,
+    hasVariantInventory: hasCustomVariantInventory,
     effectiveStockQuantity: hasCustomVariantInventory
       ? variantEffectiveStock
       : companyInventory?.customStockQuantity ?? fallbackMasterStock,
@@ -1018,6 +1021,19 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
     });
 
     return product ? mapEffectiveInventory(product) : null;
+  }
+
+  async deleteCompanyInventory(companyId: string, productId: string) {
+    await this.prisma.companyInventory
+      .delete({
+        where: {
+          companyId_productId: {
+            companyId,
+            productId
+          }
+        }
+      })
+      .catch(() => undefined);
   }
 
   async upsertCompanyVariantInventory(

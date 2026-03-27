@@ -303,9 +303,9 @@ class FakeControlPlaneRepository {
           sku: product.sku,
           name: product.name,
           masterStock: masterStockFromVariants,
-          customStockQuantity: hasVariantInventory
-            ? effectiveStockFromVariants
-            : companyInventory?.customStockQuantity ?? null,
+          customStockQuantity: companyInventory?.customStockQuantity ?? null,
+          variantStockQuantityTotal: hasVariantInventory ? effectiveStockFromVariants : null,
+          hasVariantInventory,
           effectiveStockQuantity: hasVariantInventory
             ? effectiveStockFromVariants
             : companyInventory?.customStockQuantity ?? masterStockFromVariants,
@@ -339,6 +339,8 @@ class FakeControlPlaneRepository {
       name: product.name,
       masterStock: product.masterStock,
       customStockQuantity: record.customStockQuantity,
+      variantStockQuantityTotal: null,
+      hasVariantInventory: false,
       effectiveStockQuantity: record.customStockQuantity,
       updatedAt: record.updatedAt,
       variants: (product.variants ?? []).map((variant) => {
@@ -358,6 +360,10 @@ class FakeControlPlaneRepository {
         };
       })
     };
+  }
+
+  async deleteCompanyInventory(companyId, productId) {
+    this.companyInventory.delete(`${companyId}:${productId}`);
   }
 
   async upsertCompanyVariantInventory(companyId, variantId, customStockQuantity) {
@@ -1290,7 +1296,9 @@ const cases = [
         assert.equal(syncResponse.statusCode, 200);
         assert.equal(syncResponse.json().meta.updatedCount, 1);
         assert.equal(syncResponse.json().data[0].effectiveStockQuantity, 12);
-        assert.equal(syncResponse.json().data[0].customStockQuantity, 12);
+        assert.equal(syncResponse.json().data[0].customStockQuantity, null);
+        assert.equal(syncResponse.json().data[0].variantStockQuantityTotal, 12);
+        assert.equal(syncResponse.json().data[0].hasVariantInventory, true);
         assert.equal(syncResponse.json().data[0].variants.length, 2);
         assert.equal(syncResponse.json().data[0].variants[0].effectiveStockQuantity, 9);
         assert.equal(syncResponse.json().data[0].variants[1].effectiveStockQuantity, 3);
@@ -1305,9 +1313,112 @@ const cases = [
 
         assert.equal(getResponse.statusCode, 200);
         assert.equal(getResponse.json().data[0].masterStock, 10);
+        assert.equal(getResponse.json().data[0].customStockQuantity, null);
+        assert.equal(getResponse.json().data[0].variantStockQuantityTotal, 12);
         assert.equal(getResponse.json().data[0].effectiveStockQuantity, 12);
         assert.equal(getResponse.json().data[0].variants[0].sku, "VAR-001-A");
         assert.equal(getResponse.json().data[0].variants[0].customStockQuantity, 9);
+      } finally {
+        await app.close();
+      }
+    }
+  },
+  {
+    name: "Partner variant sync clears stale parent custom stock when only variants are sent",
+    fn: async () => {
+      const { app, controlPlane, env } = await createTestApp();
+      try {
+        const company = controlPlane.seedCompany({
+          legalName: "Empresa Variantes Limpeza",
+          externalCode: "empresa-variantes-limpeza"
+        });
+        const apiKey = "b2b_inventory_variant_cleanup_key";
+
+        controlPlane.seedApiKey({
+          companyId: company.id,
+          keyPrefix: deriveApiKeyPrefix(apiKey),
+          keyHash: hashApiKey(apiKey, env.API_KEY_PEPPER),
+          rateLimitPerMinute: 20
+        });
+
+        await controlPlane.replaceMasterProducts([
+          {
+            id: "prod-variant-clean-1",
+            sku: "VAR-CLEAN-001",
+            name: "Produto Variado Limpeza",
+            masterStock: 20,
+            updatedAt: new Date("2026-03-24T00:00:00.000Z"),
+            variants: [
+              {
+                id: "variant-clean-a",
+                productId: "prod-variant-clean-1",
+                sku: "VAR-CLEAN-001-A",
+                individualWeight: 1.1,
+                individualStock: 4,
+                createdAt: new Date("2026-03-24T00:00:00.000Z"),
+                updatedAt: new Date("2026-03-24T00:00:00.000Z")
+              },
+              {
+                id: "variant-clean-b",
+                productId: "prod-variant-clean-1",
+                sku: "VAR-CLEAN-001-B",
+                individualWeight: 1.3,
+                individualStock: 6,
+                createdAt: new Date("2026-03-24T00:00:00.000Z"),
+                updatedAt: new Date("2026-03-24T00:00:00.000Z")
+              }
+            ]
+          }
+        ]);
+
+        const seedParentResponse = await app.inject({
+          method: "POST",
+          url: "/api/v1/my-inventory",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          },
+          payload: {
+            items: [
+              {
+                sku: "VAR-CLEAN-001",
+                custom_stock_quantity: 20
+              }
+            ]
+          }
+        });
+
+        assert.equal(seedParentResponse.statusCode, 200);
+        assert.equal(seedParentResponse.json().data[0].customStockQuantity, 20);
+
+        const variantSyncResponse = await app.inject({
+          method: "POST",
+          url: "/api/v1/my-inventory",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          },
+          payload: {
+            items: [
+              {
+                sku: "VAR-CLEAN-001",
+                variants: [
+                  {
+                    sku: "VAR-CLEAN-001-A",
+                    custom_stock_quantity: 5
+                  },
+                  {
+                    sku: "VAR-CLEAN-001-B",
+                    custom_stock_quantity: 8
+                  }
+                ]
+              }
+            ]
+          }
+        });
+
+        assert.equal(variantSyncResponse.statusCode, 200);
+        assert.equal(variantSyncResponse.json().data[0].customStockQuantity, null);
+        assert.equal(variantSyncResponse.json().data[0].variantStockQuantityTotal, 13);
+        assert.equal(variantSyncResponse.json().data[0].effectiveStockQuantity, 13);
       } finally {
         await app.close();
       }

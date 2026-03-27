@@ -1009,6 +1009,7 @@ components:
         - sku
         - name
         - masterStock
+        - hasVariantInventory
         - effectiveStockQuantity
         - updatedAt
         - variants
@@ -1024,6 +1025,11 @@ components:
         customStockQuantity:
           type: integer
           nullable: true
+        variantStockQuantityTotal:
+          type: integer
+          nullable: true
+        hasVariantInventory:
+          type: boolean
         effectiveStockQuantity:
           type: integer
         updatedAt:

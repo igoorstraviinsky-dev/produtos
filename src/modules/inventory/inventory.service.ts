@@ -15,6 +15,8 @@ function mapInventoryItem(record: {
   name: string;
   masterStock: number;
   customStockQuantity: number | null;
+  variantStockQuantityTotal: number | null;
+  hasVariantInventory: boolean;
   effectiveStockQuantity: number;
   updatedAt: Date;
   variants: Array<{
@@ -34,6 +36,8 @@ function mapInventoryItem(record: {
     name: record.name,
     masterStock: record.masterStock,
     customStockQuantity: record.customStockQuantity,
+    variantStockQuantityTotal: record.variantStockQuantityTotal,
+    hasVariantInventory: record.hasVariantInventory,
     effectiveStockQuantity: record.effectiveStockQuantity,
     updatedAt: record.updatedAt.toISOString(),
     variants: record.variants.map((variant) => ({
@@ -189,6 +193,10 @@ export class InventoryService {
 
       const productVariants = variantsByProductId.get(product.id) ?? [];
       const hasVariantUpdates = item.variants.length > 0;
+
+      if (hasVariantUpdates && item.customStockQuantity === null) {
+        await this.controlPlane.deleteCompanyInventory(companyId, product.id);
+      }
 
       if (item.customStockQuantity !== null) {
         const updatedInventory = await this.controlPlane.upsertCompanyInventory(
