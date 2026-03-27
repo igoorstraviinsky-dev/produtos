@@ -46,6 +46,7 @@ export type ProductVariantRecord = {
 };
 
 export type CostSettingsRecord = {
+  companyId: string | null;
   silverPricePerGram: number;
   zonaFrancaRatePercent: number;
   transportFee: number;
@@ -55,6 +56,7 @@ export type CostSettingsRecord = {
 
 export type CostSettingsHistoryRecord = {
   id: string;
+  companyId: string | null;
   previousSilverPricePerGram: number;
   nextSilverPricePerGram: number;
   previousZonaFrancaRatePercent: number;
@@ -168,9 +170,9 @@ export interface ControlPlaneRepository {
   findMasterProductById(productId: string): Promise<MasterProductRecord | null>;
   findMasterProductBySku(sku: string): Promise<MasterProductRecord | null>;
   listProductVariantsByProductId(productId: string): Promise<ProductVariantRecord[]>;
-  getCostSettings(): Promise<CostSettingsRecord>;
-  updateCostSettings(input: UpdateCostSettingsInput): Promise<CostSettingsRecord>;
-  listCostSettingsHistory(limit?: number): Promise<CostSettingsHistoryRecord[]>;
+  getCostSettings(companyId?: string): Promise<CostSettingsRecord>;
+  updateCostSettings(input: UpdateCostSettingsInput, companyId?: string): Promise<CostSettingsRecord>;
+  listCostSettingsHistory(limit?: number, companyId?: string): Promise<CostSettingsHistoryRecord[]>;
   listEffectiveInventoryByCompany(companyId: string): Promise<EffectiveInventoryRecord[]>;
   upsertCompanyInventory(
     companyId: string,
@@ -264,6 +266,7 @@ function mapProductVariant(variant: {
 }
 
 function mapCostSettings(settings: {
+  companyId?: string | null;
   silverPricePerGram: number;
   zonaFrancaRatePercent: number;
   transportFee: number;
@@ -271,6 +274,7 @@ function mapCostSettings(settings: {
   updatedAt: Date;
 }): CostSettingsRecord {
   return {
+    companyId: settings.companyId ?? null,
     silverPricePerGram: settings.silverPricePerGram,
     zonaFrancaRatePercent: settings.zonaFrancaRatePercent,
     transportFee: settings.transportFee,
@@ -281,6 +285,7 @@ function mapCostSettings(settings: {
 
 function mapCostSettingsHistory(history: {
   id: string;
+  companyId?: string | null;
   previousSilverPricePerGram: number;
   nextSilverPricePerGram: number;
   previousZonaFrancaRatePercent: number;
@@ -294,6 +299,7 @@ function mapCostSettingsHistory(history: {
 }): CostSettingsHistoryRecord {
   return {
     id: history.id,
+    companyId: history.companyId ?? null,
     previousSilverPricePerGram: history.previousSilverPricePerGram,
     nextSilverPricePerGram: history.nextSilverPricePerGram,
     previousZonaFrancaRatePercent: history.previousZonaFrancaRatePercent,
@@ -775,7 +781,28 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
     return variants.map(mapProductVariant);
   }
 
-  async getCostSettings() {
+  async getCostSettings(companyId?: string) {
+    if (companyId) {
+      const settings = await this.prisma.companyCostSettings.upsert({
+        where: {
+          companyId
+        },
+        update: {},
+        create: {
+          companyId
+        }
+      });
+
+      return mapCostSettings({
+        companyId: settings.companyId,
+        silverPricePerGram: settings.silverPricePerGram,
+        zonaFrancaRatePercent: settings.zonaFrancaRatePercent,
+        transportFee: settings.transportFee,
+        dollarRate: settings.dollarRate,
+        updatedAt: settings.updatedAt
+      });
+    }
+
     await this.prisma.$executeRawUnsafe(`
       INSERT INTO "cost_settings" (
         "id",
@@ -812,8 +839,8 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
     return mapCostSettings(settings);
   }
 
-  async updateCostSettings(input: UpdateCostSettingsInput) {
-    const current = await this.getCostSettings();
+  async updateCostSettings(input: UpdateCostSettingsInput, companyId?: string) {
+    const current = await this.getCostSettings(companyId);
     const nextSettings = {
       silverPricePerGram: input.silverPricePerGram ?? current.silverPricePerGram,
       zonaFrancaRatePercent: input.zonaFrancaRatePercent ?? current.zonaFrancaRatePercent,
@@ -833,6 +860,55 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
 
     if (changedFields.length === 0) {
       return current;
+    }
+
+    if (companyId) {
+      const settings = await this.prisma.$transaction(async (tx) => {
+        const updatedSettings = await tx.companyCostSettings.upsert({
+          where: {
+            companyId
+          },
+          update: {
+            silverPricePerGram: nextSettings.silverPricePerGram,
+            zonaFrancaRatePercent: nextSettings.zonaFrancaRatePercent,
+            transportFee: nextSettings.transportFee,
+            dollarRate: nextSettings.dollarRate
+          },
+          create: {
+            companyId,
+            silverPricePerGram: nextSettings.silverPricePerGram,
+            zonaFrancaRatePercent: nextSettings.zonaFrancaRatePercent,
+            transportFee: nextSettings.transportFee,
+            dollarRate: nextSettings.dollarRate
+          }
+        });
+
+        await tx.companyCostSettingsHistory.create({
+          data: {
+            companyId,
+            previousSilverPricePerGram: current.silverPricePerGram,
+            nextSilverPricePerGram: nextSettings.silverPricePerGram,
+            previousZonaFrancaRatePercent: current.zonaFrancaRatePercent,
+            nextZonaFrancaRatePercent: nextSettings.zonaFrancaRatePercent,
+            previousTransportFee: current.transportFee,
+            nextTransportFee: nextSettings.transportFee,
+            previousDollarRate: current.dollarRate,
+            nextDollarRate: nextSettings.dollarRate,
+            changedFields: JSON.stringify(changedFields)
+          }
+        });
+
+        return updatedSettings;
+      });
+
+      return mapCostSettings({
+        companyId: settings.companyId,
+        silverPricePerGram: settings.silverPricePerGram,
+        zonaFrancaRatePercent: settings.zonaFrancaRatePercent,
+        transportFee: settings.transportFee,
+        dollarRate: settings.dollarRate,
+        updatedAt: settings.updatedAt
+      });
     }
 
     await this.prisma.$executeRawUnsafe(
@@ -883,7 +959,36 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
     return this.getCostSettings();
   }
 
-  async listCostSettingsHistory(limit = 50) {
+  async listCostSettingsHistory(limit = 50, companyId?: string) {
+    if (companyId) {
+      const rows = await this.prisma.companyCostSettingsHistory.findMany({
+        where: {
+          companyId
+        },
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: limit
+      });
+
+      return rows.map((row) =>
+        mapCostSettingsHistory({
+          id: row.id,
+          companyId: row.companyId,
+          previousSilverPricePerGram: row.previousSilverPricePerGram,
+          nextSilverPricePerGram: row.nextSilverPricePerGram,
+          previousZonaFrancaRatePercent: row.previousZonaFrancaRatePercent,
+          nextZonaFrancaRatePercent: row.nextZonaFrancaRatePercent,
+          previousTransportFee: row.previousTransportFee,
+          nextTransportFee: row.nextTransportFee,
+          previousDollarRate: row.previousDollarRate,
+          nextDollarRate: row.nextDollarRate,
+          changedFields: row.changedFields,
+          createdAt: row.createdAt
+        })
+      );
+    }
+
     const rows = await this.prisma.$queryRawUnsafe<
       Array<{
         id: string;

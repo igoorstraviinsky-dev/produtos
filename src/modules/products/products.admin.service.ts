@@ -74,10 +74,10 @@ export class ProductsAdminService {
     };
   }
 
-  async listProducts() {
+  async listProducts(companyId?: string) {
     const [products, costSettings] = await Promise.all([
       this.productGateway.listProducts(),
-      this.controlPlane.getCostSettings()
+      this.controlPlane.getCostSettings(companyId)
     ]);
 
     await this.syncMasterCatalogFromUpstream(products);
@@ -92,7 +92,7 @@ export class ProductsAdminService {
     });
   }
 
-  async updateProduct(input: UpdateInventoryProductInput) {
+  async updateProduct(input: UpdateInventoryProductInput, companyId?: string) {
     await this.productGateway.updateProduct(input);
     const allProducts = await this.productGateway.listProducts();
     await this.syncMasterCatalogFromUpstream(allProducts);
@@ -102,7 +102,7 @@ export class ProductsAdminService {
       throw new Error("Updated product not found after upstream sync");
     }
 
-    const costSettings = await this.controlPlane.getCostSettings();
+    const costSettings = await this.controlPlane.getCostSettings(companyId);
     const costBreakdown = calculateProductCost(product, costSettings);
 
     return {

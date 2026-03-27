@@ -209,11 +209,19 @@ export class AdminService {
     };
   }
 
-  async getCostSettings() {
-    const settings = await this.controlPlane.getCostSettings();
+  async getCostSettings(companyId?: string) {
+    if (companyId) {
+      const company = await this.controlPlane.findCompanyById(companyId);
+      if (!company) {
+        throw new AppError(404, "COMPANY_NOT_FOUND", "Company was not found");
+      }
+    }
+
+    const settings = await this.controlPlane.getCostSettings(companyId);
 
     return {
       data: {
+        companyId: settings.companyId,
         silverPricePerGram: settings.silverPricePerGram,
         zonaFrancaRatePercent: settings.zonaFrancaRatePercent,
         transportFee: settings.transportFee,
@@ -223,11 +231,19 @@ export class AdminService {
     };
   }
 
-  async updateCostSettings(input: UpdateCostSettingsInput) {
-    const settings = await this.controlPlane.updateCostSettings(input);
+  async updateCostSettings(input: UpdateCostSettingsInput, companyId?: string) {
+    if (companyId) {
+      const company = await this.controlPlane.findCompanyById(companyId);
+      if (!company) {
+        throw new AppError(404, "COMPANY_NOT_FOUND", "Company was not found");
+      }
+    }
+
+    const settings = await this.controlPlane.updateCostSettings(input, companyId);
 
     return {
       data: {
+        companyId: settings.companyId,
         silverPricePerGram: settings.silverPricePerGram,
         zonaFrancaRatePercent: settings.zonaFrancaRatePercent,
         transportFee: settings.transportFee,
@@ -237,12 +253,20 @@ export class AdminService {
     };
   }
 
-  async listCostSettingsHistory() {
-    const history = await this.controlPlane.listCostSettingsHistory();
+  async listCostSettingsHistory(companyId?: string) {
+    if (companyId) {
+      const company = await this.controlPlane.findCompanyById(companyId);
+      if (!company) {
+        throw new AppError(404, "COMPANY_NOT_FOUND", "Company was not found");
+      }
+    }
+
+    const history = await this.controlPlane.listCostSettingsHistory(50, companyId);
 
     return {
       data: history.map((entry) => ({
         id: entry.id,
+        companyId: entry.companyId,
         changedFields: entry.changedFields,
         previous: {
           silverPricePerGram: entry.previousSilverPricePerGram,

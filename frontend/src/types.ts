@@ -166,6 +166,7 @@ export type ProductVariant = {
 };
 
 export type CostSettings = {
+  companyId?: string | null;
   silverPricePerGram: number;
   zonaFrancaRatePercent: number;
   transportFee: number;
@@ -175,6 +176,7 @@ export type CostSettings = {
 
 export type CostSettingsHistoryEntry = {
   id: string;
+  companyId?: string | null;
   changedFields: string[];
   previous: {
     silverPricePerGram: number;

@@ -572,7 +572,7 @@ function ProductImage(props: { product: Product | null; alt: string; mode?: "lin
 
 type CompanyDetailPageProps = {
   company: Company;
-  activeTab: "profile" | "keys" | "inventory";
+  activeTab: "profile" | "keys" | "inventory" | "costs";
   apiKeys: ApiKeySummary[];
   inventory: AdminInventoryItem[];
   products: Product[];
@@ -589,7 +589,7 @@ type CompanyDetailPageProps = {
   };
   inventoryDrafts: Record<string, string>;
   onBack: () => void;
-  onChangeTab: (tab: "profile" | "keys" | "inventory") => void;
+  onChangeTab: (tab: "profile" | "keys" | "inventory" | "costs") => void;
   onCompanyFormChange: (
     patch: Partial<{ legalName: string; isActive: boolean; syncStoreInventory: boolean }>
   ) => void;
@@ -735,6 +735,18 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
             ].join(" ")}
           >
             Estoque da Empresa
+          </button>
+          <button
+            type="button"
+            onClick={() => onChangeTab("costs")}
+            className={[
+              "rounded-full px-4 py-2 text-sm font-semibold transition",
+              activeTab === "costs"
+                ? "bg-amber-500 text-slate-950"
+                : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            ].join(" ")}
+          >
+            Custos
           </button>
           <button
             type="button"

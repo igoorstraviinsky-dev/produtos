@@ -43,8 +43,11 @@ class FakeControlPlaneRepository {
     this.masterProducts = new Map();
     this.companyInventory = new Map();
     this.companyVariantInventory = new Map();
-    this.costSettings = {
-      silverPricePerGram: 1,
+      this.companyCostSettings = new Map();
+      this.companyCostSettingsHistory = new Map();
+      this.costSettings = {
+        companyId: null,
+        silverPricePerGram: 1,
       zonaFrancaRatePercent: 6,
       transportFee: 0.1,
       dollarRate: 5,
@@ -246,12 +249,29 @@ class FakeControlPlaneRepository {
     return product?.variants ?? [];
   }
 
-  async getCostSettings() {
-    return this.costSettings;
+  async getCostSettings(companyId) {
+    if (!companyId) {
+      return this.costSettings;
+    }
+
+    if (!this.companyCostSettings.has(companyId)) {
+      this.companyCostSettings.set(companyId, {
+        companyId,
+        silverPricePerGram: 1,
+        zonaFrancaRatePercent: 6,
+        transportFee: 0.1,
+        dollarRate: 5,
+        updatedAt: new Date()
+      });
+    }
+
+    return this.companyCostSettings.get(companyId);
   }
 
-  async updateCostSettings(input) {
+  async updateCostSettings(input, companyId) {
+    const current = await this.getCostSettings(companyId);
     this.costSettings = {
+      companyId: null,
       silverPricePerGram: input.silverPricePerGram ?? this.costSettings.silverPricePerGram,
       zonaFrancaRatePercent:
         input.zonaFrancaRatePercent ?? this.costSettings.zonaFrancaRatePercent,
@@ -260,7 +280,45 @@ class FakeControlPlaneRepository {
       updatedAt: new Date()
     };
 
+    if (companyId) {
+      const nextCompanySettings = {
+        companyId,
+        silverPricePerGram: input.silverPricePerGram ?? current.silverPricePerGram,
+        zonaFrancaRatePercent:
+          input.zonaFrancaRatePercent ?? current.zonaFrancaRatePercent,
+        transportFee: input.transportFee ?? current.transportFee,
+        dollarRate: input.dollarRate ?? current.dollarRate,
+        updatedAt: new Date()
+      };
+      const history = this.companyCostSettingsHistory.get(companyId) ?? [];
+      history.unshift({
+        id: randomUUID(),
+        companyId,
+        previousSilverPricePerGram: current.silverPricePerGram,
+        nextSilverPricePerGram: nextCompanySettings.silverPricePerGram,
+        previousZonaFrancaRatePercent: current.zonaFrancaRatePercent,
+        nextZonaFrancaRatePercent: nextCompanySettings.zonaFrancaRatePercent,
+        previousTransportFee: current.transportFee,
+        nextTransportFee: nextCompanySettings.transportFee,
+        previousDollarRate: current.dollarRate,
+        nextDollarRate: nextCompanySettings.dollarRate,
+        changedFields: [],
+        createdAt: new Date()
+      });
+      this.companyCostSettingsHistory.set(companyId, history);
+      this.companyCostSettings.set(companyId, nextCompanySettings);
+      return nextCompanySettings;
+    }
+
     return this.costSettings;
+  }
+
+  async listCostSettingsHistory(limit = 50, companyId) {
+    if (companyId) {
+      return (this.companyCostSettingsHistory.get(companyId) ?? []).slice(0, limit);
+    }
+
+    return [];
   }
 
   async listEffectiveInventoryByCompany(companyId) {

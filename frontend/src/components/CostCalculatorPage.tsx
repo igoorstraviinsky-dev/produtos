@@ -51,6 +51,7 @@ function formatHistoryDate(value: string) {
 }
 
 type CostCalculatorPageProps = {
+  companyName?: string;
   products: Product[];
   productsState: "idle" | "loading" | "success" | "error";
   costSettingsState: "idle" | "loading" | "success" | "error";
@@ -77,6 +78,7 @@ type CostCalculatorPageProps = {
 
 export function CostCalculatorPage(props: CostCalculatorPageProps) {
   const {
+    companyName,
     products,
     productsState,
     costSettingsState,
@@ -104,10 +106,12 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
         <div className="flex flex-col gap-5 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">
-              Custos
+              {companyName ? "Custos da Empresa" : "Custos"}
             </p>
             <h2 className="mt-2 font-display text-4xl tracking-tight text-slate-950">
-              Calculadora de custo da mercadoria
+              {companyName
+                ? `Calculadora de custo da mercadoria de ${companyName}`
+                : "Calculadora de custo da mercadoria"}
             </h2>
             <p className="mt-3 text-sm leading-7 text-slate-600">
               Formula aplicada: `(Mao de Obra + Prata Internacional) = R1`, `R1 + Taxa ZF = R2`, `R2 + Transporte = R3`, `R3 x Dolar = Custo Final`.

@@ -94,6 +94,7 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
   >();
   private readonly costSettingsHistory: Array<{
     id: string;
+    companyId: string | null;
     previousSilverPricePerGram: number;
     nextSilverPricePerGram: number;
     previousZonaFrancaRatePercent: number;
@@ -105,7 +106,23 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
     changedFields: string[];
     createdAt: Date;
   }> = [];
+  private readonly companyCostSettings = new Map<string, CostSettingsRecord>();
+  private readonly companyCostSettingsHistory = new Map<string, Array<{
+    id: string;
+    companyId: string | null;
+    previousSilverPricePerGram: number;
+    nextSilverPricePerGram: number;
+    previousZonaFrancaRatePercent: number;
+    nextZonaFrancaRatePercent: number;
+    previousTransportFee: number;
+    nextTransportFee: number;
+    previousDollarRate: number;
+    nextDollarRate: number;
+    changedFields: string[];
+    createdAt: Date;
+  }>>();
   private costSettings: CostSettingsRecord = {
+    companyId: null,
     silverPricePerGram: 1,
     zonaFrancaRatePercent: 6,
     transportFee: 0.1,
@@ -398,8 +415,23 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
     });
   }
 
-  async getCostSettings() {
-    return this.costSettings;
+  async getCostSettings(companyId?: string) {
+    if (!companyId) {
+      return this.costSettings;
+    }
+
+    if (!this.companyCostSettings.has(companyId)) {
+      this.companyCostSettings.set(companyId, {
+        companyId,
+        silverPricePerGram: 1,
+        zonaFrancaRatePercent: 6,
+        transportFee: 0.1,
+        dollarRate: 5,
+        updatedAt: new Date()
+      });
+    }
+
+    return this.companyCostSettings.get(companyId)!;
   }
 
   async updateCostSettings(input: {
@@ -407,44 +439,47 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
     zonaFrancaRatePercent?: number;
     transportFee?: number;
     dollarRate?: number;
-  }) {
+  }, companyId?: string) {
+    const current = await this.getCostSettings(companyId);
     const nextSettings = {
-      silverPricePerGram: input.silverPricePerGram ?? this.costSettings.silverPricePerGram,
+      silverPricePerGram: input.silverPricePerGram ?? current.silverPricePerGram,
       zonaFrancaRatePercent:
-        input.zonaFrancaRatePercent ?? this.costSettings.zonaFrancaRatePercent,
-      transportFee: input.transportFee ?? this.costSettings.transportFee,
-      dollarRate: input.dollarRate ?? this.costSettings.dollarRate
+        input.zonaFrancaRatePercent ?? current.zonaFrancaRatePercent,
+      transportFee: input.transportFee ?? current.transportFee,
+      dollarRate: input.dollarRate ?? current.dollarRate
     };
     const changedFields = [
-      ...(nextSettings.silverPricePerGram !== this.costSettings.silverPricePerGram
+      ...(nextSettings.silverPricePerGram !== current.silverPricePerGram
         ? ["silverPricePerGram"]
         : []),
-      ...(nextSettings.zonaFrancaRatePercent !== this.costSettings.zonaFrancaRatePercent
+      ...(nextSettings.zonaFrancaRatePercent !== current.zonaFrancaRatePercent
         ? ["zonaFrancaRatePercent"]
         : []),
-      ...(nextSettings.transportFee !== this.costSettings.transportFee ? ["transportFee"] : []),
-      ...(nextSettings.dollarRate !== this.costSettings.dollarRate ? ["dollarRate"] : [])
+      ...(nextSettings.transportFee !== current.transportFee ? ["transportFee"] : []),
+      ...(nextSettings.dollarRate !== current.dollarRate ? ["dollarRate"] : [])
     ];
 
     if (changedFields.length === 0) {
-      return this.costSettings;
+      return current;
     }
 
-    this.costSettingsHistory.unshift({
+    const nextHistoryEntry = {
       id: randomUUID(),
-      previousSilverPricePerGram: this.costSettings.silverPricePerGram,
+      companyId: companyId ?? null,
+      previousSilverPricePerGram: current.silverPricePerGram,
       nextSilverPricePerGram: nextSettings.silverPricePerGram,
-      previousZonaFrancaRatePercent: this.costSettings.zonaFrancaRatePercent,
+      previousZonaFrancaRatePercent: current.zonaFrancaRatePercent,
       nextZonaFrancaRatePercent: nextSettings.zonaFrancaRatePercent,
-      previousTransportFee: this.costSettings.transportFee,
+      previousTransportFee: current.transportFee,
       nextTransportFee: nextSettings.transportFee,
-      previousDollarRate: this.costSettings.dollarRate,
+      previousDollarRate: current.dollarRate,
       nextDollarRate: nextSettings.dollarRate,
       changedFields,
       createdAt: new Date()
-    });
+    };
 
-    this.costSettings = {
+    const nextRecord = {
+      companyId: companyId ?? null,
       silverPricePerGram: nextSettings.silverPricePerGram,
       zonaFrancaRatePercent: nextSettings.zonaFrancaRatePercent,
       transportFee: nextSettings.transportFee,
@@ -452,10 +487,24 @@ export class FakeControlPlaneRepository implements ControlPlaneRepository {
       updatedAt: new Date()
     };
 
+    if (companyId) {
+      const history = this.companyCostSettingsHistory.get(companyId) ?? [];
+      history.unshift(nextHistoryEntry);
+      this.companyCostSettingsHistory.set(companyId, history);
+      this.companyCostSettings.set(companyId, nextRecord);
+      return nextRecord;
+    }
+
+    this.costSettingsHistory.unshift(nextHistoryEntry);
+    this.costSettings = nextRecord;
     return this.costSettings;
   }
 
-  async listCostSettingsHistory() {
+  async listCostSettingsHistory(_limit = 50, companyId?: string) {
+    if (companyId) {
+      return this.companyCostSettingsHistory.get(companyId) ?? [];
+    }
+
     return this.costSettingsHistory;
   }
 }

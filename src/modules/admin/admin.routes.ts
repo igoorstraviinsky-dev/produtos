@@ -75,6 +75,43 @@ export const adminRoutes: FastifyPluginAsync<AdminRoutesOptions> = async (app, o
   );
 
   app.get(
+    "/companies/:companyId/cost-settings",
+    {
+      preHandler: options.adminGuard
+    },
+    async (request, reply) => {
+      const params = request.params as { companyId: string };
+      const settings = await options.adminService.getCostSettings(params.companyId);
+      return reply.send(settings);
+    }
+  );
+
+  app.patch(
+    "/companies/:companyId/cost-settings",
+    {
+      preHandler: options.adminGuard
+    },
+    async (request, reply) => {
+      const params = request.params as { companyId: string };
+      const payload = updateCostSettingsSchema.parse(request.body);
+      const settings = await options.adminService.updateCostSettings(payload, params.companyId);
+      return reply.send(settings);
+    }
+  );
+
+  app.get(
+    "/companies/:companyId/cost-settings/history",
+    {
+      preHandler: options.adminGuard
+    },
+    async (request, reply) => {
+      const params = request.params as { companyId: string };
+      const history = await options.adminService.listCostSettingsHistory(params.companyId);
+      return reply.send(history);
+    }
+  );
+
+  app.get(
     "/companies",
     {
       preHandler: options.adminGuard

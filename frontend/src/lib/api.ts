@@ -227,8 +227,9 @@ export const api = {
     );
     return response.data;
   },
-  async listInventoryProducts() {
-    const response = await request<ApiEnvelope<Product[]>>("/api/internal/admin/products", {
+  async listInventoryProducts(companyId?: string) {
+    const query = companyId ? `?companyId=${encodeURIComponent(companyId)}` : "";
+    const response = await request<ApiEnvelope<Product[]>>(`/api/internal/admin/products${query}`, {
       admin: true
     });
     return response.data;
@@ -243,27 +244,34 @@ export const api = {
     );
     return response.data;
   },
-  async getCostSettings() {
-    const response = await request<ApiEnvelope<CostSettings>>("/api/internal/admin/cost-settings", {
-      admin: true
-    });
+  async getCostSettings(companyId?: string) {
+    const path = companyId
+      ? `/api/internal/admin/companies/${companyId}/cost-settings`
+      : "/api/internal/admin/cost-settings";
+    const response = await request<ApiEnvelope<CostSettings>>(path, { admin: true });
     return response.data;
   },
-  async updateCostSettings(payload: Partial<Omit<CostSettings, "updatedAt">>) {
-    const response = await request<ApiEnvelope<CostSettings>>("/api/internal/admin/cost-settings", {
+  async updateCostSettings(
+    payload: Partial<Omit<CostSettings, "updatedAt" | "companyId">>,
+    companyId?: string
+  ) {
+    const path = companyId
+      ? `/api/internal/admin/companies/${companyId}/cost-settings`
+      : "/api/internal/admin/cost-settings";
+    const response = await request<ApiEnvelope<CostSettings>>(path, {
       method: "PATCH",
       admin: true,
       body: payload
     });
     return response.data;
   },
-  async listCostSettingsHistory() {
-    const response = await request<ApiEnvelope<CostSettingsHistoryEntry[]>>(
-      "/api/internal/admin/cost-settings/history",
-      {
-        admin: true
-      }
-    );
+  async listCostSettingsHistory(companyId?: string) {
+    const path = companyId
+      ? `/api/internal/admin/companies/${companyId}/cost-settings/history`
+      : "/api/internal/admin/cost-settings/history";
+    const response = await request<ApiEnvelope<CostSettingsHistoryEntry[]>>(path, {
+      admin: true
+    });
     return response.data;
   },
   async updateInventoryProduct(

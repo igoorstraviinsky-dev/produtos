@@ -21,20 +21,13 @@ import type {
 
 type AsyncState = "idle" | "loading" | "success" | "error";
 type AppPage = "dashboard" | "company" | "costs" | "docs";
-type CompanyTab = "profile" | "keys" | "inventory";
+type CompanyTab = "profile" | "keys" | "inventory" | "costs";
 type AuthState = "checking" | "authenticated" | "unauthenticated";
 
 function getRouteState(pathname: string) {
   if (pathname === "/docs" || pathname === "/docs/api-estoque") {
     return {
       page: "docs" as const,
-      companyId: ""
-    };
-  }
-
-  if (pathname === "/custos") {
-    return {
-      page: "costs" as const,
       companyId: ""
     };
   }
@@ -272,11 +265,11 @@ function App() {
     }
   }
 
-  async function refreshProducts() {
+  async function refreshProducts(companyId?: string) {
     setProductsState("loading");
 
     try {
-      const nextProducts = await api.listInventoryProducts();
+      const nextProducts = await api.listInventoryProducts(companyId);
       setProducts(nextProducts);
       setProductsState("success");
     } catch (error) {
@@ -295,8 +288,10 @@ function App() {
         await refreshCompanyDetail(options.companyId);
       }
 
-      if (currentPage === "costs" || currentPage === "company") {
-        await refreshProducts();
+      if (currentPage === "company") {
+        await refreshProducts(
+          activeTab === "costs" ? options?.companyId || selectedCompanyId || undefined : undefined
+        );
       }
 
       if (!options?.silent) {
@@ -311,11 +306,11 @@ function App() {
     }
   }
 
-  async function refreshCostSettings() {
+  async function refreshCostSettings(companyId?: string) {
     setCostSettingsState("loading");
 
     try {
-      const settings = await api.getCostSettings();
+      const settings = await api.getCostSettings(companyId);
       const nextVariables = {
         silverPricePerGram: String(settings.silverPricePerGram),
         zonaFrancaRatePercent: String(settings.zonaFrancaRatePercent),
@@ -332,11 +327,11 @@ function App() {
     }
   }
 
-  async function refreshCostSettingsHistory() {
+  async function refreshCostSettingsHistory(companyId?: string) {
     setCostHistoryState("loading");
 
     try {
-      const history = await api.listCostSettingsHistory();
+      const history = await api.listCostSettingsHistory(companyId);
       setCostHistoryEntries(history);
       setCostHistoryState("success");
     } catch (error) {
@@ -354,10 +349,11 @@ function App() {
     setInventoryDrafts({});
   }
 
-  function openCosts() {
-    window.history.pushState({}, "", "/custos");
-    setCurrentPage("costs");
-    setSelectedCompanyId("");
+  function openCosts(companyId: string) {
+    window.history.pushState({}, "", `/empresas/${encodeURIComponent(companyId)}`);
+    setCurrentPage("company");
+    setSelectedCompanyId(companyId);
+    setActiveTab("costs");
   }
 
   function openDocs() {
@@ -368,7 +364,7 @@ function App() {
 
   function openCostHistory() {
     setCostHistoryOpen(true);
-    void refreshCostSettingsHistory();
+    void refreshCostSettingsHistory(selectedCompanyId || undefined);
   }
 
   function openCompany(companyId: string) {
@@ -421,17 +417,21 @@ function App() {
     if (currentPage === "company" && selectedCompanyId) {
       void refreshCompanyDetail(selectedCompanyId);
     }
-    if (currentPage === "costs") {
-      void refreshCostSettings();
-      void refreshCostSettingsHistory();
-      void refreshProducts();
-    }
     if (currentPage === "company" && activeTab === "inventory") {
       void refreshProducts();
+    }
+    if (currentPage === "company" && activeTab === "costs" && selectedCompanyId) {
+      void refreshCostSettings(selectedCompanyId);
+      void refreshCostSettingsHistory(selectedCompanyId);
+      void refreshProducts(selectedCompanyId);
     }
   }, [activeTab, currentPage, selectedCompanyId]);
 
   async function handleSaveCostSettings(options?: { silent?: boolean }) {
+    if (!selectedCompanyId) {
+      return;
+    }
+
     try {
       setCostSettingsSaveState("saving");
       const settings = await api.updateCostSettings({
@@ -439,7 +439,7 @@ function App() {
         zonaFrancaRatePercent: Number(costVariables.zonaFrancaRatePercent),
         transportFee: Number(costVariables.transportFee),
         dollarRate: Number(costVariables.dollarRate)
-      });
+      }, selectedCompanyId);
 
       setCostVariables({
         silverPricePerGram: String(settings.silverPricePerGram),
@@ -454,12 +454,12 @@ function App() {
         dollarRate: String(settings.dollarRate)
       });
       if (!options?.silent) {
-        setFeedback("Parametros de custo salvos e publicados na API.");
+        setFeedback("Parametros de custo da empresa salvos com sucesso.");
       }
       setCostSettingsSaveState("saved");
-      await refreshProducts();
-      if (currentPage === "costs" || costHistoryOpen) {
-        await refreshCostSettingsHistory();
+      await refreshProducts(selectedCompanyId);
+      if ((currentPage === "company" && activeTab === "costs") || costHistoryOpen) {
+        await refreshCostSettingsHistory(selectedCompanyId);
       }
     } catch (error) {
       setCostSettingsSaveState("error");
@@ -474,7 +474,12 @@ function App() {
   });
 
   useEffect(() => {
-    if (authState !== "authenticated" || currentPage !== "costs" || costSettingsState !== "success") {
+    if (
+      authState !== "authenticated" ||
+      currentPage !== "company" ||
+      activeTab !== "costs" ||
+      costSettingsState !== "success"
+    ) {
       return;
     }
 
@@ -750,18 +755,6 @@ function App() {
                 </button>
                 <button
                   type="button"
-                  onClick={openCosts}
-                  className={[
-                    "rounded-full px-4 py-2 text-sm font-semibold transition",
-                    currentPage === "costs"
-                      ? "bg-amber-500 text-slate-950"
-                      : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                  ].join(" ")}
-                >
-                  Custos
-                </button>
-                <button
-                  type="button"
                   onClick={openDocs}
                   className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
                 >
@@ -839,83 +832,91 @@ function App() {
           />
         ) : null}
 
-        {currentPage === "costs" ? (
-          <CostCalculatorPage
-            products={products}
-            productsState={productsState}
-            costSettingsState={costSettingsState}
-            costSettingsSaveState={costSettingsSaveState}
-            costHistoryEntries={costHistoryEntries}
-            costHistoryState={costHistoryState}
-            variables={costVariables}
-            onVariableChange={(field, value) =>
-              setCostVariables((current) => ({
-                ...current,
-                [field]: value
-              }))
-            }
-            onOpenHistory={() => {
-              openCostHistory();
-            }}
-            onRefresh={() => {
-              void refreshProducts();
-            }}
-          />
-        ) : null}
-
         {currentPage === "company" && selectedCompany ? (
-          <CompanyDetailPage
-            company={selectedCompany}
-            activeTab={activeTab}
-            apiKeys={apiKeys}
-            inventory={inventory}
-            products={products}
-            apiKeysState={apiKeysState}
-            inventoryState={inventoryState}
-            productsState={productsState}
-            keyActionId={keyActionId}
-            savingInventoryId={savingInventoryId}
-            syncingCatalog={syncCatalogState === "syncing"}
-            companyForm={companyForm}
-            inventoryDrafts={inventoryDrafts}
-            onBack={openDashboard}
-            onChangeTab={setActiveTab}
-            onCompanyFormChange={(patch) =>
-              setCompanyForm((current) => ({
-                ...current,
-                ...patch
-              }))
-            }
-            onSaveCompany={() => {
-              if (!companyActionId) {
-                void handleSaveCompany();
+          <>
+            <CompanyDetailPage
+              company={selectedCompany}
+              activeTab={activeTab}
+              apiKeys={apiKeys}
+              inventory={inventory}
+              products={products}
+              apiKeysState={apiKeysState}
+              inventoryState={inventoryState}
+              productsState={productsState}
+              keyActionId={keyActionId}
+              savingInventoryId={savingInventoryId}
+              syncingCatalog={syncCatalogState === "syncing"}
+              companyForm={companyForm}
+              inventoryDrafts={inventoryDrafts}
+              onBack={openDashboard}
+              onChangeTab={(tab) => {
+                setActiveTab(tab);
+                if (tab === "costs") {
+                  openCosts(selectedCompany.id);
+                }
+              }}
+              onCompanyFormChange={(patch) =>
+                setCompanyForm((current) => ({
+                  ...current,
+                  ...patch
+                }))
               }
-            }}
-            onDeleteCompany={() => {
-              if (!deletingCompanyId) {
-                void handleDeleteCompany();
+              onSaveCompany={() => {
+                if (!companyActionId) {
+                  void handleSaveCompany();
+                }
+              }}
+              onDeleteCompany={() => {
+                if (!deletingCompanyId) {
+                  void handleDeleteCompany();
+                }
+              }}
+              deletingCompany={deletingCompanyId === selectedCompany.id}
+              onOpenIssueKey={() => setIssueKeyOpen(true)}
+              onRevokeKey={(apiKeyId) => {
+                void handleRevokeKey(apiKeyId);
+              }}
+              onSyncCatalog={() => {
+                void handleSyncMasterCatalog({
+                  companyId: selectedCompany.id
+                });
+              }}
+              onInventoryDraftChange={(productId, value) =>
+                setInventoryDrafts((currentDrafts) => ({
+                  ...currentDrafts,
+                  [productId]: value
+                }))
               }
-            }}
-            deletingCompany={deletingCompanyId === selectedCompany.id}
-            onOpenIssueKey={() => setIssueKeyOpen(true)}
-            onRevokeKey={(apiKeyId) => {
-              void handleRevokeKey(apiKeyId);
-            }}
-            onSyncCatalog={() => {
-              void handleSyncMasterCatalog({
-                companyId: selectedCompany.id
-              });
-            }}
-            onInventoryDraftChange={(productId, value) =>
-              setInventoryDrafts((currentDrafts) => ({
-                ...currentDrafts,
-                [productId]: value
-              }))
-            }
-            onSaveInventory={(productId) => {
-              void handleSaveInventory(productId);
-            }}
-          />
+              onSaveInventory={(productId) => {
+                void handleSaveInventory(productId);
+              }}
+            />
+
+            {activeTab === "costs" ? (
+              <CostCalculatorPage
+                companyName={selectedCompany.legalName}
+                products={products}
+                productsState={productsState}
+                costSettingsState={costSettingsState}
+                costSettingsSaveState={costSettingsSaveState}
+                costHistoryEntries={costHistoryEntries}
+                costHistoryState={costHistoryState}
+                variables={costVariables}
+                onVariableChange={(field, value) =>
+                  setCostVariables((current) => ({
+                    ...current,
+                    [field]: value
+                  }))
+                }
+                onOpenHistory={() => {
+                  openCostHistory();
+                }}
+                onRefresh={() => {
+                  void refreshProducts(selectedCompany.id);
+                }}
+              />
+            ) : null}
+          </>
         ) : null}
       </div>
 

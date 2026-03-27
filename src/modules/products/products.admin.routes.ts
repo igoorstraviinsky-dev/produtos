@@ -28,8 +28,9 @@ export const productsAdminRoutes: FastifyPluginAsync<ProductsAdminRoutesOptions>
     {
       preHandler: options.adminGuard
     },
-    async (_request, reply) => {
-      const products = await options.productsAdminService.listProducts();
+    async (request, reply) => {
+      const query = request.query as { companyId?: string };
+      const products = await options.productsAdminService.listProducts(query.companyId);
       return reply.send({ data: products });
     }
   );
@@ -41,13 +42,14 @@ export const productsAdminRoutes: FastifyPluginAsync<ProductsAdminRoutesOptions>
     },
     async (request, reply) => {
       const params = request.params as { productId: string };
+      const query = request.query as { companyId?: string };
       const payload = updateInventoryProductSchema.parse(request.body);
       const product = await options.productsAdminService.updateProduct({
         id: params.productId,
         sku: payload.sku,
         name: payload.name,
         availableQuantity: payload.availableQuantity
-      });
+      }, query.companyId);
       return reply.send({ data: product });
     }
   );
