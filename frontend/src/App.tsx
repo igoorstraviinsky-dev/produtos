@@ -482,6 +482,33 @@ function App() {
     selectedCompanyId
   ]);
 
+  useEffect(() => {
+    if (
+      authState !== "authenticated" ||
+      currentPage !== "company" ||
+      activeTab !== "inventory" ||
+      !selectedCompanyId ||
+      !selectedCompany?.syncStoreInventory ||
+      inventoryState !== "success" ||
+      inventory.length > 0 ||
+      syncCatalogState === "syncing"
+    ) {
+      return;
+    }
+
+    void autoSyncCompanyCatalog(selectedCompanyId);
+  }, [
+    activeTab,
+    authState,
+    autoSyncCompanyCatalog,
+    currentPage,
+    inventory.length,
+    inventoryState,
+    selectedCompany?.syncStoreInventory,
+    selectedCompanyId,
+    syncCatalogState
+  ]);
+
   async function handleSaveCostSettings(options?: { silent?: boolean }) {
     if (!selectedCompanyId) {
       return;
