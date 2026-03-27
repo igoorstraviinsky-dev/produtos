@@ -7,6 +7,7 @@ const YAML = require("yaml");
 
 const { buildApp } = require("../dist/app.js");
 const { ApiKeyService } = require("../dist/modules/auth/api-key.service.js");
+const { calculateProductCost } = require("../dist/modules/products/cost-calculator.js");
 const { ProductsService } = require("../dist/modules/products/products.service.js");
 const { buildProductsCacheKey } = require("../dist/utils/cache-keys.js");
 const { deriveApiKeyPrefix, hashApiKey } = require("../dist/utils/crypto.js");
@@ -984,6 +985,35 @@ const cases = [
 
       assert.equal(response.meta.source, "cache");
       assert.equal(response.meta.stale, true);
+    }
+  },
+  {
+    name: "Cost calculator applies company formula in USD before dollar conversion",
+    fn: async () => {
+      const result = calculateProductCost(
+        {
+          weightGrams: "2.1",
+          laborCost: "2.75"
+        },
+        {
+          companyId: null,
+          silverPricePerGram: 1,
+          zonaFrancaRatePercent: 6,
+          transportFee: 0.1,
+          dollarRate: 5.2,
+          updatedAt: new Date("2026-03-27T00:00:00.000Z")
+        }
+      );
+
+      assert.deepEqual(result, {
+        laborCostUsd: 2.75,
+        laborCostBrl: 14.3,
+        silverCost: 2.1,
+        r1: 4.85,
+        r2: 5.14,
+        r3: 5.24,
+        finalCost: 27.25
+      });
     }
   },
   {

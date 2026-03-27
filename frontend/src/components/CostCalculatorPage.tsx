@@ -115,8 +115,8 @@ export function CostCalculatorPage(props: CostCalculatorPageProps) {
                 : "Calculadora de custo da mercadoria"}
             </h2>
             <p className="mt-3 text-sm leading-7 text-slate-400">
-              Formula aplicada: `(Mao de Obra + Prata Internacional) = R1`, `R1 + Taxa ZF = R2`, `R2 + Transporte = R3`, `R3 x Dolar = Custo Final`.
-              A mao de obra original vem em dolar no produto, e abaixo ela e convertida automaticamente para real pela cotacao informada no topo.
+              Formula aplicada: `(Mao de Obra + Prata Internacional) = R1`, `R1 x (1 + Taxa ZF%) = R2`, `R2 + Transporte = R3`, `R3 x Dolar = Custo Final`.
+              A mao de obra original continua em dolar dentro da formula e abaixo ela aparece convertida para real apenas para leitura rapida.
             </p>
           </div>
 
