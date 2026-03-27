@@ -4,6 +4,7 @@ import { Toggle } from "./Toggle";
 import { EmptyState, StatusChip } from "./ui";
 import type {
   AdminInventoryItem,
+  AdminInventoryVariant,
   ApiKeySummary,
   Company,
   Product,
@@ -75,6 +76,10 @@ function getVariantStockTotal(product: Product | null) {
 }
 
 function getCurrentDisplayStock(item: AdminInventoryItem, product: Product | null) {
+  if (item.hasVariantInventory) {
+    return item.variantStockQuantityTotal ?? item.effectiveStockQuantity;
+  }
+
   return getVariantStockTotal(product) ?? item.effectiveStockQuantity;
 }
 
@@ -467,6 +472,22 @@ function itemMatchesInventorySearch(
   return (product?.variants ?? []).some((variant) =>
     variantMatchesInventorySearch(variant, normalizedQuery)
   );
+}
+
+function getInventoryVariantRecord(
+  item: AdminInventoryItem,
+  variant: ProductVariant
+): AdminInventoryVariant | null {
+  return (
+    item.variants.find((inventoryVariant) => inventoryVariant.variantId === variant.variant_id) ??
+    item.variants.find((inventoryVariant) => inventoryVariant.sku === variant.sku) ??
+    null
+  );
+}
+
+function getVariantDisplayStock(item: AdminInventoryItem, variant: ProductVariant) {
+  const inventoryVariant = getInventoryVariantRecord(item, variant);
+  return inventoryVariant?.effectiveStockQuantity ?? variant.individual_stock;
 }
 
 function ProductImage(props: { product: Product | null; alt: string; mode?: "line" | "card" }) {
@@ -1189,7 +1210,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                         </td>
                                         <td className="px-3 py-3">
                                           <span className="inline-flex min-w-10 items-center justify-center rounded-full bg-rose-500 px-2 py-1 text-xs font-semibold text-white">
-                                            {variant.individual_stock}
+                                            {getVariantDisplayStock(item, variant)}
                                           </span>
                                         </td>
                                       </tr>

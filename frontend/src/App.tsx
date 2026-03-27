@@ -65,7 +65,11 @@ function createInventoryDrafts(items: AdminInventoryItem[]) {
   return Object.fromEntries(
     items.map((item) => [
       item.productId,
-      String(item.customStockQuantity ?? item.effectiveStockQuantity)
+      item.customStockQuantity !== null
+        ? String(item.customStockQuantity)
+        : item.hasVariantInventory
+          ? ""
+          : String(item.effectiveStockQuantity)
     ])
   );
 }
@@ -636,12 +640,15 @@ function App() {
       setInventory((currentInventory) =>
         currentInventory.map((item) => (item.productId === productId ? updatedItem : item))
       );
-      setInventoryDrafts((currentDrafts) => ({
-        ...currentDrafts,
-        [productId]: String(
-          updatedItem.customStockQuantity ?? updatedItem.effectiveStockQuantity
-        )
-      }));
+        setInventoryDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [productId]:
+            updatedItem.customStockQuantity !== null
+              ? String(updatedItem.customStockQuantity)
+              : updatedItem.hasVariantInventory
+                ? ""
+                : String(updatedItem.effectiveStockQuantity)
+        }));
       setFeedback(`Estoque salvo para o produto ${updatedItem.sku}.`);
     } catch (error) {
       setFeedback(formatApiError(error));

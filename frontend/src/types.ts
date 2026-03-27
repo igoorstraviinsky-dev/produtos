@@ -223,14 +223,28 @@ export type HealthResponse = {
   status: "ok";
 };
 
+export type AdminInventoryVariant = {
+  variantId: string;
+  productId: string;
+  sku: string;
+  individualWeight: number | null;
+  masterStock: number;
+  customStockQuantity: number | null;
+  effectiveStockQuantity: number;
+  updatedAt: string;
+};
+
 export type AdminInventoryItem = {
   productId: string;
   sku: string;
   name: string;
   masterStock: number;
   customStockQuantity: number | null;
+  variantStockQuantityTotal: number | null;
+  hasVariantInventory: boolean;
   effectiveStockQuantity: number;
   updatedAt: string;
+  variants: AdminInventoryVariant[];
 };
 
 export type AdminInventoryResponse = {

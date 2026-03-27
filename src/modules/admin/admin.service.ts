@@ -13,6 +13,8 @@ function mapInventoryItem(record: {
   name: string;
   masterStock: number;
   customStockQuantity: number | null;
+  variantStockQuantityTotal: number | null;
+  hasVariantInventory: boolean;
   effectiveStockQuantity: number;
   updatedAt: Date;
   variants: Array<{
@@ -32,6 +34,8 @@ function mapInventoryItem(record: {
     name: record.name,
     masterStock: record.masterStock,
     customStockQuantity: record.customStockQuantity,
+    variantStockQuantityTotal: record.variantStockQuantityTotal,
+    hasVariantInventory: record.hasVariantInventory,
     effectiveStockQuantity: record.effectiveStockQuantity,
     updatedAt: record.updatedAt.toISOString(),
     variants: record.variants.map((variant) => ({
