@@ -4,9 +4,11 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
 APP_DIR="${REPO_ROOT}"
-ENV_FILE="${APP_DIR}/.env.production"
-FRONTEND_ENV_FILE="${APP_DIR}/frontend/.env.production"
+ENV_FILE=""
+FRONTEND_ENV_FILE=""
+
 APP_USER="produtos"
 DOMAIN=""
 EMAIL=""
@@ -15,26 +17,39 @@ DB_USER="produtos"
 DB_PASSWORD=""
 APP_PORT="3000"
 SKIP_CERTBOT="false"
+ACTION=""
 
 usage() {
   cat <<'EOF'
 Uso:
-  sudo bash deploy/ubuntu/install.sh \
+  sudo bash deploy/ubuntu/install.sh --action install \
     --domain app.seudominio.com \
     --email ops@seudominio.com \
     --app-port 3000 \
     --db-password 'senha-db-forte'
 
+  sudo bash deploy/ubuntu/install.sh --action update
+
+  sudo bash deploy/ubuntu/install.sh --action change-domain \
+    --domain app-novo.seudominio.com \
+    --email ops@seudominio.com
+
+Sem --action o script abre um menu:
+  1) Instalar
+  2) Atualizar
+  3) Alterar dominio e SSL
+
 Opcoes:
-  --domain            DNS publico apontando para a VPS
+  --action            install | update | change-domain
+  --domain            Dominio publico da aplicacao
   --email             Email do Let's Encrypt
-  --app-port          Porta local do backend Fastify (default: 3000)
+  --app-port          Porta local do backend Fastify
   --db-password       Senha do usuario PostgreSQL local
-  --app-dir           Caminho do projeto na VPS (default: repo atual)
-  --env-file          Caminho do .env.production (default: <app-dir>/.env.production)
-  --db-name           Nome do banco PostgreSQL local (default: b2b_gateway)
-  --db-user           Usuario PostgreSQL local (default: produtos)
-  --skip-certbot      Pula emissao do SSL e deixa apenas HTTP
+  --app-dir           Caminho do projeto na VPS
+  --env-file          Caminho do .env.production
+  --db-name           Nome do banco PostgreSQL local
+  --db-user           Usuario PostgreSQL local
+  --skip-certbot      Pula emissao/renovacao do SSL
   -h, --help          Mostra esta ajuda
 EOF
 }
@@ -49,24 +64,28 @@ fail() {
 }
 
 require_root() {
-  [[ "${EUID}" -eq 0 ]] || fail "Execute este instalador como root."
+  [[ "${EUID}" -eq 0 ]] || fail "Execute este script como root."
+}
+
+refresh_paths() {
+  [[ -n "${APP_DIR}" ]] || fail "APP_DIR vazio."
+  [[ -n "${ENV_FILE}" ]] || ENV_FILE="${APP_DIR}/.env.production"
+  FRONTEND_ENV_FILE="${APP_DIR}/frontend/.env.production"
 }
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --action)
+        ACTION="$2"
+        shift 2
+        ;;
       --domain)
         DOMAIN="$2"
         shift 2
         ;;
       --email)
         EMAIL="$2"
-        shift 2
-        ;;
-      --admin-user)
-        shift 2
-        ;;
-      --admin-password)
         shift 2
         ;;
       --db-password)
@@ -108,17 +127,68 @@ parse_args() {
   done
 }
 
+choose_action_interactively() {
+  if [[ -n "${ACTION}" ]]; then
+    return
+  fi
+
+  [[ -t 0 ]] || fail "Informe --action em execucao nao interativa."
+
+  cat <<'EOF'
+
+Selecione a operacao:
+  1) Instalar
+  2) Atualizar
+  3) Alterar dominio e SSL
+EOF
+
+  local selected
+  read -r -p "Opcao [1-3]: " selected
+
+  case "${selected}" in
+    1) ACTION="install" ;;
+    2) ACTION="update" ;;
+    3) ACTION="change-domain" ;;
+    *) fail "Opcao invalida: ${selected}" ;;
+  esac
+}
+
+prompt_value_if_empty() {
+  local variable_name="$1"
+  local prompt_label="$2"
+  local secret="${3:-false}"
+  local current_value="${!variable_name:-}"
+
+  if [[ -n "${current_value}" ]]; then
+    return
+  fi
+
+  [[ -t 0 ]] || fail "Informe ${prompt_label} por argumento."
+
+  local next_value=""
+  if [[ "${secret}" == "true" ]]; then
+    read -r -s -p "${prompt_label}: " next_value
+    printf '\n'
+  else
+    read -r -p "${prompt_label}: " next_value
+  fi
+
+  [[ -n "${next_value}" ]] || fail "${prompt_label} nao pode ficar vazio."
+  printf -v "${variable_name}" '%s' "${next_value}"
+}
+
 ensure_ubuntu_2404() {
   [[ -f /etc/os-release ]] || fail "Nao foi possivel identificar o sistema operacional."
   # shellcheck disable=SC1091
   source /etc/os-release
-  [[ "${ID}" == "ubuntu" ]] || fail "Este instalador suporta apenas Ubuntu."
-  [[ "${VERSION_ID}" == "24.04" ]] || fail "Este instalador foi preparado para Ubuntu 24.04."
+  [[ "${ID}" == "ubuntu" ]] || fail "Este script suporta apenas Ubuntu."
+  [[ "${VERSION_ID}" == "24.04" ]] || fail "Este script foi preparado para Ubuntu 24.04."
 }
 
 apt_install_if_missing() {
   local package
   local packages_to_install=()
+
   for package in "$@"; do
     if ! dpkg -s "${package}" >/dev/null 2>&1; then
       packages_to_install+=("${package}")
@@ -221,20 +291,59 @@ read_env_value() {
   awk -F= -v key="${key}" '$1 == key {print substr($0, index($0,$2))}' "${file}" | tail -n1
 }
 
-ensure_required_env() {
+extract_domain_from_url() {
+  local url="$1"
+  printf '%s' "${url}" | sed -E 's#^https?://##; s#/.*$##'
+}
+
+load_runtime_defaults_from_env() {
+  if [[ ! -f "${ENV_FILE}" ]]; then
+    return
+  fi
+
+  local env_port
+  env_port="$(read_env_value "${ENV_FILE}" "PORT")"
+  if [[ -n "${env_port}" && "${APP_PORT}" == "3000" ]]; then
+    APP_PORT="${env_port}"
+  fi
+
+  if [[ -z "${DOMAIN}" ]]; then
+    local current_public_url
+    current_public_url="$(read_env_value "${ENV_FILE}" "PUBLIC_BASE_URL")"
+    if [[ -n "${current_public_url}" ]]; then
+      DOMAIN="$(extract_domain_from_url "${current_public_url}")"
+    fi
+  fi
+}
+
+ensure_install_inputs() {
+  prompt_value_if_empty DOMAIN "Dominio publico"
+  prompt_value_if_empty EMAIL "Email do Let's Encrypt"
+  prompt_value_if_empty DB_PASSWORD "Senha do PostgreSQL local" "true"
+
+  [[ "${APP_PORT}" =~ ^[0-9]+$ ]] || fail "--app-port deve ser numerico."
+}
+
+ensure_change_domain_inputs() {
+  prompt_value_if_empty DOMAIN "Novo dominio publico"
+  prompt_value_if_empty EMAIL "Email do Let's Encrypt"
+
+  [[ "${APP_PORT}" =~ ^[0-9]+$ ]] || fail "--app-port deve ser numerico."
+}
+
+ensure_required_env_for_install() {
   local api_key_pepper
   local webhook_secret
   local admin_token
   local admin_session_secret
+  local supabase_url
+  local supabase_key
+
   api_key_pepper="$(read_env_value "${ENV_FILE}" "API_KEY_PEPPER")"
   webhook_secret="$(read_env_value "${ENV_FILE}" "INTERNAL_WEBHOOK_SECRET")"
   admin_token="$(read_env_value "${ENV_FILE}" "ADMIN_TOKEN")"
   admin_session_secret="$(read_env_value "${ENV_FILE}" "ADMIN_SESSION_SECRET")"
 
-  [[ -n "${DB_PASSWORD}" ]] || fail "Informe --db-password para criar o PostgreSQL local."
-  [[ -n "${DOMAIN}" ]] || fail "Informe --domain."
-  [[ -n "${EMAIL}" ]] || fail "Informe --email."
-  [[ "${APP_PORT}" =~ ^[0-9]+$ ]] || fail "--app-port deve ser numerico."
   [[ -n "${api_key_pepper}" && "${api_key_pepper}" != "generate-a-long-secret-value" ]] || \
     upsert_env_var "${ENV_FILE}" "API_KEY_PEPPER" "$(generate_secret)"
   [[ -n "${webhook_secret}" && "${webhook_secret}" != "generate-a-long-secret-value" ]] || \
@@ -252,8 +361,6 @@ ensure_required_env() {
   upsert_env_var "${ENV_FILE}" "ADMIN_USERNAME" ""
   upsert_env_var "${ENV_FILE}" "ADMIN_PASSWORD" ""
 
-  local supabase_url
-  local supabase_key
   supabase_url="$(read_env_value "${ENV_FILE}" "SUPABASE_URL")"
   supabase_key="$(read_env_value "${ENV_FILE}" "SUPABASE_SERVICE_ROLE_KEY")"
 
@@ -261,6 +368,18 @@ ensure_required_env() {
     fail "Preencha SUPABASE_URL em ${ENV_FILE}."
   [[ -n "${supabase_key}" && "${supabase_key}" != "your-service-role-key" ]] || \
     fail "Preencha SUPABASE_SERVICE_ROLE_KEY em ${ENV_FILE}."
+}
+
+prepare_existing_env_for_runtime() {
+  [[ -f "${ENV_FILE}" ]] || fail "Arquivo ${ENV_FILE} nao encontrado."
+
+  upsert_env_var "${ENV_FILE}" "NODE_ENV" "production"
+  upsert_env_var "${ENV_FILE}" "PORT" "${APP_PORT}"
+}
+
+update_public_base_url() {
+  [[ -n "${DOMAIN}" ]] || fail "Dominio vazio para atualizar PUBLIC_BASE_URL."
+  upsert_env_var "${ENV_FILE}" "PUBLIC_BASE_URL" "https://${DOMAIN}"
 }
 
 ensure_backend_port_available() {
@@ -271,7 +390,7 @@ ensure_backend_port_available() {
   if ss -ltnp "( sport = :${APP_PORT} )" | grep -q LISTEN; then
     log "Porta ${APP_PORT} ja esta em uso:"
     ss -ltnp "( sport = :${APP_PORT} )" || true
-    fail "Libere a porta ${APP_PORT} ou rode o instalador com --app-port em outra porta."
+    fail "Libere a porta ${APP_PORT} ou ajuste PORT no ${ENV_FILE}."
   fi
 }
 
@@ -282,6 +401,18 @@ ensure_postgres_db() {
 
   sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${DB_NAME}'" | grep -q 1 || \
     sudo -u postgres psql -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};"
+}
+
+update_source_code() {
+  if [[ ! -d "${APP_DIR}/.git" ]]; then
+    log "Repositorio git nao encontrado em ${APP_DIR}; pulando git pull"
+    return
+  fi
+
+  log "Atualizando codigo via git"
+  git -C "${APP_DIR}" config --global --add safe.directory "${APP_DIR}" >/dev/null 2>&1 || true
+  git -C "${APP_DIR}" restore package-lock.json frontend/package-lock.json >/dev/null 2>&1 || true
+  git -C "${APP_DIR}" pull --ff-only origin main
 }
 
 install_node_dependencies() {
@@ -330,6 +461,7 @@ render_template() {
 
 install_systemd_service() {
   local service_file="/etc/systemd/system/produtos-api.service"
+
   render_template \
     "${APP_DIR}/deploy/ubuntu/templates/produtos-api.service.template" \
     "${service_file}" \
@@ -342,13 +474,37 @@ install_systemd_service() {
   systemctl restart produtos-api.service
 }
 
+disable_conflicting_nginx_sites_for_domain() {
+  local target_domain="$1"
+  local file
+
+  [[ -n "${target_domain}" ]] || return
+
+  shopt -s nullglob
+  for file in /etc/nginx/sites-enabled/*; do
+    [[ "${file}" == "/etc/nginx/sites-enabled/produtos.conf" ]] && continue
+    if grep -Eq "server_name[[:space:]].*(^|[[:space:]])${target_domain}([[:space:];]|$)" "${file}"; then
+      log "Desabilitando site Nginx conflitante ${file} para ${target_domain}"
+      rm -f "${file}"
+    fi
+  done
+  shopt -u nullglob
+}
+
 install_nginx_config() {
   local nginx_file="/etc/nginx/sites-available/produtos.conf"
+  local nginx_template="${APP_DIR}/deploy/ubuntu/templates/nginx-produtos.conf.template"
+  local cert_fullchain="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+  local cert_privkey="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
 
   mkdir -p /var/www/certbot
 
+  if [[ -f "${cert_fullchain}" && -f "${cert_privkey}" ]]; then
+    nginx_template="${APP_DIR}/deploy/ubuntu/templates/nginx-produtos-ssl.conf.template"
+  fi
+
   render_template \
-    "${APP_DIR}/deploy/ubuntu/templates/nginx-produtos.conf.template" \
+    "${nginx_template}" \
     "${nginx_file}" \
     DOMAIN "${DOMAIN}" \
     APP_PORT "${APP_PORT}" \
@@ -366,13 +522,14 @@ ensure_dns_points_to_server() {
   fi
 
   local public_ip
-  local dns_ip
-  public_ip="$(curl -fsSL https://api.ipify.org)"
-  dns_ip="$(dig +short A "${DOMAIN}" | tail -n1)"
+  local dns_ips
 
-  [[ -n "${dns_ip}" ]] || fail "O dominio ${DOMAIN} ainda nao resolve para nenhum IP."
-  [[ "${dns_ip}" == "${public_ip}" ]] || \
-    fail "O dominio ${DOMAIN} resolve para ${dns_ip}, mas esta VPS responde como ${public_ip}. Ajuste o DNS antes do SSL."
+  public_ip="$(curl -fsSL https://api.ipify.org)"
+  dns_ips="$(dig +short A "${DOMAIN}")"
+
+  [[ -n "${dns_ips}" ]] || fail "O dominio ${DOMAIN} ainda nao resolve para nenhum IP."
+  grep -Fxq "${public_ip}" <<<"${dns_ips}" || \
+    fail "O dominio ${DOMAIN} nao aponta para esta VPS (${public_ip}). Ajuste o DNS antes do SSL."
 }
 
 install_ssl() {
@@ -381,30 +538,40 @@ install_ssl() {
     return
   fi
 
-  log "Emitindo certificado SSL para ${DOMAIN}"
+  log "Emitindo ou renovando certificado SSL para ${DOMAIN}"
   certbot --nginx \
     --non-interactive \
     --agree-tos \
     --redirect \
     -m "${EMAIL}" \
     -d "${DOMAIN}"
+
+  install_nginx_config
 }
 
 fix_permissions() {
   chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
 }
 
-main() {
-  parse_args "$@"
-  require_root
-  ensure_ubuntu_2404
+print_summary() {
+  log "Operacao concluida"
+  if [[ -n "${DOMAIN}" ]]; then
+    log "Painel admin: https://${DOMAIN}/"
+    log "API publica: https://${DOMAIN}/api/v1/products"
+  fi
+  log "Arquivo de ambiente: ${ENV_FILE}"
+}
+
+run_install_action() {
   ensure_base_packages
   ensure_node_22
   ensure_services_running
   ensure_app_user
   ensure_env_files
   write_frontend_env
-  ensure_required_env
+  load_runtime_defaults_from_env
+  ensure_install_inputs
+  ensure_required_env_for_install
   ensure_postgres_db
   install_node_dependencies
   build_application
@@ -412,15 +579,85 @@ main() {
   fix_permissions
   ensure_backend_port_available
   install_systemd_service
+  disable_conflicting_nginx_sites_for_domain "${DOMAIN}"
   install_nginx_config
   ensure_dns_points_to_server
   install_ssl
+  print_summary
+}
 
-  log "Instalacao concluida"
-  log "Painel admin: https://${DOMAIN}/"
-  log "Login do painel: tela interna da aplicacao usando o token definido em ADMIN_TOKEN no arquivo ${ENV_FILE}"
-  log "API publica: https://${DOMAIN}/api/v1/products"
-  log "Webhook interno: https://${DOMAIN}/api/internal/webhooks/supabase-sync"
+run_update_action() {
+  ensure_base_packages
+  ensure_node_22
+  ensure_services_running
+  ensure_app_user
+  ensure_env_files
+  write_frontend_env
+  load_runtime_defaults_from_env
+  prepare_existing_env_for_runtime
+  update_source_code
+  install_node_dependencies
+  build_application
+  run_migrations
+  fix_permissions
+  ensure_backend_port_available
+  install_systemd_service
+
+  if [[ -n "${DOMAIN}" ]]; then
+    disable_conflicting_nginx_sites_for_domain "${DOMAIN}"
+    install_nginx_config
+  fi
+
+  print_summary
+}
+
+run_change_domain_action() {
+  ensure_base_packages
+  ensure_node_22
+  ensure_services_running
+  ensure_app_user
+  ensure_env_files
+  write_frontend_env
+  load_runtime_defaults_from_env
+  prepare_existing_env_for_runtime
+
+  local previous_domain=""
+  if [[ -f "${ENV_FILE}" ]]; then
+    previous_domain="$(extract_domain_from_url "$(read_env_value "${ENV_FILE}" "PUBLIC_BASE_URL")")"
+  fi
+
+  ensure_change_domain_inputs
+  update_public_base_url
+  disable_conflicting_nginx_sites_for_domain "${previous_domain}"
+  disable_conflicting_nginx_sites_for_domain "${DOMAIN}"
+  install_nginx_config
+  ensure_dns_points_to_server
+  install_ssl
+  install_systemd_service
+  print_summary
+}
+
+main() {
+  parse_args "$@"
+  refresh_paths
+  choose_action_interactively
+  require_root
+  ensure_ubuntu_2404
+
+  case "${ACTION}" in
+    install)
+      run_install_action
+      ;;
+    update)
+      run_update_action
+      ;;
+    change-domain)
+      run_change_domain_action
+      ;;
+    *)
+      fail "Acao invalida: ${ACTION}"
+      ;;
+  esac
 }
 
 main "$@"

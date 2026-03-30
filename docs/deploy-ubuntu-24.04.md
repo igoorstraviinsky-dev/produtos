@@ -30,6 +30,8 @@ O script [install.sh](/C:/Users/goohf/Desktop/parceiros/deploy/ubuntu/install.sh
 - prepara o painel para login por token administrativo
 - valida DNS
 - emite SSL via Let's Encrypt
+- permite atualizar o projeto com `git pull`, rebuild e restart
+- permite trocar o dominio e reemitir SSL sem reinstalar tudo
 
 ## Arquivos de producao
 
@@ -48,6 +50,16 @@ Exemplo:
 
 O instalador valida esse apontamento antes de chamar o `certbot`.
 
+## Modos de uso
+
+Sem parametros, o script abre um menu com:
+
+1. `Instalar`
+2. `Atualizar`
+3. `Alterar dominio e SSL`
+
+Tambem da para chamar diretamente por acao.
+
 ## Passo a passo
 
 1. Clone o repositório na VPS.
@@ -60,7 +72,7 @@ O instalador valida esse apontamento antes de chamar o `certbot`.
 4. Rode:
 
 ```bash
-sudo bash deploy/ubuntu/install.sh \
+sudo bash deploy/ubuntu/install.sh --action install \
   --domain app.seudominio.com \
   --email ops@seudominio.com \
   --app-port 3000 \
@@ -70,12 +82,50 @@ sudo bash deploy/ubuntu/install.sh \
 Se a sua VPS ja tiver outra aplicacao ocupando a `3000`, rode em outra porta:
 
 ```bash
-sudo bash deploy/ubuntu/install.sh \
+sudo bash deploy/ubuntu/install.sh --action install \
   --domain app.seudominio.com \
   --email ops@seudominio.com \
   --app-port 3100 \
   --db-password 'uma-senha-forte-para-o-postgres'
 ```
+
+## Atualizacao de codigo na VPS
+
+Para atualizar o projeto existente:
+
+```bash
+cd /opt/produtos
+sudo bash deploy/ubuntu/install.sh --action update
+```
+
+Esse fluxo:
+
+- roda `git pull --ff-only origin main`
+- reinstala dependencias
+- gera os builds
+- aplica migracoes
+- reinicia o `produtos-api`
+- recarrega o `nginx`
+
+## Alteracao de dominio com HTTPS
+
+Para trocar o dominio do projeto e gerar SSL automaticamente:
+
+```bash
+cd /opt/produtos
+sudo bash deploy/ubuntu/install.sh --action change-domain \
+  --domain app-novo.seudominio.com \
+  --email ops@seudominio.com
+```
+
+Esse fluxo:
+
+- atualiza `PUBLIC_BASE_URL` no `.env.production`
+- reescreve o `nginx` com o novo dominio
+- desabilita sites antigos conflitantes no `sites-enabled`
+- valida se o DNS novo ja aponta para a VPS
+- chama o `certbot`
+- deixa o novo dominio pronto em `https://`
 
 ## Rotas e protecao
 

@@ -72,6 +72,15 @@ Fluxo resumido:
 3. rode o instalador com dominio, email e senha do PostgreSQL
 4. entre no painel com o token salvo em `ADMIN_TOKEN`
 
+Comandos principais do gerenciador:
+
+- instalar:
+  `sudo bash deploy/ubuntu/install.sh --action install --domain app.seudominio.com --email ops@seudominio.com --db-password 'senha-forte'`
+- atualizar:
+  `sudo bash deploy/ubuntu/install.sh --action update`
+- trocar dominio e renovar SSL:
+  `sudo bash deploy/ubuntu/install.sh --action change-domain --domain app-novo.seudominio.com --email ops@seudominio.com`
+
 Se a porta `3000` da VPS ja estiver ocupada por outra aplicacao, use o instalador com `--app-port 3100` e o Nginx sera configurado automaticamente para essa porta.
 
 Se o shell da VPS estiver com `NODE_ENV=production`, instale dependencias com `npm install --include=dev` no backend e no `frontend` para garantir `vite`, `typescript` e plugins de build.
