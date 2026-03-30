@@ -96,6 +96,11 @@ export type MyInventoryVariantItem = {
   individualWeight: number | null;
   masterStock: number;
   customStockQuantity: number | null;
+  cost: number | null;
+  stockWeightGrams: number;
+  stock_weight_grams: number;
+  stockUnits: number;
+  stock_units: number;
   effectiveStockQuantity: number;
   updatedAt: string;
 };

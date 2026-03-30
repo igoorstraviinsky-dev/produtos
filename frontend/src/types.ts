@@ -150,6 +150,11 @@ export type ProductVariant = {
   individualWeight: string | number | null;
   individual_stock: number;
   individualStock: number;
+  cost: number | null;
+  stock_weight_grams: number;
+  stockWeightGrams: number;
+  stock_units: number;
+  stockUnits: number;
   size_labels: string[];
   sizeLabels: string[];
   color_labels: string[];
@@ -232,6 +237,11 @@ export type AdminInventoryVariant = {
   individualWeight: number | null;
   masterStock: number;
   customStockQuantity: number | null;
+  cost: number | null;
+  stockWeightGrams: number;
+  stock_weight_grams: number;
+  stockUnits: number;
+  stock_units: number;
   effectiveStockQuantity: number;
   updatedAt: string;
 };

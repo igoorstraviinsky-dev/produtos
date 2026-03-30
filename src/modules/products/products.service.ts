@@ -12,6 +12,7 @@ import {
 } from "../media/media.service";
 import { ProductsResponse } from "./products.schemas";
 import { calculateProductCost } from "./cost-calculator";
+import { attachVariantMetrics, buildVariantMetrics } from "./variant-metrics";
 
 type ProductCacheEntry = {
   cachedAt: string;
@@ -126,9 +127,20 @@ export class ProductsService {
     const mediaAssets = this.buildMediaAssets(product);
     const mediaUrls = [...new Set(mediaAssets.map((asset) => asset.url).filter((url): url is string => Boolean(url)))];
     const mainImageUrl = mediaUrls[0] ?? null;
+    const variants = (product.variants ?? []).map((variant) =>
+      attachVariantMetrics(
+        variant,
+        buildVariantMetrics({
+          individualWeight: variant.individual_weight ?? variant.individualWeight,
+          stockWeightGrams: variant.individual_stock ?? variant.individualStock,
+          productCostFinal: costBreakdown.finalCost
+        })
+      )
+    );
 
     return {
       ...product,
+      variants,
       media_assets: mediaAssets,
       mediaAssets,
       media_urls: mediaUrls,

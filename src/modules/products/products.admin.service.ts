@@ -8,6 +8,7 @@ import {
   ProductMediaAssetRecord,
   buildStableProductMediaUrl
 } from "../media/media.service";
+import { attachVariantMetrics, buildVariantMetrics } from "./variant-metrics";
 
 type UpdateInventoryProductInput = {
   id: string;
@@ -85,7 +86,7 @@ export class ProductsAdminService {
     return products.map((product) => {
       const costBreakdown = calculateProductCost(product, costSettings);
       return {
-        ...this.enrichProduct(product),
+        ...this.enrichProduct(product, costBreakdown.finalCost),
         costFinal: costBreakdown.finalCost,
         costBreakdown
       };
@@ -106,13 +107,13 @@ export class ProductsAdminService {
     const costBreakdown = calculateProductCost(product, costSettings);
 
     return {
-      ...this.enrichProduct(product),
+      ...this.enrichProduct(product, costBreakdown.finalCost),
       costFinal: costBreakdown.finalCost,
       costBreakdown
     };
   }
 
-  private enrichProduct(product: ProductRecord) {
+  private enrichProduct(product: ProductRecord, productCostFinal: number | null) {
     const mediaAssets = this.buildMediaAssets(product);
     const mediaUrls = [
       ...new Set(mediaAssets.map((asset) => asset.url).filter((url): url is string => Boolean(url)))
@@ -126,7 +127,17 @@ export class ProductsAdminService {
       media_urls: mediaUrls,
       mediaUrls,
       main_image_url: mainImageUrl,
-      mainImageUrl
+      mainImageUrl,
+      variants: (product.variants ?? []).map((variant) =>
+        attachVariantMetrics(
+          variant,
+          buildVariantMetrics({
+            individualWeight: variant.individual_weight ?? variant.individualWeight,
+            stockWeightGrams: variant.individual_stock ?? variant.individualStock,
+            productCostFinal
+          })
+        )
+      )
     };
   }
 

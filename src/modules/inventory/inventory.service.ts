@@ -1,5 +1,8 @@
 import { ControlPlaneRepository, MasterProductRecord } from "../../lib/postgres";
+import { ProductGateway } from "../../lib/supabase";
 import { AppError } from "../../middleware/error-handler";
+import { calculateProductCost } from "../products/cost-calculator";
+import { attachVariantMetrics, buildVariantMetrics } from "../products/variant-metrics";
 import {
   MyInventoryItem,
   MyInventoryResponse,
@@ -9,7 +12,8 @@ import {
   SyncMyInventoryVariantItem
 } from "./inventory.schemas";
 
-function mapInventoryItem(record: {
+function mapInventoryItem(
+  record: {
   productId: string;
   sku: string;
   name: string;
@@ -29,7 +33,9 @@ function mapInventoryItem(record: {
     effectiveStockQuantity: number;
     updatedAt: Date;
   }>;
-}): MyInventoryItem {
+},
+  productCostById: Map<string, number>
+): MyInventoryItem {
   return {
     productId: record.productId,
     sku: record.sku,
@@ -41,20 +47,50 @@ function mapInventoryItem(record: {
     effectiveStockQuantity: record.effectiveStockQuantity,
     updatedAt: record.updatedAt.toISOString(),
     variants: record.variants.map((variant) => ({
-      variantId: variant.variantId,
-      productId: variant.productId,
-      sku: variant.sku,
-      individualWeight: variant.individualWeight,
-      masterStock: variant.masterStock,
-      customStockQuantity: variant.customStockQuantity,
-      effectiveStockQuantity: variant.effectiveStockQuantity,
-      updatedAt: variant.updatedAt.toISOString()
+      ...attachVariantMetrics(
+        {
+          variantId: variant.variantId,
+          productId: variant.productId,
+          sku: variant.sku,
+          individualWeight: variant.individualWeight,
+          masterStock: variant.masterStock,
+          customStockQuantity: variant.customStockQuantity,
+          effectiveStockQuantity: variant.effectiveStockQuantity,
+          updatedAt: variant.updatedAt.toISOString()
+        },
+        buildVariantMetrics({
+          individualWeight: variant.individualWeight,
+          stockWeightGrams: variant.effectiveStockQuantity,
+          productCostFinal: productCostById.get(record.productId) ?? null
+        })
+      )
     }))
   };
 }
 
 export class InventoryService {
-  constructor(private readonly controlPlane: ControlPlaneRepository) {}
+  constructor(
+    private readonly controlPlane: ControlPlaneRepository,
+    private readonly productGateway: ProductGateway
+  ) {}
+
+  private async buildProductCostById(companyId: string) {
+    try {
+      const [products, costSettings] = await Promise.all([
+        this.productGateway.listProducts(),
+        this.controlPlane.getCostSettings(companyId)
+      ]);
+
+      return new Map(
+        products.map((product) => [
+          product.id,
+          calculateProductCost(product, costSettings).finalCost
+        ])
+      );
+    } catch {
+      return new Map<string, number>();
+    }
+  }
 
   private async resolveMasterProduct(
     item: SyncMyInventoryItem,
@@ -114,10 +150,13 @@ export class InventoryService {
   }
 
   async listMyInventory(companyId: string): Promise<MyInventoryResponse> {
-    const inventory = await this.controlPlane.listEffectiveInventoryByCompany(companyId);
+    const [inventory, productCostById] = await Promise.all([
+      this.controlPlane.listEffectiveInventoryByCompany(companyId),
+      this.buildProductCostById(companyId)
+    ]);
 
     return {
-      data: inventory.map(mapInventoryItem),
+      data: inventory.map((item) => mapInventoryItem(item, productCostById)),
       meta: {
         count: inventory.length,
         companyId
@@ -130,6 +169,7 @@ export class InventoryService {
     productId: string,
     customStockQuantity: number
   ) {
+    const productCostById = await this.buildProductCostById(companyId);
     const updatedInventory = await this.controlPlane.upsertCompanyInventory(
       companyId,
       productId,
@@ -145,7 +185,7 @@ export class InventoryService {
     }
 
     return {
-      data: mapInventoryItem(updatedInventory)
+      data: mapInventoryItem(updatedInventory, productCostById)
     };
   }
 
@@ -247,10 +287,13 @@ export class InventoryService {
       }
     }
 
-    const inventory = await this.controlPlane.listEffectiveInventoryByCompany(companyId);
+    const [inventory, productCostById] = await Promise.all([
+      this.controlPlane.listEffectiveInventoryByCompany(companyId),
+      this.buildProductCostById(companyId)
+    ]);
     const updatedItems = inventory
       .filter((record) => touchedProductIds.has(record.productId))
-      .map(mapInventoryItem);
+      .map((item) => mapInventoryItem(item, productCostById));
 
     if (updatedItems.length === 0 && errors.length === 0) {
       return {

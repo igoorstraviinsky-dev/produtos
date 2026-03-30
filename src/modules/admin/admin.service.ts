@@ -4,10 +4,14 @@ import {
   UpdateCostSettingsInput,
   UpdateCompanyInput
 } from "../../lib/postgres";
+import { ProductGateway } from "../../lib/supabase";
 import { AppError } from "../../middleware/error-handler";
+import { calculateProductCost } from "../products/cost-calculator";
+import { attachVariantMetrics, buildVariantMetrics } from "../products/variant-metrics";
 import { deriveApiKeyPrefix, generateApiKey, hashApiKey } from "../../utils/crypto";
 
-function mapInventoryItem(record: {
+function mapInventoryItem(
+  record: {
   productId: string;
   sku: string;
   name: string;
@@ -27,7 +31,9 @@ function mapInventoryItem(record: {
     effectiveStockQuantity: number;
     updatedAt: Date;
   }>;
-}) {
+},
+  productCostById: Map<string, number>
+) {
   return {
     productId: record.productId,
     sku: record.sku,
@@ -39,14 +45,23 @@ function mapInventoryItem(record: {
     effectiveStockQuantity: record.effectiveStockQuantity,
     updatedAt: record.updatedAt.toISOString(),
     variants: record.variants.map((variant) => ({
-      variantId: variant.variantId,
-      productId: variant.productId,
-      sku: variant.sku,
-      individualWeight: variant.individualWeight,
-      masterStock: variant.masterStock,
-      customStockQuantity: variant.customStockQuantity,
-      effectiveStockQuantity: variant.effectiveStockQuantity,
-      updatedAt: variant.updatedAt.toISOString()
+      ...attachVariantMetrics(
+        {
+          variantId: variant.variantId,
+          productId: variant.productId,
+          sku: variant.sku,
+          individualWeight: variant.individualWeight,
+          masterStock: variant.masterStock,
+          customStockQuantity: variant.customStockQuantity,
+          effectiveStockQuantity: variant.effectiveStockQuantity,
+          updatedAt: variant.updatedAt.toISOString()
+        },
+        buildVariantMetrics({
+          individualWeight: variant.individualWeight,
+          stockWeightGrams: variant.effectiveStockQuantity,
+          productCostFinal: productCostById.get(record.productId) ?? null
+        })
+      )
     }))
   };
 }
@@ -54,8 +69,27 @@ function mapInventoryItem(record: {
 export class AdminService {
   constructor(
     private readonly controlPlane: ControlPlaneRepository,
+    private readonly productGateway: ProductGateway,
     private readonly pepper: string
   ) {}
+
+  private async buildProductCostById(companyId?: string) {
+    try {
+      const [products, costSettings] = await Promise.all([
+        this.productGateway.listProducts(),
+        this.controlPlane.getCostSettings(companyId)
+      ]);
+
+      return new Map(
+        products.map((product) => [
+          product.id,
+          calculateProductCost(product, costSettings).finalCost
+        ])
+      );
+    } catch {
+      return new Map<string, number>();
+    }
+  }
 
   async createCompany(input: CreateCompanyInput) {
     return this.controlPlane.createCompany(input);
@@ -168,10 +202,13 @@ export class AdminService {
       throw new AppError(404, "COMPANY_NOT_FOUND", "Company was not found");
     }
 
-    const inventory = await this.controlPlane.listEffectiveInventoryByCompany(companyId);
+    const [inventory, productCostById] = await Promise.all([
+      this.controlPlane.listEffectiveInventoryByCompany(companyId),
+      this.buildProductCostById(companyId)
+    ]);
 
     return {
-      data: inventory.map(mapInventoryItem),
+      data: inventory.map((item) => mapInventoryItem(item, productCostById)),
       meta: {
         companyId,
         companyName: company.legalName,
@@ -190,6 +227,7 @@ export class AdminService {
       throw new AppError(404, "COMPANY_NOT_FOUND", "Company was not found");
     }
 
+    const productCostById = await this.buildProductCostById(companyId);
     const updatedInventory = await this.controlPlane.upsertCompanyInventory(
       companyId,
       productId,
@@ -201,7 +239,7 @@ export class AdminService {
     }
 
     return {
-      data: mapInventoryItem(updatedInventory),
+      data: mapInventoryItem(updatedInventory, productCostById),
       meta: {
         companyId,
         companyName: company.legalName

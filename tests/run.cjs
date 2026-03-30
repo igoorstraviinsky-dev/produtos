@@ -1051,6 +1051,9 @@ const cases = [
           productsResponse.json().data[0].media_assets[0].url,
           "https://api.example.com/api/v1/media/object/joias%2Fraw%2FSKU-001%2FSKU-001_st.jpg"
         );
+        assert.equal(productsResponse.json().data[0].variants[0].stockWeightGrams, 4);
+        assert.equal(productsResponse.json().data[0].variants[0].stockUnits, 0);
+        assert.equal(productsResponse.json().data[0].variants[0].cost, 60.9);
 
         const mediaResponse = await app.inject({
           method: "GET",
@@ -1406,6 +1409,8 @@ const cases = [
         assert.equal(getResponse.json().data[0].effectiveStockQuantity, 12);
         assert.equal(getResponse.json().data[0].variants[0].sku, "VAR-001-A");
         assert.equal(getResponse.json().data[0].variants[0].customStockQuantity, 9);
+        assert.equal(getResponse.json().data[0].variants[0].stockWeightGrams, 9);
+        assert.equal(getResponse.json().data[0].variants[0].stockUnits, 8);
       } finally {
         await app.close();
       }
@@ -1757,6 +1762,9 @@ const cases = [
           adminProductsResponse.json().data[0].main_image_url,
           "https://api.example.com/api/v1/media/object/joias%2Fraw%2FSKU-001%2FSKU-001_st.jpg"
         );
+        assert.equal(adminProductsResponse.json().data[0].variants[0].stockWeightGrams, 4);
+        assert.equal(adminProductsResponse.json().data[0].variants[0].stockUnits, 0);
+        assert.equal(adminProductsResponse.json().data[0].variants[0].cost, 60.9);
 
         const inventoryResponse = await app.inject({
           method: "GET",
@@ -1769,6 +1777,9 @@ const cases = [
         assert.equal(inventoryResponse.statusCode, 200);
         assert.equal(inventoryResponse.json().meta.companyId, companyId);
         assert.equal(inventoryResponse.json().data.length, 1);
+        assert.equal(inventoryResponse.json().data[0].variants[0].stockWeightGrams, 4);
+        assert.equal(inventoryResponse.json().data[0].variants[0].stockUnits, 0);
+        assert.equal(inventoryResponse.json().data[0].variants[0].cost, 60.9);
 
         const updateInventoryResponse = await app.inject({
           method: "PUT",

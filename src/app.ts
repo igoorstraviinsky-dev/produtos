@@ -135,8 +135,15 @@ export async function buildApp(overrides?: Partial<AppDependencies>): Promise<Fa
     dependencies.productCache,
     dependencies.controlPlane
   );
-  const adminService = new AdminService(dependencies.controlPlane, env.API_KEY_PEPPER);
-  const inventoryService = new InventoryService(dependencies.controlPlane);
+  const adminService = new AdminService(
+    dependencies.controlPlane,
+    dependencies.productGateway,
+    env.API_KEY_PEPPER
+  );
+  const inventoryService = new InventoryService(
+    dependencies.controlPlane,
+    dependencies.productGateway
+  );
   const webhooksService = new WebhooksService(
     dependencies.controlPlane,
     dependencies.productGateway,
