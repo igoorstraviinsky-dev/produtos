@@ -1,16 +1,21 @@
 import { FastifyBaseLogger } from "fastify";
 
 import { AppEnv } from "../../config/env";
-import { ControlPlaneRepository } from "../../lib/postgres";
+import {
+  CompanyRecord,
+  ControlPlaneRepository,
+  EffectiveInventoryRecord
+} from "../../lib/postgres";
 import { ProductGateway, ProductRecord } from "../../lib/supabase";
 import { ProductCacheStore } from "../../lib/redis";
 import { AppError } from "../../middleware/error-handler";
 import { buildProductsCacheKey } from "../../utils/cache-keys";
+import { AuthContext } from "../auth/auth.types";
 import {
   ProductMediaAssetRecord,
   buildStableProductMediaUrl
 } from "../media/media.service";
-import { ProductsResponse } from "./products.schemas";
+import { CompanyCatalogResponse, ProductsResponse } from "./products.schemas";
 import { calculateProductCost } from "./cost-calculator";
 import { attachVariantMetrics, buildVariantMetrics } from "./variant-metrics";
 
@@ -18,6 +23,14 @@ type ProductCacheEntry = {
   cachedAt: string;
   data: ProductRecord[];
 };
+
+type ProductListMeta = {
+  source: "cache" | "upstream";
+  stale?: boolean;
+  count: number;
+};
+
+type CompanyCatalogContext = Pick<AuthContext, "companyId" | "companyExternalCode" | "companyName">;
 
 type ProductsServiceOptions = {
   env: AppEnv;
@@ -31,10 +44,48 @@ export class ProductsService {
   constructor(private readonly options: ProductsServiceOptions) {}
 
   async listProducts(): Promise<ProductsResponse> {
+    const { products, meta } = await this.listRawProducts();
+    const costSettings = await this.options.controlPlane.getCostSettings();
+
+    return {
+      data: products.map((product) => this.enrichProduct(product, costSettings)),
+      meta
+    };
+  }
+
+  async listCompanyCatalog(companyContext: CompanyCatalogContext): Promise<CompanyCatalogResponse> {
+    const { products, meta } = await this.listRawProducts();
+    const [costSettings, effectiveInventory, companyRecord] = await Promise.all([
+      this.options.controlPlane.getCostSettings(companyContext.companyId),
+      this.options.controlPlane.listEffectiveInventoryByCompany(companyContext.companyId),
+      this.options.controlPlane.findCompanyById(companyContext.companyId)
+    ]);
+    const inventoryByProductId = new Map(
+      effectiveInventory.map((item) => [item.productId, item] as const)
+    );
+
+    return {
+      company: this.buildCompanyPayload(companyContext, companyRecord),
+      data: products.map((product) =>
+        this.enrichCompanyProduct(
+          product,
+          costSettings,
+          inventoryByProductId.get(product.id) ?? null
+        )
+      ),
+      meta: {
+        ...meta,
+        companyId: companyContext.companyId,
+        companyExternalCode: companyContext.companyExternalCode,
+        companyName: companyContext.companyName
+      }
+    };
+  }
+
+  private async listRawProducts(): Promise<{ products: ProductRecord[]; meta: ProductListMeta }> {
     const cacheKey = buildProductsCacheKey();
     const now = Date.now();
     const cachedEntry = await this.options.cacheStore.get<ProductCacheEntry>(cacheKey);
-    const costSettings = await this.options.controlPlane.getCostSettings();
 
     if (cachedEntry && this.isFresh(cachedEntry, now)) {
       this.options.logger?.info(
@@ -44,7 +95,7 @@ export class ProductsService {
         "serving products from fresh cache"
       );
       return {
-        data: cachedEntry.data.map((product) => this.enrichProduct(product, costSettings)),
+        products: cachedEntry.data,
         meta: {
           source: "cache",
           count: cachedEntry.data.length
@@ -71,7 +122,7 @@ export class ProductsService {
       );
 
       return {
-        data: products.map((product) => this.enrichProduct(product, costSettings)),
+        products,
         meta: {
           source: "upstream",
           count: products.length
@@ -87,7 +138,7 @@ export class ProductsService {
           "serving stale products cache after upstream failure"
         );
         return {
-          data: cachedEntry.data.map((product) => this.enrichProduct(product, costSettings)),
+          products: cachedEntry.data,
           meta: {
             source: "cache",
             stale: true,
@@ -122,10 +173,15 @@ export class ProductsService {
     );
   }
 
-  private enrichProduct(product: ProductRecord, costSettings: Awaited<ReturnType<ControlPlaneRepository["getCostSettings"]>>) {
+  private enrichProduct(
+    product: ProductRecord,
+    costSettings: Awaited<ReturnType<ControlPlaneRepository["getCostSettings"]>>
+  ) {
     const costBreakdown = calculateProductCost(product, costSettings);
     const mediaAssets = this.buildMediaAssets(product);
-    const mediaUrls = [...new Set(mediaAssets.map((asset) => asset.url).filter((url): url is string => Boolean(url)))];
+    const mediaUrls = [
+      ...new Set(mediaAssets.map((asset) => asset.url).filter((url): url is string => Boolean(url)))
+    ];
     const mainImageUrl = mediaUrls[0] ?? null;
     const variants = (product.variants ?? []).map((variant) =>
       attachVariantMetrics(
@@ -149,6 +205,121 @@ export class ProductsService {
       mainImageUrl,
       costFinal: costBreakdown.finalCost,
       costBreakdown
+    };
+  }
+
+  private enrichCompanyProduct(
+    product: ProductRecord,
+    costSettings: Awaited<ReturnType<ControlPlaneRepository["getCostSettings"]>>,
+    inventory: EffectiveInventoryRecord | null
+  ) {
+    const costBreakdown = calculateProductCost(product, costSettings);
+    const mediaAssets = this.buildMediaAssets(product);
+    const mediaUrls = [
+      ...new Set(mediaAssets.map((asset) => asset.url).filter((url): url is string => Boolean(url)))
+    ];
+    const mainImageUrl = mediaUrls[0] ?? null;
+    const inventoryVariantById = new Map(
+      (inventory?.variants ?? []).map((variant) => [variant.variantId, variant] as const)
+    );
+    const variants = (product.variants ?? []).map((variant) => {
+      const inventoryVariant =
+        inventoryVariantById.get(variant.variant_id ?? variant.variantId) ??
+        (inventory?.variants ?? []).find((item) => item.sku === variant.sku) ??
+        null;
+      const masterStock = variant.individual_stock ?? variant.individualStock ?? 0;
+      const customStockQuantity = inventoryVariant?.customStockQuantity ?? null;
+      const effectiveStockQuantity = inventoryVariant?.effectiveStockQuantity ?? masterStock;
+      const variantMetrics = buildVariantMetrics({
+        individualWeight: variant.individual_weight ?? variant.individualWeight,
+        stockWeightGrams: effectiveStockQuantity,
+        productCostFinal: costBreakdown.finalCost
+      });
+
+      return {
+        ...attachVariantMetrics(
+          {
+            ...variant,
+            individual_stock: effectiveStockQuantity,
+            individualStock: effectiveStockQuantity
+          },
+          variantMetrics
+        ),
+        master_stock: masterStock,
+        masterStock,
+        custom_stock_quantity: customStockQuantity,
+        customStockQuantity,
+        effective_stock_quantity: effectiveStockQuantity,
+        effectiveStockQuantity
+      };
+    });
+    const masterStock =
+      variants.length > 0
+        ? variants.reduce((sum, variant) => sum + variant.masterStock, 0)
+        : product.available_quantity ?? product.availableQuantity ?? product.stock_quantity ?? 0;
+    const effectiveStockQuantity = inventory?.effectiveStockQuantity ?? masterStock;
+    const inventoryUpdatedAt = inventory?.updatedAt.toISOString() ?? product.updated_at ?? product.updatedAt ?? null;
+
+    return {
+      ...product,
+      availableQuantity: effectiveStockQuantity,
+      available_quantity: effectiveStockQuantity,
+      stock_quantity: effectiveStockQuantity,
+      variants,
+      media_assets: mediaAssets,
+      mediaAssets,
+      media_urls: mediaUrls,
+      mediaUrls,
+      main_image_url: mainImageUrl,
+      mainImageUrl,
+      costFinal: costBreakdown.finalCost,
+      costBreakdown,
+      master_stock: masterStock,
+      masterStock,
+      custom_stock_quantity: inventory?.customStockQuantity ?? null,
+      customStockQuantity: inventory?.customStockQuantity ?? null,
+      variant_stock_quantity_total: inventory?.variantStockQuantityTotal ?? null,
+      variantStockQuantityTotal: inventory?.variantStockQuantityTotal ?? null,
+      has_variant_inventory: inventory?.hasVariantInventory ?? false,
+      hasVariantInventory: inventory?.hasVariantInventory ?? false,
+      effective_stock_quantity: effectiveStockQuantity,
+      effectiveStockQuantity,
+      inventory_updated_at: inventoryUpdatedAt,
+      inventoryUpdatedAt
+    };
+  }
+
+  private buildCompanyPayload(
+    companyContext: CompanyCatalogContext,
+    companyRecord: CompanyRecord | null
+  ) {
+    const legalName = companyRecord?.legalName ?? companyContext.companyName;
+    const externalCode = companyRecord?.externalCode ?? companyContext.companyExternalCode;
+    const createdAt = companyRecord?.createdAt.toISOString() ?? null;
+    const updatedAt = companyRecord?.updatedAt.toISOString() ?? null;
+
+    return {
+      id: companyContext.companyId,
+      company_id: companyContext.companyId,
+      companyId: companyContext.companyId,
+      legal_name: legalName,
+      legalName,
+      external_code: externalCode,
+      externalCode,
+      company_name: legalName,
+      companyName: legalName,
+      is_active: companyRecord?.isActive ?? true,
+      isActive: companyRecord?.isActive ?? true,
+      sync_store_inventory: companyRecord?.syncStoreInventory ?? false,
+      syncStoreInventory: companyRecord?.syncStoreInventory ?? false,
+      api_key_count: companyRecord?.apiKeyCount ?? 0,
+      apiKeyCount: companyRecord?.apiKeyCount ?? 0,
+      active_key_count: companyRecord?.activeKeyCount ?? 0,
+      activeKeyCount: companyRecord?.activeKeyCount ?? 0,
+      created_at: createdAt,
+      createdAt,
+      updated_at: updatedAt,
+      updatedAt
     };
   }
 

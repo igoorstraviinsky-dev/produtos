@@ -1073,6 +1073,103 @@ const cases = [
     }
   },
   {
+    name: "Company catalog endpoint exposes company-scoped stock, costs, and consolidated variants",
+    fn: async () => {
+      const { app, controlPlane, env } = await createTestApp();
+      try {
+        const company = controlPlane.seedCompany({
+          legalName: "Empresa Catalogo",
+          externalCode: "empresa-catalogo"
+        });
+        const apiKey = "b2b_company_catalog_123";
+
+        controlPlane.seedApiKey({
+          companyId: company.id,
+          keyPrefix: deriveApiKeyPrefix(apiKey),
+          keyHash: hashApiKey(apiKey, env.API_KEY_PEPPER),
+          rateLimitPerMinute: 10
+        });
+
+        await controlPlane.updateCostSettings(
+          {
+            silverPricePerGram: 2,
+            zonaFrancaRatePercent: 0,
+            transportFee: 0,
+            dollarRate: 5
+          },
+          company.id
+        );
+
+        await controlPlane.replaceMasterProducts([
+          {
+            id: "prod-1",
+            sku: "SKU-001",
+            name: "Produto 1",
+            masterStock: 4,
+            updatedAt: new Date("2026-03-23T00:00:00.000Z"),
+            variants: [
+              {
+                id: "variant-1",
+                productId: "prod-1",
+                sku: "SKU-001-ARO-16",
+                individualWeight: 10.5,
+                individualStock: 4,
+                createdAt: new Date("2026-03-23T00:00:00.000Z"),
+                updatedAt: new Date("2026-03-23T00:00:00.000Z")
+              }
+            ]
+          }
+        ]);
+
+        await controlPlane.upsertCompanyInventory(company.id, "prod-1", 21);
+        await controlPlane.upsertCompanyVariantInventory(company.id, "variant-1", 21);
+
+        const response = await app.inject({
+          method: "GET",
+          url: "/api/v1/companyid",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          }
+        });
+
+        assert.equal(response.statusCode, 200);
+        assert.equal(response.json().company.id, company.id);
+        assert.equal(response.json().company.companyId, company.id);
+        assert.equal(response.json().company.legalName, "Empresa Catalogo");
+        assert.equal(response.json().meta.companyId, company.id);
+        assert.equal(response.json().meta.companyExternalCode, "empresa-catalogo");
+        assert.equal(response.json().data[0].main_image_url, "https://api.example.com/api/v1/media/object/joias%2Fraw%2FSKU-001%2FSKU-001_st.jpg");
+        assert.equal(response.json().data[0].availableQuantity, 21);
+        assert.equal(response.json().data[0].available_quantity, 21);
+        assert.equal(response.json().data[0].stock_quantity, 21);
+        assert.equal(response.json().data[0].masterStock, 4);
+        assert.equal(response.json().data[0].customStockQuantity, 21);
+        assert.equal(response.json().data[0].variantStockQuantityTotal, 21);
+        assert.equal(response.json().data[0].hasVariantInventory, true);
+        assert.equal(response.json().data[0].effectiveStockQuantity, 21);
+        assert.equal(response.json().data[0].costFinal, 10);
+        assert.deepEqual(response.json().data[0].costBreakdown, {
+          laborCostUsd: 0,
+          laborCostBrl: 0,
+          silverCost: 2,
+          r1: 2,
+          r2: 2,
+          r3: 2,
+          finalCost: 10
+        });
+        assert.equal(response.json().data[0].variants[0].individualStock, 21);
+        assert.equal(response.json().data[0].variants[0].masterStock, 4);
+        assert.equal(response.json().data[0].variants[0].customStockQuantity, 21);
+        assert.equal(response.json().data[0].variants[0].effectiveStockQuantity, 21);
+        assert.equal(response.json().data[0].variants[0].stockWeightGrams, 21);
+        assert.equal(response.json().data[0].variants[0].stockUnits, 2);
+        assert.equal(response.json().data[0].variants[0].cost, 105);
+      } finally {
+        await app.close();
+      }
+    }
+  },
+  {
     name: "Products endpoint rejects missing bearer token",
     fn: async () => {
       const { app } = await createTestApp();
@@ -1919,6 +2016,8 @@ const cases = [
 
       assert.ok(openApiDocument.paths["/api/v1/products"]);
       assert.ok(openApiDocument.paths["/api/v1/products"].get);
+      assert.ok(openApiDocument.paths["/api/v1/companyid"]);
+      assert.ok(openApiDocument.paths["/api/v1/companyid"].get);
       assert.ok(openApiDocument.paths["/api/v1/media/object/{storageKey}"]);
       assert.ok(openApiDocument.paths["/api/v1/my-inventory"]);
       assert.ok(openApiDocument.paths["/api/v1/my-inventory"].get);

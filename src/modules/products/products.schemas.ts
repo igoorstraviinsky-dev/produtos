@@ -42,6 +42,15 @@ export const productVariantSchema = z.object({
   updatedAt: z.string().nullable()
 });
 
+export const companyProductVariantSchema = productVariantSchema.extend({
+  master_stock: z.number(),
+  masterStock: z.number(),
+  custom_stock_quantity: z.number().nullable(),
+  customStockQuantity: z.number().nullable(),
+  effective_stock_quantity: z.number(),
+  effectiveStockQuantity: z.number()
+});
+
 export const productMediaAssetSchema = z.object({
   id: z.string(),
   role: z.string(),
@@ -144,6 +153,22 @@ export const productSchema = z.object({
   costBreakdown: productCostBreakdownSchema
 });
 
+export const companyProductSchema = productSchema.extend({
+  master_stock: z.number(),
+  masterStock: z.number(),
+  custom_stock_quantity: z.number().nullable(),
+  customStockQuantity: z.number().nullable(),
+  variant_stock_quantity_total: z.number().nullable(),
+  variantStockQuantityTotal: z.number().nullable(),
+  has_variant_inventory: z.boolean(),
+  hasVariantInventory: z.boolean(),
+  effective_stock_quantity: z.number(),
+  effectiveStockQuantity: z.number(),
+  inventory_updated_at: z.string().nullable(),
+  inventoryUpdatedAt: z.string().nullable(),
+  variants: z.array(companyProductVariantSchema)
+});
+
 export const productsResponseSchema = z.object({
   data: z.array(productSchema),
   meta: z.object({
@@ -154,3 +179,42 @@ export const productsResponseSchema = z.object({
 });
 
 export type ProductsResponse = z.infer<typeof productsResponseSchema>;
+
+export const companyCatalogCompanySchema = z.object({
+  id: z.string(),
+  company_id: z.string(),
+  companyId: z.string(),
+  legal_name: z.string(),
+  legalName: z.string(),
+  external_code: z.string(),
+  externalCode: z.string(),
+  company_name: z.string(),
+  companyName: z.string(),
+  is_active: z.boolean(),
+  isActive: z.boolean(),
+  sync_store_inventory: z.boolean(),
+  syncStoreInventory: z.boolean(),
+  api_key_count: z.number().int().nonnegative(),
+  apiKeyCount: z.number().int().nonnegative(),
+  active_key_count: z.number().int().nonnegative(),
+  activeKeyCount: z.number().int().nonnegative(),
+  created_at: z.string().nullable(),
+  createdAt: z.string().nullable(),
+  updated_at: z.string().nullable(),
+  updatedAt: z.string().nullable()
+});
+
+export const companyCatalogResponseSchema = z.object({
+  company: companyCatalogCompanySchema,
+  data: z.array(companyProductSchema),
+  meta: z.object({
+    source: z.enum(["cache", "upstream"]),
+    stale: z.boolean().optional(),
+    count: z.number().int().nonnegative(),
+    companyId: z.string(),
+    companyExternalCode: z.string(),
+    companyName: z.string()
+  })
+});
+
+export type CompanyCatalogResponse = z.infer<typeof companyCatalogResponseSchema>;

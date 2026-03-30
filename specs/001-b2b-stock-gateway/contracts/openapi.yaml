@@ -43,6 +43,28 @@ paths:
           description: Rate limit exceeded
         '503':
           description: Remote catalog unavailable and no valid cache exists
+  /api/v1/companyid:
+    get:
+      summary: List the authenticated company catalog with company-scoped stock and costs
+      tags:
+        - Products
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authorized company catalog with consolidated inventory context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyCatalogResponse'
+        '401':
+          description: Missing or invalid credential
+        '403':
+          description: Company inactive or key revoked
+        '429':
+          description: Rate limit exceeded
+        '503':
+          description: Remote catalog unavailable and no valid cache exists
   /api/v1/media/object/{storageKey}:
     get:
       summary: Stream one stable media object by storage key
@@ -507,6 +529,112 @@ components:
       in: header
       name: x-webhook-secret
   schemas:
+    CompanyCatalogResponse:
+      type: object
+      required:
+        - company
+        - data
+        - meta
+      properties:
+        company:
+          $ref: '#/components/schemas/CompanyCatalogCompany'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyScopedProduct'
+        meta:
+          type: object
+          required:
+            - source
+            - count
+            - companyId
+            - companyExternalCode
+            - companyName
+          properties:
+            source:
+              type: string
+              enum: [cache, upstream]
+            stale:
+              type: boolean
+            count:
+              type: integer
+            companyId:
+              type: string
+            companyExternalCode:
+              type: string
+            companyName:
+              type: string
+    CompanyCatalogCompany:
+      type: object
+      required:
+        - id
+        - company_id
+        - companyId
+        - legal_name
+        - legalName
+        - external_code
+        - externalCode
+        - company_name
+        - companyName
+        - is_active
+        - isActive
+        - sync_store_inventory
+        - syncStoreInventory
+        - api_key_count
+        - apiKeyCount
+        - active_key_count
+        - activeKeyCount
+      properties:
+        id:
+          type: string
+        company_id:
+          type: string
+        companyId:
+          type: string
+        legal_name:
+          type: string
+        legalName:
+          type: string
+        external_code:
+          type: string
+        externalCode:
+          type: string
+        company_name:
+          type: string
+        companyName:
+          type: string
+        is_active:
+          type: boolean
+        isActive:
+          type: boolean
+        sync_store_inventory:
+          type: boolean
+        syncStoreInventory:
+          type: boolean
+        api_key_count:
+          type: integer
+        apiKeyCount:
+          type: integer
+        active_key_count:
+          type: integer
+        activeKeyCount:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
     Product:
       type: object
       required:
@@ -796,6 +924,60 @@ components:
           type: number
         costBreakdown:
           $ref: '#/components/schemas/ProductCostBreakdown'
+    CompanyScopedProduct:
+      allOf:
+        - $ref: '#/components/schemas/Product'
+        - type: object
+          required:
+            - master_stock
+            - masterStock
+            - custom_stock_quantity
+            - customStockQuantity
+            - variant_stock_quantity_total
+            - variantStockQuantityTotal
+            - has_variant_inventory
+            - hasVariantInventory
+            - effective_stock_quantity
+            - effectiveStockQuantity
+            - inventory_updated_at
+            - inventoryUpdatedAt
+          properties:
+            master_stock:
+              type: number
+            masterStock:
+              type: number
+            custom_stock_quantity:
+              type: number
+              nullable: true
+            customStockQuantity:
+              type: number
+              nullable: true
+            variant_stock_quantity_total:
+              type: number
+              nullable: true
+            variantStockQuantityTotal:
+              type: number
+              nullable: true
+            has_variant_inventory:
+              type: boolean
+            hasVariantInventory:
+              type: boolean
+            effective_stock_quantity:
+              type: number
+            effectiveStockQuantity:
+              type: number
+            inventory_updated_at:
+              type: string
+              format: date-time
+              nullable: true
+            inventoryUpdatedAt:
+              type: string
+              format: date-time
+              nullable: true
+            variants:
+              type: array
+              items:
+                $ref: '#/components/schemas/CompanyScopedProductVariant'
     ProductVariant:
       type: object
       required:
@@ -872,6 +1054,43 @@ components:
           type: string
           format: date-time
           nullable: true
+        cost:
+          type: number
+          nullable: true
+        stock_weight_grams:
+          type: number
+        stockWeightGrams:
+          type: number
+        stock_units:
+          type: number
+        stockUnits:
+          type: number
+    CompanyScopedProductVariant:
+      allOf:
+        - $ref: '#/components/schemas/ProductVariant'
+        - type: object
+          required:
+            - master_stock
+            - masterStock
+            - custom_stock_quantity
+            - customStockQuantity
+            - effective_stock_quantity
+            - effectiveStockQuantity
+          properties:
+            master_stock:
+              type: number
+            masterStock:
+              type: number
+            custom_stock_quantity:
+              type: number
+              nullable: true
+            customStockQuantity:
+              type: number
+              nullable: true
+            effective_stock_quantity:
+              type: number
+            effectiveStockQuantity:
+              type: number
     ProductMediaAsset:
       type: object
       required:
