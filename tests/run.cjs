@@ -7,6 +7,7 @@ const YAML = require("yaml");
 
 const { buildApp } = require("../dist/app.js");
 const { ApiKeyService } = require("../dist/modules/auth/api-key.service.js");
+const { SupabaseProductGateway } = require("../dist/lib/supabase.js");
 const { calculateProductCost } = require("../dist/modules/products/cost-calculator.js");
 const { ProductsService } = require("../dist/modules/products/products.service.js");
 const { buildProductsCacheKey } = require("../dist/utils/cache-keys.js");
@@ -514,6 +515,35 @@ class FakeProductMediaService {
   }
 }
 
+function createMockSupabaseClient(rowsByTable) {
+  return {
+    from(tableName) {
+      let selectedRows = [...(rowsByTable[tableName] ?? [])];
+
+      const builder = {
+        select() {
+          return builder;
+        },
+        order() {
+          return builder;
+        },
+        in(column, values) {
+          selectedRows = selectedRows.filter((row) => values.includes(row[column]));
+          return builder;
+        },
+        then(resolve, reject) {
+          return Promise.resolve({
+            data: selectedRows,
+            error: null
+          }).then(resolve, reject);
+        }
+      };
+
+      return builder;
+    }
+  };
+}
+
 async function createTestApp(options = {}) {
   const env = createTestEnv(options.env);
   const controlPlane = options.controlPlane ?? new FakeControlPlaneRepository();
@@ -697,6 +727,52 @@ async function runCase(name, fn) {
 }
 
 const cases = [
+  {
+    name: "Supabase gateway resolves material and purity from product_types",
+    fn: async () => {
+      const gateway = new SupabaseProductGateway(
+        createMockSupabaseClient({
+          products: [
+            {
+              id: "prod-material-1",
+              sku: "MAT-001",
+              numero_serie: "MAT-001",
+              nome: "Anel Material",
+              material_base: "Material legado",
+              tipo: "Tipo legado",
+              type_id: "type-prata-925",
+              pureza: null,
+              stock_quantity: 3,
+              available_quantity: 3
+            }
+          ],
+          product_variants: [],
+          product_media_assets: [],
+          suppliers: [],
+          product_types: [
+            {
+              id: "type-prata-925",
+              nome: "Prata 925",
+              material_base: "Prata 925",
+              pureza: "925"
+            }
+          ]
+        }),
+        "products"
+      );
+
+      const products = await gateway.listProducts();
+
+      assert.equal(products.length, 1);
+      assert.equal(products[0].material, "Prata 925");
+      assert.equal(products[0].baseMaterial, "Prata 925");
+      assert.equal(products[0].material_base, "Prata 925");
+      assert.equal(products[0].productType, "Prata 925");
+      assert.equal(products[0].tipo, "Prata 925");
+      assert.equal(products[0].purity, "925");
+      assert.equal(products[0].pureza, "925");
+    }
+  },
   {
     name: "ApiKeyService authenticates valid API keys",
     fn: async () => {
