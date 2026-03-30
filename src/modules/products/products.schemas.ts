@@ -17,6 +17,19 @@ export const laborRateTableSchema = z.object({
   label: z.string()
 });
 
+export const materialTypeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  nome: z.string(),
+  label: z.string(),
+  material: z.string().nullable(),
+  baseMaterial: z.string().nullable(),
+  material_base: z.string().nullable(),
+  purity: z.string().nullable(),
+  pureza: z.string().nullable(),
+  laborRateTables: z.array(laborRateTableSchema)
+});
+
 export const productVariantOptionSchema = z.object({
   id: z.string(),
   kind: z.string(),
@@ -184,7 +197,8 @@ export const productsResponseSchema = z.object({
     source: z.enum(["cache", "upstream"]),
     stale: z.boolean().optional(),
     count: z.number().int().nonnegative(),
-    laborRateTables: z.array(laborRateTableSchema)
+    laborRateTables: z.array(laborRateTableSchema),
+    materialTypes: z.array(materialTypeSchema)
   })
 });
 
@@ -224,7 +238,8 @@ export const companyCatalogResponseSchema = z.object({
     companyId: z.string(),
     companyExternalCode: z.string(),
     companyName: z.string(),
-    laborRateTables: z.array(laborRateTableSchema)
+    laborRateTables: z.array(laborRateTableSchema),
+    materialTypes: z.array(materialTypeSchema)
   })
 });
 

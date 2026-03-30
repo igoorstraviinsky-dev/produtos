@@ -32,6 +32,7 @@ paths:
                     required:
                       - source
                       - laborRateTables
+                      - materialTypes
                     properties:
                       source:
                         type: string
@@ -40,6 +41,10 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/LaborRateTable'
+                      materialTypes:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MaterialType'
         '401':
           description: Missing or invalid credential
         '403':
@@ -556,6 +561,7 @@ components:
             - companyExternalCode
             - companyName
             - laborRateTables
+            - materialTypes
           properties:
             source:
               type: string
@@ -574,6 +580,10 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/LaborRateTable'
+            materialTypes:
+              type: array
+              items:
+                $ref: '#/components/schemas/MaterialType'
     CompanyCatalogCompany:
       type: object
       required:
@@ -1157,6 +1167,42 @@ components:
           type: string
         label:
           type: string
+    MaterialType:
+      type: object
+      required:
+        - id
+        - name
+        - nome
+        - label
+        - laborRateTables
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        nome:
+          type: string
+        label:
+          type: string
+        material:
+          type: string
+          nullable: true
+        baseMaterial:
+          type: string
+          nullable: true
+        material_base:
+          type: string
+          nullable: true
+        purity:
+          type: string
+          nullable: true
+        pureza:
+          type: string
+          nullable: true
+        laborRateTables:
+          type: array
+          items:
+            $ref: '#/components/schemas/LaborRateTable'
     ProductVariantOption:
       type: object
       required:

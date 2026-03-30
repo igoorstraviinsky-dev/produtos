@@ -124,9 +124,22 @@ export type LaborRateTableRecord = {
   label: string;
 };
 
+export type ProductTypeRecord = {
+  id: string;
+  name: string;
+  nome: string;
+  label: string;
+  material: string | null;
+  baseMaterial: string | null;
+  material_base: string | null;
+  purity: string | null;
+  pureza: string | null;
+};
+
 export interface ProductGateway {
   listProducts(): Promise<ProductRecord[]>;
   listLaborRateTables(): Promise<LaborRateTableRecord[]>;
+  listProductTypes(): Promise<ProductTypeRecord[]>;
   updateProduct(input: {
     id: string;
     sku: string;
@@ -411,6 +424,23 @@ function mapRemoteLaborRateTableRow(row: RemoteLaborRateTableRow): LaborRateTabl
     name: resolvedName,
     nome: resolvedName,
     label: resolvedName
+  };
+}
+
+function mapRemoteProductTypeRow(row: RemoteProductTypeRow): ProductTypeRecord {
+  const resolvedName = row.nome ?? row.name ?? row.label ?? row.tipo ?? row.id;
+  const resolvedMaterial = row.material_base ?? resolvedName;
+
+  return {
+    id: row.id,
+    name: resolvedName,
+    nome: resolvedName,
+    label: resolvedName,
+    material: resolvedMaterial,
+    baseMaterial: resolvedMaterial,
+    material_base: resolvedMaterial,
+    purity: row.pureza ?? null,
+    pureza: row.pureza ?? null
   };
 }
 
@@ -702,6 +732,21 @@ export class SupabaseProductGateway implements ProductGateway {
     }
 
     return ((data ?? []) as RemoteLaborRateTableRow[]).map((row) => mapRemoteLaborRateTableRow(row));
+  }
+
+  async listProductTypes() {
+    const { data, error } = await this.supabase
+      .from("product_types")
+      .select("*")
+      .order("nome", {
+        ascending: true
+      });
+
+    if (error) {
+      throw new Error(`supabase product_types query failed: ${error.message}`);
+    }
+
+    return ((data ?? []) as RemoteProductTypeRow[]).map((row) => mapRemoteProductTypeRow(row));
   }
 
   async updateProduct(input: {

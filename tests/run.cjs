@@ -466,9 +466,10 @@ class FakeRateLimitCounterStore {
 }
 
 class FakeProductGateway {
-  constructor(products, laborRateTables = null) {
+  constructor(products, laborRateTables = null, productTypes = null) {
     this.products = products;
     this.laborRateTables = laborRateTables;
+    this.productTypes = productTypes;
     this.error = null;
   }
 
@@ -499,6 +500,36 @@ class FakeProductGateway {
       nome: name,
       label: name
     }));
+  }
+
+  async listProductTypes() {
+    if (this.productTypes) {
+      return this.productTypes;
+    }
+
+    const seen = new Map();
+    for (const product of this.products) {
+      const id = product.typeId ?? product.type_id ?? null;
+      const name = product.productType ?? product.tipo ?? product.material ?? product.material_base ?? null;
+      if (!id || !name || seen.has(id)) {
+        continue;
+      }
+
+      const material = product.material ?? product.baseMaterial ?? product.material_base ?? name;
+      seen.set(id, {
+        id,
+        name,
+        nome: name,
+        label: name,
+        material,
+        baseMaterial: material,
+        material_base: material,
+        purity: product.purity ?? product.pureza ?? null,
+        pureza: product.purity ?? product.pureza ?? null
+      });
+    }
+
+    return [...seen.values()];
   }
 
   async updateProduct(input) {
@@ -797,6 +828,7 @@ const cases = [
 
       const products = await gateway.listProducts();
       const laborRateTables = await gateway.listLaborRateTables();
+      const productTypes = await gateway.listProductTypes();
 
       assert.equal(products.length, 1);
       assert.equal(products[0].material, "Prata 925");
@@ -808,6 +840,19 @@ const cases = [
       assert.equal(products[0].pureza, "925");
       assert.equal(products[0].laborRateTableName, "Peças especiais");
       assert.equal(products[0].labor_rate_table_name, "Peças especiais");
+      assert.deepEqual(productTypes, [
+        {
+          id: "type-prata-925",
+          name: "Prata 925",
+          nome: "Prata 925",
+          label: "Prata 925",
+          material: "Prata 925",
+          baseMaterial: "Prata 925",
+          material_base: "Prata 925",
+          purity: "925",
+          pureza: "925"
+        }
+      ]);
       assert.deepEqual(
         laborRateTables.map((item) => item.name).sort((left, right) => left.localeCompare(right, "pt-BR")),
         ["Correntes", "Peças especiais"]
@@ -1054,10 +1099,10 @@ const cases = [
             fiscal_code: null,
             categoryId: null,
             category_id: null,
-            productType: null,
-            tipo: null,
-            typeId: null,
-            type_id: null,
+            productType: "Prata 925",
+            tipo: "Prata 925",
+            typeId: "type-prata-925",
+            type_id: "type-prata-925",
             subcategoryId: null,
             subcategory_id: null,
             blingProductId: null,
@@ -1241,10 +1286,10 @@ const cases = [
             fiscal_code: null,
             categoryId: null,
             category_id: null,
-            productType: null,
-            tipo: null,
-            typeId: null,
-            type_id: null,
+            productType: "Prata 925",
+            tipo: "Prata 925",
+            typeId: "type-prata-925",
+            type_id: "type-prata-925",
             subcategoryId: null,
             subcategory_id: null,
             blingProductId: null,
@@ -1286,6 +1331,19 @@ const cases = [
           { id: "lrt-1", name: "Peças (padrão)", nome: "Peças (padrão)", label: "Peças (padrão)" },
           { id: "lrt-4", name: "Peças de pedra natural", nome: "Peças de pedra natural", label: "Peças de pedra natural" },
           { id: "lrt-5", name: "Peças especiais", nome: "Peças especiais", label: "Peças especiais" }
+        ],
+        [
+          {
+            id: "type-prata-925",
+            name: "Prata 925",
+            nome: "Prata 925",
+            label: "Prata 925",
+            material: "Prata 925",
+            baseMaterial: "Prata 925",
+            material_base: "Prata 925",
+            purity: "925",
+            pureza: "925"
+          }
         ]
       );
       const { app, controlPlane, env } = await createTestApp({ productGateway });
@@ -1318,6 +1376,27 @@ const cases = [
           "Peças (padrão)",
           "Peças de pedra natural",
           "Peças especiais"
+        ]);
+        assert.deepEqual(response.json().meta.materialTypes, [
+          {
+            id: "type-prata-925",
+            name: "Prata 925",
+            nome: "Prata 925",
+            label: "Prata 925",
+            material: "Prata 925",
+            baseMaterial: "Prata 925",
+            material_base: "Prata 925",
+            purity: "925",
+            pureza: "925",
+            laborRateTables: [
+              {
+                id: "lrt-1",
+                name: "Peças (padrão)",
+                nome: "Peças (padrão)",
+                label: "Peças (padrão)"
+              }
+            ]
+          }
         ]);
       } finally {
         await app.close();
