@@ -644,6 +644,8 @@ components:
         - mediaUrls
         - main_image_url
         - mainImageUrl
+        - variant_count
+        - variantCount
         - variants
         - id
         - product_id
@@ -675,6 +677,10 @@ components:
         mainImageUrl:
           type: string
           nullable: true
+        variant_count:
+          type: integer
+        variantCount:
+          type: integer
         variants:
           type: array
           items:

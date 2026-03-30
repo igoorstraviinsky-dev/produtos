@@ -70,6 +70,8 @@ export const productSchema = z.object({
   mediaUrls: z.array(z.string()),
   main_image_url: z.string().nullable(),
   mainImageUrl: z.string().nullable(),
+  variant_count: z.number().int().nonnegative(),
+  variantCount: z.number().int().nonnegative(),
   variants: z.array(productVariantSchema),
   id: z.string(),
   product_id: z.string(),

@@ -196,6 +196,8 @@ export class ProductsService {
 
     return {
       ...product,
+      variant_count: variants.length,
+      variantCount: variants.length,
       variants,
       media_assets: mediaAssets,
       mediaAssets,
@@ -265,6 +267,8 @@ export class ProductsService {
       availableQuantity: effectiveStockQuantity,
       available_quantity: effectiveStockQuantity,
       stock_quantity: effectiveStockQuantity,
+      variant_count: variants.length,
+      variantCount: variants.length,
       variants,
       media_assets: mediaAssets,
       mediaAssets,

@@ -1051,6 +1051,8 @@ const cases = [
           productsResponse.json().data[0].media_assets[0].url,
           "https://api.example.com/api/v1/media/object/joias%2Fraw%2FSKU-001%2FSKU-001_st.jpg"
         );
+        assert.equal(productsResponse.json().data[0].variantCount, 1);
+        assert.equal(productsResponse.json().data[0].variant_count, 1);
         assert.equal(productsResponse.json().data[0].variants[0].stockWeightGrams, 4);
         assert.equal(productsResponse.json().data[0].variants[0].stockUnits, 0);
         assert.equal(productsResponse.json().data[0].variants[0].cost, 60.9);
@@ -1139,6 +1141,8 @@ const cases = [
         assert.equal(response.json().meta.companyId, company.id);
         assert.equal(response.json().meta.companyExternalCode, "empresa-catalogo");
         assert.equal(response.json().data[0].main_image_url, "https://api.example.com/api/v1/media/object/joias%2Fraw%2FSKU-001%2FSKU-001_st.jpg");
+        assert.equal(response.json().data[0].variantCount, 1);
+        assert.equal(response.json().data[0].variant_count, 1);
         assert.equal(response.json().data[0].availableQuantity, 21);
         assert.equal(response.json().data[0].available_quantity, 21);
         assert.equal(response.json().data[0].stock_quantity, 21);
