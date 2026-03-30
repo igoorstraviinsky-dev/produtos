@@ -31,10 +31,15 @@ paths:
                     type: object
                     required:
                       - source
+                      - laborRateTables
                     properties:
                       source:
                         type: string
                         enum: [cache, upstream]
+                      laborRateTables:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/LaborRateTable'
         '401':
           description: Missing or invalid credential
         '403':
@@ -550,6 +555,7 @@ components:
             - companyId
             - companyExternalCode
             - companyName
+            - laborRateTables
           properties:
             source:
               type: string
@@ -564,6 +570,10 @@ components:
               type: string
             companyName:
               type: string
+            laborRateTables:
+              type: array
+              items:
+                $ref: '#/components/schemas/LaborRateTable'
     CompanyCatalogCompany:
       type: object
       required:
@@ -1131,6 +1141,22 @@ components:
           type: string
           format: date-time
           nullable: true
+    LaborRateTable:
+      type: object
+      required:
+        - id
+        - name
+        - nome
+        - label
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        nome:
+          type: string
+        label:
+          type: string
     ProductVariantOption:
       type: object
       required:

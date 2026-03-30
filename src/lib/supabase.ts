@@ -117,8 +117,16 @@ export type ProductRecord = {
   updated_at: string | null;
 };
 
+export type LaborRateTableRecord = {
+  id: string;
+  name: string;
+  nome: string;
+  label: string;
+};
+
 export interface ProductGateway {
   listProducts(): Promise<ProductRecord[]>;
+  listLaborRateTables(): Promise<LaborRateTableRecord[]>;
   updateProduct(input: {
     id: string;
     sku: string;
@@ -183,6 +191,13 @@ type RemoteProductTypeRow = {
   tipo?: string | null;
   material_base?: string | null;
   pureza?: string | null;
+};
+
+type RemoteLaborRateTableRow = {
+  id: string;
+  nome?: string | null;
+  name?: string | null;
+  label?: string | null;
 };
 
 type RemoteProductVariantRow = {
@@ -388,6 +403,17 @@ function mapRemoteProductRowWithMedia(
   };
 }
 
+function mapRemoteLaborRateTableRow(row: RemoteLaborRateTableRow): LaborRateTableRecord {
+  const resolvedName = row.nome ?? row.name ?? row.label ?? row.id;
+
+  return {
+    id: row.id,
+    name: resolvedName,
+    nome: resolvedName,
+    label: resolvedName
+  };
+}
+
 function mapRemoteMediaAssetRow(row: RemoteProductMediaAssetRow): ProductMediaAssetRecord | null {
   if (!row.storage_key) {
     return null;
@@ -518,10 +544,16 @@ export class SupabaseProductGateway implements ProductGateway {
     let mediaAssetRows: RemoteProductMediaAssetRow[] = [];
     let supplierRows: RemoteSupplierRow[] = [];
     let productTypeRows: RemoteProductTypeRow[] = [];
+    let laborRateTableRows: RemoteLaborRateTableRow[] = [];
     const productTypeIds = [...new Set(
       productRows
         .map((product) => product.type_id?.trim() ?? null)
         .filter((typeId): typeId is string => Boolean(typeId))
+    )];
+    const laborRateTableIds = [...new Set(
+      productRows
+        .map((product) => product.labor_rate_table_id?.trim() ?? null)
+        .filter((tableId): tableId is string => Boolean(tableId))
     )];
 
     if (variantIds.length > 0) {
@@ -594,10 +626,24 @@ export class SupabaseProductGateway implements ProductGateway {
       productTypeRows = (productTypesData ?? []) as RemoteProductTypeRow[];
     }
 
+    if (laborRateTableIds.length > 0) {
+      const { data: laborRateTablesData, error: laborRateTablesError } = await this.supabase
+        .from("labor_rate_tables")
+        .select("*")
+        .in("id", laborRateTableIds);
+
+      if (laborRateTablesError) {
+        throw new Error(`supabase labor_rate_tables query failed: ${laborRateTablesError.message}`);
+      }
+
+      laborRateTableRows = (laborRateTablesData ?? []) as RemoteLaborRateTableRow[];
+    }
+
     const variantsByProductId = buildVariantsByProductId(variantRows, linkRows, optionRows);
     const mediaAssetsByProductId = new Map<string, ProductMediaAssetRecord[]>();
     const suppliersByCode = new Map<string, RemoteSupplierRow>();
     const productTypesById = new Map<string, RemoteProductTypeRow>();
+    const laborRateTablesById = new Map<string, LaborRateTableRecord>();
 
     for (const supplierRow of supplierRows) {
       suppliersByCode.set(supplierRow.code, supplierRow);
@@ -605,6 +651,10 @@ export class SupabaseProductGateway implements ProductGateway {
 
     for (const productTypeRow of productTypeRows) {
       productTypesById.set(productTypeRow.id, productTypeRow);
+    }
+
+    for (const laborRateTableRow of laborRateTableRows) {
+      laborRateTablesById.set(laborRateTableRow.id, mapRemoteLaborRateTableRow(laborRateTableRow));
     }
 
     for (const mediaAssetRow of mediaAssetRows) {
@@ -618,15 +668,40 @@ export class SupabaseProductGateway implements ProductGateway {
       mediaAssetsByProductId.set(mediaAssetRow.product_id, existingAssets);
     }
 
-    return productRows.map((row) =>
-      mapRemoteProductRowWithMedia(
+    return productRows.map((row) => {
+      const mappedProduct = mapRemoteProductRowWithMedia(
         row,
         variantsByProductId.get(row.id) ?? [],
         mediaAssetsByProductId.get(row.id) ?? [],
         suppliersByCode.get(row.supplier_code?.trim() ?? "") ?? null,
         productTypesById.get(row.type_id?.trim() ?? "") ?? null
-      )
-    );
+      );
+      const laborRateTable =
+        laborRateTablesById.get(row.labor_rate_table_id?.trim() ?? "") ?? null;
+      const resolvedLaborRateTableName =
+        laborRateTable?.name ?? row.labor_rate_table_name ?? null;
+
+      return {
+        ...mappedProduct,
+        laborRateTableName: resolvedLaborRateTableName,
+        labor_rate_table_name: resolvedLaborRateTableName
+      };
+    });
+  }
+
+  async listLaborRateTables() {
+    const { data, error } = await this.supabase
+      .from("labor_rate_tables")
+      .select("*")
+      .order("nome", {
+        ascending: true
+      });
+
+    if (error) {
+      throw new Error(`supabase labor_rate_tables query failed: ${error.message}`);
+    }
+
+    return ((data ?? []) as RemoteLaborRateTableRow[]).map((row) => mapRemoteLaborRateTableRow(row));
   }
 
   async updateProduct(input: {

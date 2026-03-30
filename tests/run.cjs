@@ -466,8 +466,9 @@ class FakeRateLimitCounterStore {
 }
 
 class FakeProductGateway {
-  constructor(products) {
+  constructor(products, laborRateTables = null) {
     this.products = products;
+    this.laborRateTables = laborRateTables;
     this.error = null;
   }
 
@@ -477,6 +478,27 @@ class FakeProductGateway {
     }
 
     return this.products;
+  }
+
+  async listLaborRateTables() {
+    if (this.laborRateTables) {
+      return this.laborRateTables;
+    }
+
+    const uniqueNames = [
+      ...new Set(
+        this.products
+          .map((product) => product.laborRateTableName ?? product.labor_rate_table_name ?? null)
+          .filter((name) => Boolean(name))
+      )
+    ];
+
+    return uniqueNames.map((name) => ({
+      id: `labor-rate-table:${name}`,
+      name,
+      nome: name,
+      label: name
+    }));
   }
 
   async updateProduct(input) {
@@ -741,6 +763,8 @@ const cases = [
               material_base: "Material legado",
               tipo: "Tipo legado",
               type_id: "type-prata-925",
+              labor_rate_table_id: "lrt-1",
+              labor_rate_table_name: null,
               pureza: null,
               stock_quantity: 3,
               available_quantity: 3
@@ -756,12 +780,23 @@ const cases = [
               material_base: "Prata 925",
               pureza: "925"
             }
+          ],
+          labor_rate_tables: [
+            {
+              id: "lrt-1",
+              nome: "Peças especiais"
+            },
+            {
+              id: "lrt-2",
+              nome: "Correntes"
+            }
           ]
         }),
         "products"
       );
 
       const products = await gateway.listProducts();
+      const laborRateTables = await gateway.listLaborRateTables();
 
       assert.equal(products.length, 1);
       assert.equal(products[0].material, "Prata 925");
@@ -771,6 +806,12 @@ const cases = [
       assert.equal(products[0].tipo, "Prata 925");
       assert.equal(products[0].purity, "925");
       assert.equal(products[0].pureza, "925");
+      assert.equal(products[0].laborRateTableName, "Peças especiais");
+      assert.equal(products[0].labor_rate_table_name, "Peças especiais");
+      assert.deepEqual(
+        laborRateTables.map((item) => item.name).sort((left, right) => left.localeCompare(right, "pt-BR")),
+        ["Correntes", "Peças especiais"]
+      );
     }
   },
   {
@@ -1145,6 +1186,139 @@ const cases = [
           "public, max-age=31536000, immutable"
         );
         assert.equal(mediaResponse.body, "media:joias/raw/SKU-001/SKU-001_st.jpg");
+      } finally {
+        await app.close();
+      }
+    }
+  },
+  {
+    name: "Products endpoint exposes all labor rate tables in response meta",
+    fn: async () => {
+      const productGateway = new FakeProductGateway(
+        [
+          {
+            variants: [],
+            id: "prod-labor-1",
+            product_id: "prod-labor-1",
+            code: "LAB-001",
+            sku: "LAB-001",
+            numero_serie: "LAB-001",
+            name: "Produto Labor",
+            nome: "Produto Labor",
+            serialNumber: "LAB-001",
+            description: null,
+            descricao: null,
+            category: null,
+            categoria: null,
+            subcategory: null,
+            subcategoria: null,
+            material: null,
+            baseMaterial: null,
+            material_base: null,
+            purity: null,
+            pureza: null,
+            weight_grams: null,
+            weightGrams: null,
+            peso_gramas: null,
+            bathType: null,
+            tipo_banho: null,
+            status: null,
+            bronzeImageKey: null,
+            s3_key_bronze: null,
+            silverImageKey: null,
+            s3_key_silver: null,
+            media_assets: [],
+            mediaAssets: [],
+            supplierCode: null,
+            supplier_code: null,
+            supplierId: null,
+            supplier_id: null,
+            supplierName: null,
+            supplier_name: null,
+            supplierProductSku: null,
+            supplier_product_sku: null,
+            fiscalCode: null,
+            fiscal_code: null,
+            categoryId: null,
+            category_id: null,
+            productType: null,
+            tipo: null,
+            typeId: null,
+            type_id: null,
+            subcategoryId: null,
+            subcategory_id: null,
+            blingProductId: null,
+            bling_product_id: null,
+            blingLastSyncAt: null,
+            bling_last_sync_at: null,
+            laborRateId: null,
+            labor_rate_id: null,
+            laborRateLabel: null,
+            labor_rate_label: null,
+            laborCost: null,
+            labor_cost: null,
+            sizeOptionId: null,
+            size_option_id: null,
+            sizeLabel: null,
+            size_label: null,
+            colorOptionId: null,
+            color_option_id: null,
+            colorLabel: null,
+            color_label: null,
+            availableQuantity: 1,
+            available_quantity: 1,
+            stock_quantity: 1,
+            ncm: null,
+            laborRateTableId: "lrt-1",
+            labor_rate_table_id: "lrt-1",
+            laborRateTableName: "Peças (padrão)",
+            labor_rate_table_name: "Peças (padrão)",
+            createdAt: null,
+            created_at: null,
+            price: null,
+            updatedAt: null,
+            updated_at: null
+          }
+        ],
+        [
+          { id: "lrt-3", name: "Alianças com filete de ouro", nome: "Alianças com filete de ouro", label: "Alianças com filete de ouro" },
+          { id: "lrt-2", name: "Correntes", nome: "Correntes", label: "Correntes" },
+          { id: "lrt-1", name: "Peças (padrão)", nome: "Peças (padrão)", label: "Peças (padrão)" },
+          { id: "lrt-4", name: "Peças de pedra natural", nome: "Peças de pedra natural", label: "Peças de pedra natural" },
+          { id: "lrt-5", name: "Peças especiais", nome: "Peças especiais", label: "Peças especiais" }
+        ]
+      );
+      const { app, controlPlane, env } = await createTestApp({ productGateway });
+      try {
+        const company = controlPlane.seedCompany({
+          legalName: "Empresa Tabelas",
+          externalCode: "empresa-tabelas"
+        });
+        const apiKey = "b2b_labor_tables_123";
+
+        controlPlane.seedApiKey({
+          companyId: company.id,
+          keyPrefix: deriveApiKeyPrefix(apiKey),
+          keyHash: hashApiKey(apiKey, env.API_KEY_PEPPER),
+          rateLimitPerMinute: 10
+        });
+
+        const response = await app.inject({
+          method: "GET",
+          url: "/api/v1/products",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          }
+        });
+
+        assert.equal(response.statusCode, 200);
+        assert.deepEqual(response.json().meta.laborRateTables.map((item) => item.name), [
+          "Alianças com filete de ouro",
+          "Correntes",
+          "Peças (padrão)",
+          "Peças de pedra natural",
+          "Peças especiais"
+        ]);
       } finally {
         await app.close();
       }

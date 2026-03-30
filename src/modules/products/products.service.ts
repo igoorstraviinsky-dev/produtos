@@ -44,22 +44,30 @@ export class ProductsService {
   constructor(private readonly options: ProductsServiceOptions) {}
 
   async listProducts(): Promise<ProductsResponse> {
-    const { products, meta } = await this.listRawProducts();
-    const costSettings = await this.options.controlPlane.getCostSettings();
+    const [{ products, meta }, costSettings, laborRateTables] = await Promise.all([
+      this.listRawProducts(),
+      this.options.controlPlane.getCostSettings(),
+      this.options.productGateway.listLaborRateTables()
+    ]);
 
     return {
       data: products.map((product) => this.enrichProduct(product, costSettings)),
-      meta
+      meta: {
+        ...meta,
+        laborRateTables
+      }
     };
   }
 
   async listCompanyCatalog(companyContext: CompanyCatalogContext): Promise<CompanyCatalogResponse> {
-    const { products, meta } = await this.listRawProducts();
-    const [costSettings, effectiveInventory, companyRecord] = await Promise.all([
+    const [{ products, meta }, costSettings, effectiveInventory, companyRecord, laborRateTables] =
+      await Promise.all([
+        this.listRawProducts(),
       this.options.controlPlane.getCostSettings(companyContext.companyId),
       this.options.controlPlane.listEffectiveInventoryByCompany(companyContext.companyId),
-      this.options.controlPlane.findCompanyById(companyContext.companyId)
-    ]);
+        this.options.controlPlane.findCompanyById(companyContext.companyId),
+        this.options.productGateway.listLaborRateTables()
+      ]);
     const inventoryByProductId = new Map(
       effectiveInventory.map((item) => [item.productId, item] as const)
     );
@@ -77,7 +85,8 @@ export class ProductsService {
         ...meta,
         companyId: companyContext.companyId,
         companyExternalCode: companyContext.companyExternalCode,
-        companyName: companyContext.companyName
+        companyName: companyContext.companyName,
+        laborRateTables
       }
     };
   }

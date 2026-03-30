@@ -10,6 +10,13 @@ export const productCostBreakdownSchema = z.object({
   finalCost: z.number()
 });
 
+export const laborRateTableSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  nome: z.string(),
+  label: z.string()
+});
+
 export const productVariantOptionSchema = z.object({
   id: z.string(),
   kind: z.string(),
@@ -176,7 +183,8 @@ export const productsResponseSchema = z.object({
   meta: z.object({
     source: z.enum(["cache", "upstream"]),
     stale: z.boolean().optional(),
-    count: z.number().int().nonnegative()
+    count: z.number().int().nonnegative(),
+    laborRateTables: z.array(laborRateTableSchema)
   })
 });
 
@@ -215,7 +223,8 @@ export const companyCatalogResponseSchema = z.object({
     count: z.number().int().nonnegative(),
     companyId: z.string(),
     companyExternalCode: z.string(),
-    companyName: z.string()
+    companyName: z.string(),
+    laborRateTables: z.array(laborRateTableSchema)
   })
 });
 
