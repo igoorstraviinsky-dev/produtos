@@ -498,7 +498,11 @@ class FakeProductGateway {
       id: `labor-rate-table:${name}`,
       name,
       nome: name,
-      label: name
+      label: name,
+      materialTypeId: null,
+      material_type_id: null,
+      materialName: null,
+      material_name: null
     }));
   }
 
@@ -796,6 +800,9 @@ const cases = [
               type_id: "type-prata-925",
               labor_rate_table_id: "lrt-1",
               labor_rate_table_name: null,
+              labor_rate_id: "lr-1",
+              labor_rate_label: "Label legado",
+              labor_cost: 0.55,
               pureza: null,
               stock_quantity: 3,
               available_quantity: 3
@@ -815,11 +822,23 @@ const cases = [
           labor_rate_tables: [
             {
               id: "lrt-1",
-              nome: "Peças especiais"
+              nome: "Peças especiais",
+              material_type_id: "type-prata-925",
+              material_name: "Prata 925"
             },
             {
               id: "lrt-2",
-              nome: "Correntes"
+              nome: "Correntes",
+              material_type_id: "type-correntes",
+              material_name: "Correntes"
+            }
+          ],
+          labor_rates: [
+            {
+              id: "lr-1",
+              table_id: "lrt-1",
+              nome: "XCN08",
+              amount: 0.55
             }
           ]
         }),
@@ -840,6 +859,16 @@ const cases = [
       assert.equal(products[0].pureza, "925");
       assert.equal(products[0].laborRateTableName, "Peças especiais");
       assert.equal(products[0].labor_rate_table_name, "Peças especiais");
+      assert.equal(products[0].laborRateLabel, "XCN08");
+      assert.equal(products[0].labor_rate_label, "XCN08");
+      assert.equal(products[0].laborRateName, "XCN08");
+      assert.equal(products[0].labor_rate_name, "XCN08");
+      assert.equal(products[0].laborRateAmount, 0.55);
+      assert.equal(products[0].labor_rate_amount, 0.55);
+      assert.equal(products[0].laborRateTableMaterialTypeId, "type-prata-925");
+      assert.equal(products[0].labor_rate_table_material_type_id, "type-prata-925");
+      assert.equal(products[0].laborRateTableMaterialName, "Prata 925");
+      assert.equal(products[0].labor_rate_table_material_name, "Prata 925");
       assert.deepEqual(productTypes, [
         {
           id: "type-prata-925",
@@ -1326,11 +1355,11 @@ const cases = [
           }
         ],
         [
-          { id: "lrt-3", name: "Alianças com filete de ouro", nome: "Alianças com filete de ouro", label: "Alianças com filete de ouro" },
-          { id: "lrt-2", name: "Correntes", nome: "Correntes", label: "Correntes" },
-          { id: "lrt-1", name: "Peças (padrão)", nome: "Peças (padrão)", label: "Peças (padrão)" },
-          { id: "lrt-4", name: "Peças de pedra natural", nome: "Peças de pedra natural", label: "Peças de pedra natural" },
-          { id: "lrt-5", name: "Peças especiais", nome: "Peças especiais", label: "Peças especiais" }
+          { id: "lrt-3", name: "Alianças com filete de ouro", nome: "Alianças com filete de ouro", label: "Alianças com filete de ouro", materialTypeId: "type-ouro-18k", material_type_id: "type-ouro-18k", materialName: "Ouro 18k", material_name: "Ouro 18k" },
+          { id: "lrt-2", name: "Correntes", nome: "Correntes", label: "Correntes", materialTypeId: "type-correntes", material_type_id: "type-correntes", materialName: "Correntes", material_name: "Correntes" },
+          { id: "lrt-1", name: "Peças (padrão)", nome: "Peças (padrão)", label: "Peças (padrão)", materialTypeId: "type-prata-925", material_type_id: "type-prata-925", materialName: "Prata 925", material_name: "Prata 925" },
+          { id: "lrt-4", name: "Peças de pedra natural", nome: "Peças de pedra natural", label: "Peças de pedra natural", materialTypeId: "type-prata-925", material_type_id: "type-prata-925", materialName: "Prata 925", material_name: "Prata 925" },
+          { id: "lrt-5", name: "Peças especiais", nome: "Peças especiais", label: "Peças especiais", materialTypeId: "type-prata-925", material_type_id: "type-prata-925", materialName: "Prata 925", material_name: "Prata 925" }
         ],
         [
           {
@@ -1393,11 +1422,265 @@ const cases = [
                 id: "lrt-1",
                 name: "Peças (padrão)",
                 nome: "Peças (padrão)",
-                label: "Peças (padrão)"
+                label: "Peças (padrão)",
+                materialTypeId: "type-prata-925",
+                material_type_id: "type-prata-925",
+                materialName: "Prata 925",
+                material_name: "Prata 925"
+              },
+              {
+                id: "lrt-4",
+                name: "Peças de pedra natural",
+                nome: "Peças de pedra natural",
+                label: "Peças de pedra natural",
+                materialTypeId: "type-prata-925",
+                material_type_id: "type-prata-925",
+                materialName: "Prata 925",
+                material_name: "Prata 925"
+              },
+              {
+                id: "lrt-5",
+                name: "Peças especiais",
+                nome: "Peças especiais",
+                label: "Peças especiais",
+                materialTypeId: "type-prata-925",
+                material_type_id: "type-prata-925",
+                materialName: "Prata 925",
+                material_name: "Prata 925"
               }
             ]
           }
         ]);
+      } finally {
+        await app.close();
+      }
+    }
+  },
+  {
+    name: "Products endpoint filters by labor rate table id and labor rate id",
+    fn: async () => {
+      const productGateway = new FakeProductGateway([
+        {
+          variants: [],
+          id: "prod-filter-1",
+          product_id: "prod-filter-1",
+          code: "FILTER-001",
+          sku: "FILTER-001",
+          numero_serie: "FILTER-001",
+          name: "Produto A",
+          nome: "Produto A",
+          serialNumber: "FILTER-001",
+          description: null,
+          descricao: null,
+          category: null,
+          categoria: null,
+          subcategory: null,
+          subcategoria: null,
+          material: "Prata 925",
+          baseMaterial: "Prata 925",
+          material_base: "Prata 925",
+          purity: "925",
+          pureza: "925",
+          weight_grams: null,
+          weightGrams: null,
+          peso_gramas: null,
+          bathType: null,
+          tipo_banho: null,
+          status: null,
+          bronzeImageKey: null,
+          s3_key_bronze: null,
+          silverImageKey: null,
+          s3_key_silver: null,
+          media_assets: [],
+          mediaAssets: [],
+          supplierCode: null,
+          supplier_code: null,
+          supplierId: null,
+          supplier_id: null,
+          supplierName: null,
+          supplier_name: null,
+          supplierProductSku: null,
+          supplier_product_sku: null,
+          fiscalCode: null,
+          fiscal_code: null,
+          categoryId: null,
+          category_id: null,
+          productType: "Prata 925",
+          tipo: "Prata 925",
+          typeId: "type-prata-925",
+          type_id: "type-prata-925",
+          subcategoryId: null,
+          subcategory_id: null,
+          blingProductId: null,
+          bling_product_id: null,
+          blingLastSyncAt: null,
+          bling_last_sync_at: null,
+          laborRateId: "lr-1",
+          labor_rate_id: "lr-1",
+          laborRateLabel: "XCN08",
+          labor_rate_label: "XCN08",
+          laborCost: 0.55,
+          labor_cost: 0.55,
+          sizeOptionId: null,
+          size_option_id: null,
+          sizeLabel: null,
+          size_label: null,
+          colorOptionId: null,
+          color_option_id: null,
+          colorLabel: null,
+          color_label: null,
+          availableQuantity: 1,
+          available_quantity: 1,
+          stock_quantity: 1,
+          ncm: null,
+          laborRateTableId: "lrt-1",
+          labor_rate_table_id: "lrt-1",
+          laborRateTableName: "Peças (padrão)",
+          labor_rate_table_name: "Peças (padrão)",
+          laborRateName: "XCN08",
+          labor_rate_name: "XCN08",
+          laborRateAmount: 0.55,
+          labor_rate_amount: 0.55,
+          laborRateTableMaterialTypeId: "type-prata-925",
+          labor_rate_table_material_type_id: "type-prata-925",
+          laborRateTableMaterialName: "Prata 925",
+          labor_rate_table_material_name: "Prata 925",
+          createdAt: null,
+          created_at: null,
+          price: null,
+          updatedAt: null,
+          updated_at: null
+        },
+        {
+          variants: [],
+          id: "prod-filter-2",
+          product_id: "prod-filter-2",
+          code: "FILTER-002",
+          sku: "FILTER-002",
+          numero_serie: "FILTER-002",
+          name: "Produto B",
+          nome: "Produto B",
+          serialNumber: "FILTER-002",
+          description: null,
+          descricao: null,
+          category: null,
+          categoria: null,
+          subcategory: null,
+          subcategoria: null,
+          material: "Prata 925",
+          baseMaterial: "Prata 925",
+          material_base: "Prata 925",
+          purity: "925",
+          pureza: "925",
+          weight_grams: null,
+          weightGrams: null,
+          peso_gramas: null,
+          bathType: null,
+          tipo_banho: null,
+          status: null,
+          bronzeImageKey: null,
+          s3_key_bronze: null,
+          silverImageKey: null,
+          s3_key_silver: null,
+          media_assets: [],
+          mediaAssets: [],
+          supplierCode: null,
+          supplier_code: null,
+          supplierId: null,
+          supplier_id: null,
+          supplierName: null,
+          supplier_name: null,
+          supplierProductSku: null,
+          supplier_product_sku: null,
+          fiscalCode: null,
+          fiscal_code: null,
+          categoryId: null,
+          category_id: null,
+          productType: "Prata 925",
+          tipo: "Prata 925",
+          typeId: "type-prata-925",
+          type_id: "type-prata-925",
+          subcategoryId: null,
+          subcategory_id: null,
+          blingProductId: null,
+          bling_product_id: null,
+          blingLastSyncAt: null,
+          bling_last_sync_at: null,
+          laborRateId: "lr-2",
+          labor_rate_id: "lr-2",
+          laborRateLabel: "XCN09",
+          labor_rate_label: "XCN09",
+          laborCost: 0.75,
+          labor_cost: 0.75,
+          sizeOptionId: null,
+          size_option_id: null,
+          sizeLabel: null,
+          size_label: null,
+          colorOptionId: null,
+          color_option_id: null,
+          colorLabel: null,
+          color_label: null,
+          availableQuantity: 1,
+          available_quantity: 1,
+          stock_quantity: 1,
+          ncm: null,
+          laborRateTableId: "lrt-2",
+          labor_rate_table_id: "lrt-2",
+          laborRateTableName: "Peças especiais",
+          labor_rate_table_name: "Peças especiais",
+          laborRateName: "XCN09",
+          labor_rate_name: "XCN09",
+          laborRateAmount: 0.75,
+          labor_rate_amount: 0.75,
+          laborRateTableMaterialTypeId: "type-prata-925",
+          labor_rate_table_material_type_id: "type-prata-925",
+          laborRateTableMaterialName: "Prata 925",
+          labor_rate_table_material_name: "Prata 925",
+          createdAt: null,
+          created_at: null,
+          price: null,
+          updatedAt: null,
+          updated_at: null
+        }
+      ]);
+      const { app, controlPlane, env } = await createTestApp({ productGateway });
+      try {
+        const company = controlPlane.seedCompany({
+          legalName: "Empresa Filtro MO",
+          externalCode: "empresa-filtro-mo"
+        });
+        const apiKey = "b2b_filter_labor_123";
+
+        controlPlane.seedApiKey({
+          companyId: company.id,
+          keyPrefix: deriveApiKeyPrefix(apiKey),
+          keyHash: hashApiKey(apiKey, env.API_KEY_PEPPER),
+          rateLimitPerMinute: 10
+        });
+
+        const byTableResponse = await app.inject({
+          method: "GET",
+          url: "/api/v1/products?laborRateTableId=lrt-2",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          }
+        });
+
+        assert.equal(byTableResponse.statusCode, 200);
+        assert.equal(byTableResponse.json().data.length, 1);
+        assert.equal(byTableResponse.json().data[0].id, "prod-filter-2");
+
+        const byRateResponse = await app.inject({
+          method: "GET",
+          url: "/api/v1/companyid?laborRateId=lr-1",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          }
+        });
+
+        assert.equal(byRateResponse.statusCode, 200);
+        assert.equal(byRateResponse.json().data.length, 1);
+        assert.equal(byRateResponse.json().data[0].id, "prod-filter-1");
       } finally {
         await app.close();
       }

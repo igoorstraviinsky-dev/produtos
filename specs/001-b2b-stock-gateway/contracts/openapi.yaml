@@ -12,6 +12,19 @@ paths:
         - Products
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: laborRateTableId
+          required: false
+          schema:
+            type: string
+          description: Filter products by labor rate table id
+        - in: query
+          name: laborRateId
+          required: false
+          schema:
+            type: string
+          description: Filter products by labor rate id
       responses:
         '200':
           description: Authorized product list
@@ -60,6 +73,19 @@ paths:
         - Products
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: laborRateTableId
+          required: false
+          schema:
+            type: string
+          description: Filter products by labor rate table id
+        - in: query
+          name: laborRateId
+          required: false
+          schema:
+            type: string
+          description: Filter products by labor rate id
       responses:
         '200':
           description: Authorized company catalog with consolidated inventory context
@@ -925,6 +951,30 @@ components:
           type: string
           nullable: true
         labor_rate_table_name:
+          type: string
+          nullable: true
+        laborRateName:
+          type: string
+          nullable: true
+        labor_rate_name:
+          type: string
+          nullable: true
+        laborRateAmount:
+          type: number
+          nullable: true
+        labor_rate_amount:
+          type: number
+          nullable: true
+        laborRateTableMaterialTypeId:
+          type: string
+          nullable: true
+        labor_rate_table_material_type_id:
+          type: string
+          nullable: true
+        laborRateTableMaterialName:
+          type: string
+          nullable: true
+        labor_rate_table_material_name:
           type: string
           nullable: true
         createdAt:

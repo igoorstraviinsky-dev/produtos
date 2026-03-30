@@ -14,7 +14,11 @@ export const laborRateTableSchema = z.object({
   id: z.string(),
   name: z.string(),
   nome: z.string(),
-  label: z.string()
+  label: z.string(),
+  materialTypeId: z.string().nullable(),
+  material_type_id: z.string().nullable(),
+  materialName: z.string().nullable(),
+  material_name: z.string().nullable()
 });
 
 export const materialTypeSchema = z.object({
@@ -166,6 +170,14 @@ export const productSchema = z.object({
   labor_rate_table_id: z.string().nullable(),
   laborRateTableName: z.string().nullable(),
   labor_rate_table_name: z.string().nullable(),
+  laborRateName: z.string().nullable(),
+  labor_rate_name: z.string().nullable(),
+  laborRateAmount: z.number().nullable(),
+  labor_rate_amount: z.number().nullable(),
+  laborRateTableMaterialTypeId: z.string().nullable(),
+  labor_rate_table_material_type_id: z.string().nullable(),
+  laborRateTableMaterialName: z.string().nullable(),
+  labor_rate_table_material_name: z.string().nullable(),
   createdAt: z.string().nullable(),
   created_at: z.string().nullable(),
   price: z.number().nullable(),

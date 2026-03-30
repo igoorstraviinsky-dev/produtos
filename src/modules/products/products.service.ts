@@ -31,6 +31,10 @@ type ProductListMeta = {
 };
 
 type CompanyCatalogContext = Pick<AuthContext, "companyId" | "companyExternalCode" | "companyName">;
+type ProductFilters = {
+  laborRateTableId?: string;
+  laborRateId?: string;
+};
 
 type ProductsServiceOptions = {
   env: AppEnv;
@@ -43,25 +47,30 @@ type ProductsServiceOptions = {
 export class ProductsService {
   constructor(private readonly options: ProductsServiceOptions) {}
 
-  async listProducts(): Promise<ProductsResponse> {
+  async listProducts(filters: ProductFilters = {}): Promise<ProductsResponse> {
     const [{ products, meta }, costSettings, laborRateTables, productTypes] = await Promise.all([
       this.listRawProducts(),
       this.options.controlPlane.getCostSettings(),
       this.options.productGateway.listLaborRateTables(),
       this.options.productGateway.listProductTypes()
     ]);
+    const filteredProducts = this.applyFilters(products, filters);
 
     return {
-      data: products.map((product) => this.enrichProduct(product, costSettings)),
+      data: filteredProducts.map((product) => this.enrichProduct(product, costSettings)),
       meta: {
         ...meta,
+        count: filteredProducts.length,
         laborRateTables,
-        materialTypes: this.buildMaterialTypes(productTypes, products, laborRateTables)
+        materialTypes: this.buildMaterialTypes(productTypes, laborRateTables)
       }
     };
   }
 
-  async listCompanyCatalog(companyContext: CompanyCatalogContext): Promise<CompanyCatalogResponse> {
+  async listCompanyCatalog(
+    companyContext: CompanyCatalogContext,
+    filters: ProductFilters = {}
+  ): Promise<CompanyCatalogResponse> {
     const [
       { products, meta },
       costSettings,
@@ -78,13 +87,14 @@ export class ProductsService {
         this.options.productGateway.listLaborRateTables(),
         this.options.productGateway.listProductTypes()
       ]);
+    const filteredProducts = this.applyFilters(products, filters);
     const inventoryByProductId = new Map(
       effectiveInventory.map((item) => [item.productId, item] as const)
     );
 
     return {
       company: this.buildCompanyPayload(companyContext, companyRecord),
-      data: products.map((product) =>
+      data: filteredProducts.map((product) =>
         this.enrichCompanyProduct(
           product,
           costSettings,
@@ -93,63 +103,50 @@ export class ProductsService {
       ),
       meta: {
         ...meta,
+        count: filteredProducts.length,
         companyId: companyContext.companyId,
         companyExternalCode: companyContext.companyExternalCode,
         companyName: companyContext.companyName,
         laborRateTables,
-        materialTypes: this.buildMaterialTypes(productTypes, products, laborRateTables)
+        materialTypes: this.buildMaterialTypes(productTypes, laborRateTables)
       }
     };
   }
 
   private buildMaterialTypes(
     productTypes: Awaited<ReturnType<ProductGateway["listProductTypes"]>>,
-    products: ProductRecord[],
     laborRateTables: Awaited<ReturnType<ProductGateway["listLaborRateTables"]>>
   ) {
-    const productTypeById = new Map(productTypes.map((item) => [item.id, item] as const));
-    const laborRateTableById = new Map(laborRateTables.map((item) => [item.id, item] as const));
-    const laborTablesByTypeId = new Map<string, Map<string, (typeof laborRateTables)[number]>>();
-
-    for (const product of products) {
-      const typeId = product.typeId ?? product.type_id ?? null;
-      if (!typeId) {
-        continue;
-      }
-
-      const laborRateTableId =
-        product.laborRateTableId ?? product.labor_rate_table_id ?? null;
-      const laborRateTableName =
-        product.laborRateTableName ?? product.labor_rate_table_name ?? null;
-
-      if (!laborRateTableId && !laborRateTableName) {
-        continue;
-      }
-
-      const bucket = laborTablesByTypeId.get(typeId) ?? new Map();
-      const resolvedTable =
-        (laborRateTableId ? laborRateTableById.get(laborRateTableId) : null) ??
-        (laborRateTableName
-          ? {
-              id: laborRateTableId ?? `labor-rate-table:${laborRateTableName}`,
-              name: laborRateTableName,
-              nome: laborRateTableName,
-              label: laborRateTableName
-            }
-          : null);
-
-      if (resolvedTable) {
-        bucket.set(resolvedTable.id, resolvedTable);
-        laborTablesByTypeId.set(typeId, bucket);
-      }
-    }
-
     return productTypes.map((productType) => ({
       ...productType,
-      laborRateTables: [...(laborTablesByTypeId.get(productType.id)?.values() ?? [])].sort(
+      laborRateTables: laborRateTables.filter(
+        (laborRateTable) =>
+          laborRateTable.materialTypeId === productType.id ||
+          laborRateTable.material_type_id === productType.id
+      ).sort(
         (left, right) => left.name.localeCompare(right.name, "pt-BR", { sensitivity: "base" })
       )
     }));
+  }
+
+  private applyFilters(products: ProductRecord[], filters: ProductFilters) {
+    return products.filter((product) => {
+      if (filters.laborRateTableId) {
+        const laborRateTableId = product.laborRateTableId ?? product.labor_rate_table_id ?? null;
+        if (laborRateTableId !== filters.laborRateTableId) {
+          return false;
+        }
+      }
+
+      if (filters.laborRateId) {
+        const laborRateId = product.laborRateId ?? product.labor_rate_id ?? null;
+        if (laborRateId !== filters.laborRateId) {
+          return false;
+        }
+      }
+
+      return true;
+    });
   }
 
   private async listRawProducts(): Promise<{ products: ProductRecord[]; meta: ProductListMeta }> {
