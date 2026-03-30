@@ -937,6 +937,31 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
           </div>
 
           <div className="mt-6 space-y-4">
+            <article className="surface-card rounded-[1.5rem] p-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-100">Identificador da empresa</p>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Use este `companyId` nas integracoes internas do admin que exigem a empresa
+                    atual na query string.
+                  </p>
+                </div>
+
+                <div className="w-full max-w-2xl">
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      companyId
+                    </span>
+                    <input
+                      readOnly
+                      value={company.id}
+                      className="surface-input w-full rounded-[1.2rem] px-4 py-3 font-mono text-sm text-slate-200 outline-none transition"
+                    />
+                  </label>
+                </div>
+              </div>
+            </article>
+
             {apiKeysState === "loading" ? (
               <p className="text-sm text-slate-400">Atualizando chaves da empresa...</p>
             ) : null}
