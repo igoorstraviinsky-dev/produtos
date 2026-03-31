@@ -5,6 +5,7 @@ import {
   createCompanySchema,
   issueApiKeySchema,
   updateAdminInventorySchema,
+  updateAdminInventoryVariantSchema,
   updateCostSettingsSchema,
   updateCompanySchema,
   updateCompanyStatusSchema
@@ -211,6 +212,24 @@ export const adminRoutes: FastifyPluginAsync<AdminRoutesOptions> = async (app, o
         params.companyId,
         params.productId,
         payload.customStockQuantity
+      );
+      return reply.send(inventory);
+    }
+  );
+
+  app.put(
+    "/companies/:companyId/inventory/:productId/variants/:variantId",
+    {
+      preHandler: options.adminGuard
+    },
+    async (request, reply) => {
+      const params = request.params as { companyId: string; productId: string; variantId: string };
+      const payload = updateAdminInventoryVariantSchema.parse(request.body);
+      const inventory = await options.adminService.updateCompanyInventoryVariant(
+        params.companyId,
+        params.productId,
+        params.variantId,
+        payload.stockWeightGrams
       );
       return reply.send(inventory);
     }

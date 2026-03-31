@@ -2853,6 +2853,24 @@ const cases = [
         assert.equal(updateInventoryResponse.statusCode, 200);
         assert.equal(updateInventoryResponse.json().data.effectiveStockQuantity, 8);
 
+        const updateVariantInventoryResponse = await app.inject({
+          method: "PUT",
+          url: `/api/internal/admin/companies/${companyId}/inventory/prod-1/variants/variant-1`,
+          headers: {
+            "x-admin-token": "secret-token"
+          },
+          payload: {
+            stockWeightGrams: 12
+          }
+        });
+
+        assert.equal(updateVariantInventoryResponse.statusCode, 200);
+        assert.equal(updateVariantInventoryResponse.json().data.variantStockQuantityTotal, 12);
+        assert.equal(updateVariantInventoryResponse.json().data.variants[0].customStockQuantity, 12);
+        assert.equal(updateVariantInventoryResponse.json().data.variants[0].stockWeightGrams, 12);
+        assert.equal(updateVariantInventoryResponse.json().data.variants[0].stockUnits, 1);
+        assert.equal(updateVariantInventoryResponse.json().data.effectiveStockQuantity, 8);
+
         const deactivateResponse = await app.inject({
           method: "PATCH",
           url: `/api/internal/admin/companies/${companyId}/status`,
@@ -2994,6 +3012,11 @@ const cases = [
       assert.ok(
         openApiDocument.paths[
           "/api/internal/admin/companies/{companyId}/inventory/{productId}"
+        ]
+      );
+      assert.ok(
+        openApiDocument.paths[
+          "/api/internal/admin/companies/{companyId}/inventory/{productId}/variants/{variantId}"
         ]
       );
     }

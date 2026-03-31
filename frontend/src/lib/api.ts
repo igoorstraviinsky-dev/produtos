@@ -227,6 +227,22 @@ export const api = {
     );
     return response.data;
   },
+  async updateCompanyInventoryVariant(
+    companyId: string,
+    productId: string,
+    variantId: string,
+    payload: { stockWeightGrams: number }
+  ) {
+    const response = await request<{ data: AdminInventoryItem }>(
+      `/api/internal/admin/companies/${companyId}/inventory/${productId}/variants/${variantId}`,
+      {
+        method: "PUT",
+        admin: true,
+        body: payload
+      }
+    );
+    return response.data;
+  },
   async listInventoryProducts(companyId?: string) {
     const query = companyId ? `?companyId=${encodeURIComponent(companyId)}` : "";
     const response = await request<ApiEnvelope<Product[]>>(`/api/internal/admin/products${query}`, {

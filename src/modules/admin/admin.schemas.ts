@@ -34,6 +34,10 @@ export const updateAdminInventorySchema = z.object({
   customStockQuantity: z.number().int().nonnegative()
 });
 
+export const updateAdminInventoryVariantSchema = z.object({
+  stockWeightGrams: z.number().int().nonnegative()
+});
+
 export const updateCostSettingsSchema = z
   .object({
     silverPricePerGram: z.number().nonnegative().optional(),

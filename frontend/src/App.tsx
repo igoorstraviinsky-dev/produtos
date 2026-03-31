@@ -65,6 +65,17 @@ function createInventoryDrafts(items: AdminInventoryItem[]) {
   );
 }
 
+function createVariantInventoryDrafts(items: AdminInventoryItem[]) {
+  return Object.fromEntries(
+    items.flatMap((item) =>
+      item.variants.map((variant) => [
+        variant.variantId,
+        String(variant.customStockQuantity ?? variant.effectiveStockQuantity)
+      ])
+    )
+  );
+}
+
 function App() {
   const AUTO_INVENTORY_REFRESH_INTERVAL_MS = 15000;
   const AUTO_CATALOG_SYNC_INTERVAL_MS = 60000;
@@ -108,8 +119,10 @@ function App() {
   const [deletingCompanyId, setDeletingCompanyId] = useState("");
   const [keyActionId, setKeyActionId] = useState("");
   const [savingInventoryId, setSavingInventoryId] = useState("");
+  const [savingInventoryVariantId, setSavingInventoryVariantId] = useState("");
   const [syncCatalogState, setSyncCatalogState] = useState<"idle" | "syncing">("idle");
   const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
+  const [inventoryVariantDrafts, setInventoryVariantDrafts] = useState<Record<string, string>>({});
   const [costHistoryEntries, setCostHistoryEntries] = useState<CostSettingsHistoryEntry[]>([]);
   const [costVariables, setCostVariables] = useState({
     silverPricePerGram: "1.00",
@@ -254,11 +267,12 @@ function App() {
         api.listCompanyInventory(companyId)
       ]);
 
-      setApiKeys(nextApiKeys);
-      setInventory(nextInventory.data);
-      setInventoryDrafts(createInventoryDrafts(nextInventory.data));
-      setApiKeysState("success");
-      setInventoryState("success");
+        setApiKeys(nextApiKeys);
+        setInventory(nextInventory.data);
+        setInventoryDrafts(createInventoryDrafts(nextInventory.data));
+        setInventoryVariantDrafts(createVariantInventoryDrafts(nextInventory.data));
+        setApiKeysState("success");
+        setInventoryState("success");
     } catch (error) {
       setApiKeysState("error");
       setInventoryState("error");
@@ -343,10 +357,11 @@ function App() {
     window.history.pushState({}, "", "/");
     setCurrentPage("dashboard");
     setSelectedCompanyId("");
-    setApiKeys([]);
-    setInventory([]);
-    setInventoryDrafts({});
-  }
+      setApiKeys([]);
+      setInventory([]);
+      setInventoryDrafts({});
+      setInventoryVariantDrafts({});
+    }
 
   function openCosts(companyId: string) {
     window.history.pushState({}, "", `/empresas/${encodeURIComponent(companyId)}`);
@@ -735,24 +750,72 @@ function App() {
         customStockQuantity: nextQuantity
       });
 
-      setInventory((currentInventory) =>
-        currentInventory.map((item) => (item.productId === productId ? updatedItem : item))
-      );
+        setInventory((currentInventory) =>
+          currentInventory.map((item) => (item.productId === productId ? updatedItem : item))
+        );
         setInventoryDrafts((currentDrafts) => ({
           ...currentDrafts,
-          [productId]: updatedItem.hasVariantInventory
-            ? ""
-            : updatedItem.customStockQuantity !== null
+          [productId]:
+            updatedItem.customStockQuantity !== null
               ? String(updatedItem.customStockQuantity)
               : String(updatedItem.effectiveStockQuantity)
         }));
-      setFeedback(`Estoque salvo para o produto ${updatedItem.sku}.`);
-    } catch (error) {
-      setFeedback(formatApiError(error));
+        setInventoryVariantDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          ...createVariantInventoryDrafts([updatedItem])
+        }));
+        setFeedback(`Estoque salvo para o produto ${updatedItem.sku}.`);
+      } catch (error) {
+        setFeedback(formatApiError(error));
     } finally {
       setSavingInventoryId("");
+      }
     }
-  }
+
+    async function handleSaveInventoryVariant(productId: string, variantId: string) {
+      if (!selectedCompanyId) {
+        return;
+      }
+
+      const nextWeightStock = Number(inventoryVariantDrafts[variantId] ?? "");
+      if (!Number.isInteger(nextWeightStock) || nextWeightStock < 0) {
+        setFeedback("Informe um estoque em peso inteiro e nao negativo para a variante.");
+        return;
+      }
+
+      setSavingInventoryVariantId(variantId);
+
+      try {
+        const updatedItem = await api.updateCompanyInventoryVariant(
+          selectedCompanyId,
+          productId,
+          variantId,
+          {
+            stockWeightGrams: nextWeightStock
+          }
+        );
+
+        setInventory((currentInventory) =>
+          currentInventory.map((item) => (item.productId === productId ? updatedItem : item))
+        );
+        setInventoryDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [productId]:
+            updatedItem.customStockQuantity !== null
+              ? String(updatedItem.customStockQuantity)
+              : String(updatedItem.effectiveStockQuantity)
+        }));
+        setInventoryVariantDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          ...createVariantInventoryDrafts([updatedItem])
+        }));
+        setFeedback(`Estoque em peso salvo para a variante ${variantId}.`);
+      } catch (error) {
+        setFeedback(formatApiError(error));
+      } finally {
+        setSavingInventoryVariantId("");
+      }
+    }
 
   async function handleCopyCreatedKey() {
     if (!createdKey) {
@@ -941,13 +1004,15 @@ function App() {
               products={products}
               apiKeysState={apiKeysState}
               inventoryState={inventoryState}
-              productsState={productsState}
-              keyActionId={keyActionId}
-              savingInventoryId={savingInventoryId}
-              syncingCatalog={syncCatalogState === "syncing"}
-              companyForm={companyForm}
-              inventoryDrafts={inventoryDrafts}
-              onBack={openDashboard}
+                productsState={productsState}
+                keyActionId={keyActionId}
+                savingInventoryId={savingInventoryId}
+                savingInventoryVariantId={savingInventoryVariantId}
+                syncingCatalog={syncCatalogState === "syncing"}
+                companyForm={companyForm}
+                inventoryDrafts={inventoryDrafts}
+                inventoryVariantDrafts={inventoryVariantDrafts}
+                onBack={openDashboard}
               onChangeTab={(tab) => {
                 setActiveTab(tab);
                 if (tab === "costs") {
@@ -980,16 +1045,25 @@ function App() {
                   companyId: selectedCompany.id
                 });
               }}
-              onInventoryDraftChange={(productId, value) =>
-                setInventoryDrafts((currentDrafts) => ({
-                  ...currentDrafts,
-                  [productId]: value
-                }))
-              }
-              onSaveInventory={(productId) => {
-                void handleSaveInventory(productId);
-              }}
-            />
+                onInventoryDraftChange={(productId, value) =>
+                  setInventoryDrafts((currentDrafts) => ({
+                    ...currentDrafts,
+                    [productId]: value
+                  }))
+                }
+                onInventoryVariantDraftChange={(variantId, value) =>
+                  setInventoryVariantDrafts((currentDrafts) => ({
+                    ...currentDrafts,
+                    [variantId]: value
+                  }))
+                }
+                onSaveInventory={(productId) => {
+                  void handleSaveInventory(productId);
+                }}
+                onSaveInventoryVariant={(productId, variantId) => {
+                  void handleSaveInventoryVariant(productId, variantId);
+                }}
+              />
 
             {activeTab === "costs" ? (
               <CostCalculatorPage

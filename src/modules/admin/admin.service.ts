@@ -283,6 +283,51 @@ export class AdminService {
     };
   }
 
+  async updateCompanyInventoryVariant(
+    companyId: string,
+    productId: string,
+    variantId: string,
+    stockWeightGrams: number
+  ) {
+    const company = await this.controlPlane.findCompanyById(companyId);
+    if (!company) {
+      throw new AppError(404, "COMPANY_NOT_FOUND", "Company was not found");
+    }
+
+    const currentInventory = await this.controlPlane.listEffectiveInventoryByCompany(companyId);
+    const targetProduct = currentInventory.find((item) => item.productId === productId) ?? null;
+    if (!targetProduct) {
+      throw new AppError(404, "PRODUCT_NOT_FOUND", "Product was not found in the master catalog");
+    }
+
+    const hasVariant = targetProduct.variants.some((variant) => variant.variantId === variantId);
+    if (!hasVariant) {
+      throw new AppError(404, "VARIANT_NOT_FOUND", "Variant was not found in the master catalog");
+    }
+
+    await this.controlPlane.upsertCompanyVariantInventory(companyId, variantId, stockWeightGrams);
+
+    const [inventory, productCostById] = await Promise.all([
+      this.controlPlane.listEffectiveInventoryByCompany(companyId),
+      this.buildProductCostById(companyId)
+    ]);
+    const updatedInventory = inventory.find((item) => item.productId === productId) ?? null;
+
+    if (!updatedInventory) {
+      throw new AppError(404, "PRODUCT_NOT_FOUND", "Product was not found in the master catalog");
+    }
+
+    await this.invalidateCompanyCatalogCache(companyId);
+
+    return {
+      data: mapInventoryItem(updatedInventory, productCostById),
+      meta: {
+        companyId,
+        companyName: company.legalName
+      }
+    };
+  }
+
   async getCostSettings(companyId?: string) {
     if (companyId) {
       const company = await this.controlPlane.findCompanyById(companyId);

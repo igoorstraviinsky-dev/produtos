@@ -79,18 +79,6 @@ function formatUnits(value: number | null | undefined) {
   }).format(roundedDown);
 }
 
-function formatWeightStock(value: number | null | undefined) {
-  const parsed = typeof value === "number" ? value : null;
-  if (parsed === null || !Number.isFinite(parsed)) {
-    return "0 g";
-  }
-
-  return `${new Intl.NumberFormat("pt-BR", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  }).format(parsed)} g`;
-}
-
 function getSupplierCode(product: Product | null) {
   return product?.supplier_code ?? product?.supplierCode ?? "n/d";
 }
@@ -650,6 +638,7 @@ type CompanyDetailPageProps = {
   productsState: "idle" | "loading" | "success" | "error";
   keyActionId: string;
   savingInventoryId: string;
+  savingInventoryVariantId: string;
   syncingCatalog: boolean;
   companyForm: {
     legalName: string;
@@ -657,6 +646,7 @@ type CompanyDetailPageProps = {
     syncStoreInventory: boolean;
   };
   inventoryDrafts: Record<string, string>;
+  inventoryVariantDrafts: Record<string, string>;
   onBack: () => void;
   onChangeTab: (tab: "profile" | "keys" | "inventory" | "costs") => void;
   onCompanyFormChange: (
@@ -669,7 +659,9 @@ type CompanyDetailPageProps = {
   onRevokeKey: (apiKeyId: string) => void;
   onSyncCatalog: () => void;
   onInventoryDraftChange: (productId: string, value: string) => void;
+  onInventoryVariantDraftChange: (variantId: string, value: string) => void;
   onSaveInventory: (productId: string) => void;
+  onSaveInventoryVariant: (productId: string, variantId: string) => void;
 };
 
 export function CompanyDetailPage(props: CompanyDetailPageProps) {
@@ -684,9 +676,11 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
     productsState,
     keyActionId,
     savingInventoryId,
+    savingInventoryVariantId,
     syncingCatalog,
     companyForm,
     inventoryDrafts,
+    inventoryVariantDrafts,
     onBack,
     onChangeTab,
     onCompanyFormChange,
@@ -697,7 +691,9 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
     onRevokeKey,
     onSyncCatalog,
     onInventoryDraftChange,
-    onSaveInventory
+    onInventoryVariantDraftChange,
+    onSaveInventory,
+    onSaveInventoryVariant
   } = props;
 
   const productsById = new Map(products.map((product) => [product.id, product]));
@@ -1287,30 +1283,64 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
-                                      {displayedVariants.map((variant) => (
-                                        <tr key={variant.variant_id} className="text-sm text-slate-300">
-                                        <td className="px-3 py-3 font-semibold text-slate-100">
-                                          {getVariantDisplayLabel(variant)}
-                                        </td>
-                                        <td className="px-3 py-3">{variant.sku}</td>
-                                          <td className="px-3 py-3">
-                                            {formatWeight(
-                                              variant.individual_weight ?? variant.individualWeight
-                                            )}
-                                          </td>
-                                          <td className="px-3 py-3 text-slate-200">
-                                            {formatCurrency(getVariantCost(product, variant))}
-                                          </td>
-                                          <td className="px-3 py-3">
-                                            <span className="inline-flex min-w-10 items-center justify-center rounded-full border border-rose-400/20 bg-rose-500/18 px-2 py-1 text-xs font-semibold text-rose-100">
-                                              {formatWeightStock(getVariantDisplayStock(item, variant))}
-                                            </span>
-                                          </td>
-                                          <td className="px-3 py-3 text-slate-200">
-                                            {formatUnits(getVariantUnitsStock(item, variant))}
-                                          </td>
-                                        </tr>
-                                      ))}
+                                      {displayedVariants.map((variant) => {
+                                        const variantRecord = getInventoryVariantRecord(item, variant);
+                                        const variantId =
+                                          variantRecord?.variantId ??
+                                          variant.variant_id ??
+                                          variant.variantId;
+                                        const variantStockDraft =
+                                          inventoryVariantDrafts[variantId] ??
+                                          String(getVariantDisplayStock(item, variant));
+
+                                        return (
+                                          <tr key={variant.variant_id} className="text-sm text-slate-300">
+                                            <td className="px-3 py-3 font-semibold text-slate-100">
+                                              {getVariantDisplayLabel(variant)}
+                                            </td>
+                                            <td className="px-3 py-3">{variant.sku}</td>
+                                            <td className="px-3 py-3">
+                                              {formatWeight(
+                                                variant.individual_weight ?? variant.individualWeight
+                                              )}
+                                            </td>
+                                            <td className="px-3 py-3 text-slate-200">
+                                              {formatCurrency(getVariantCost(product, variant))}
+                                            </td>
+                                            <td className="px-3 py-3">
+                                              <div className="flex min-w-[11rem] items-center gap-2">
+                                                <input
+                                                  type="number"
+                                                  min="0"
+                                                  value={variantStockDraft}
+                                                  onChange={(event) =>
+                                                    onInventoryVariantDraftChange(
+                                                      variantId,
+                                                      event.target.value
+                                                    )
+                                                  }
+                                                  className="surface-input w-24 rounded-[0.9rem] px-3 py-2 text-sm outline-none transition"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  disabled={savingInventoryVariantId === variantId}
+                                                  onClick={() =>
+                                                    onSaveInventoryVariant(item.productId, variantId)
+                                                  }
+                                                  className="surface-button-secondary inline-flex items-center justify-center rounded-full px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
+                                                >
+                                                  {savingInventoryVariantId === variantId
+                                                    ? "..."
+                                                    : "Salvar"}
+                                                </button>
+                                              </div>
+                                            </td>
+                                            <td className="px-3 py-3 text-slate-200">
+                                              {formatUnits(getVariantUnitsStock(item, variant))}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
                                     </tbody>
                                   </table>
                                 </div>
