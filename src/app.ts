@@ -142,7 +142,9 @@ export async function buildApp(overrides?: Partial<AppDependencies>): Promise<Fa
   );
   const inventoryService = new InventoryService(
     dependencies.controlPlane,
-    dependencies.productGateway
+    dependencies.productGateway,
+    dependencies.productCache,
+    env
   );
   const webhooksService = new WebhooksService(
     dependencies.controlPlane,

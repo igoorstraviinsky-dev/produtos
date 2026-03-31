@@ -1,6 +1,9 @@
+import { AppEnv } from "../../config/env";
 import { ControlPlaneRepository, MasterProductRecord } from "../../lib/postgres";
-import { ProductGateway } from "../../lib/supabase";
+import { ProductCacheStore } from "../../lib/redis";
+import { ProductGateway, ProductRecord } from "../../lib/supabase";
 import { AppError } from "../../middleware/error-handler";
+import { buildProductsCacheKey } from "../../utils/cache-keys";
 import { calculateProductCost } from "../products/cost-calculator";
 import { attachVariantMetrics, buildVariantMetrics } from "../products/variant-metrics";
 import {
@@ -11,6 +14,11 @@ import {
   SyncMyInventoryItem,
   SyncMyInventoryVariantItem
 } from "./inventory.schemas";
+
+type ProductCacheEntry = {
+  cachedAt: string;
+  data: ProductRecord[];
+};
 
 function mapInventoryItem(
   record: {
@@ -71,21 +79,65 @@ function mapInventoryItem(
 export class InventoryService {
   constructor(
     private readonly controlPlane: ControlPlaneRepository,
-    private readonly productGateway: ProductGateway
+    private readonly productGateway: ProductGateway,
+    private readonly productCache: ProductCacheStore,
+    private readonly env: Pick<AppEnv, "PRODUCTS_CACHE_TTL_SECONDS" | "PRODUCTS_CACHE_STALE_SECONDS">
   ) {}
 
-  private async buildProductCostById(companyId: string) {
+  private isFresh(entry: ProductCacheEntry, now: number) {
+    return now - Date.parse(entry.cachedAt) <= this.env.PRODUCTS_CACHE_TTL_SECONDS * 1000;
+  }
+
+  private isServeableStale(entry: ProductCacheEntry, now: number) {
+    return (
+      now - Date.parse(entry.cachedAt) <=
+      (this.env.PRODUCTS_CACHE_TTL_SECONDS + this.env.PRODUCTS_CACHE_STALE_SECONDS) * 1000
+    );
+  }
+
+  private async listCatalogProductsCached() {
+    const cacheKey = buildProductsCacheKey();
+    const now = Date.now();
+    const cachedEntry = await this.productCache.get<ProductCacheEntry>(cacheKey);
+
+    if (cachedEntry && this.isFresh(cachedEntry, now)) {
+      return cachedEntry.data;
+    }
+
+    try {
+      const products = await this.productGateway.listProducts();
+      await this.productCache.set<ProductCacheEntry>(
+        cacheKey,
+        {
+          cachedAt: new Date(now).toISOString(),
+          data: products
+        },
+        this.env.PRODUCTS_CACHE_TTL_SECONDS + this.env.PRODUCTS_CACHE_STALE_SECONDS
+      );
+      return products;
+    } catch (error) {
+      if (cachedEntry && this.isServeableStale(cachedEntry, now)) {
+        return cachedEntry.data;
+      }
+
+      throw error;
+    }
+  }
+
+  private async buildProductCostById(companyId: string, productIds?: Set<string>) {
     try {
       const [products, costSettings] = await Promise.all([
-        this.productGateway.listProducts(),
+        this.listCatalogProductsCached(),
         this.controlPlane.getCostSettings(companyId)
       ]);
 
       return new Map(
-        products.map((product) => [
+        products
+          .filter((product) => !productIds || productIds.has(product.id))
+          .map((product) => [
           product.id,
           calculateProductCost(product, costSettings).finalCost
-        ])
+          ])
       );
     } catch {
       return new Map<string, number>();
@@ -150,10 +202,11 @@ export class InventoryService {
   }
 
   async listMyInventory(companyId: string): Promise<MyInventoryResponse> {
-    const [inventory, productCostById] = await Promise.all([
-      this.controlPlane.listEffectiveInventoryByCompany(companyId),
-      this.buildProductCostById(companyId)
-    ]);
+    const inventory = await this.controlPlane.listEffectiveInventoryByCompany(companyId);
+    const productCostById = await this.buildProductCostById(
+      companyId,
+      new Set(inventory.map((item) => item.productId))
+    );
 
     return {
       data: inventory.map((item) => mapInventoryItem(item, productCostById)),
@@ -169,7 +222,6 @@ export class InventoryService {
     productId: string,
     customStockQuantity: number
   ) {
-    const productCostById = await this.buildProductCostById(companyId);
     const updatedInventory = await this.controlPlane.upsertCompanyInventory(
       companyId,
       productId,
@@ -183,6 +235,8 @@ export class InventoryService {
         "Produto nao encontrado no seu inventario"
       );
     }
+
+    const productCostById = await this.buildProductCostById(companyId, new Set([productId]));
 
     return {
       data: mapInventoryItem(updatedInventory, productCostById)
@@ -287,10 +341,12 @@ export class InventoryService {
       }
     }
 
-    const [inventory, productCostById] = await Promise.all([
-      this.controlPlane.listEffectiveInventoryByCompany(companyId),
-      this.buildProductCostById(companyId)
-    ]);
+    const inventory = await this.controlPlane.listEffectiveInventoryByCompany(companyId);
+    const scopedProductIds =
+      touchedProductIds.size > 0
+        ? touchedProductIds
+        : new Set(inventory.map((record) => record.productId));
+    const productCostById = await this.buildProductCostById(companyId, scopedProductIds);
     const updatedItems = inventory
       .filter((record) => touchedProductIds.has(record.productId))
       .map((item) => mapInventoryItem(item, productCostById));

@@ -471,9 +471,13 @@ class FakeProductGateway {
     this.laborRateTables = laborRateTables;
     this.productTypes = productTypes;
     this.error = null;
+    this.listProductsCalls = 0;
+    this.listLaborRateTablesCalls = 0;
+    this.listProductTypesCalls = 0;
   }
 
   async listProducts() {
+    this.listProductsCalls += 1;
     if (this.error) {
       throw this.error;
     }
@@ -482,6 +486,7 @@ class FakeProductGateway {
   }
 
   async listLaborRateTables() {
+    this.listLaborRateTablesCalls += 1;
     if (this.laborRateTables) {
       return this.laborRateTables;
     }
@@ -507,6 +512,7 @@ class FakeProductGateway {
   }
 
   async listProductTypes() {
+    this.listProductTypesCalls += 1;
     if (this.productTypes) {
       return this.productTypes;
     }
@@ -1069,6 +1075,75 @@ const cases = [
         "https://api.example.com/api/v1/media/object/joias%2Fraw%2FSKU-001%2FSKU-001_st.jpg"
       );
       assert.equal(secondResponse.meta.source, "cache");
+      assert.equal(productGateway.listProductsCalls, 1);
+      assert.equal(productGateway.listLaborRateTablesCalls, 1);
+      assert.equal(productGateway.listProductTypesCalls, 1);
+    }
+  },
+  {
+    name: "Partner inventory serves costs from cached catalog when upstream is unavailable",
+    fn: async () => {
+      const productCache = new FakeProductCacheStore();
+      const { app, controlPlane, env, productGateway } = await createTestApp({ productCache });
+      try {
+        const company = controlPlane.seedCompany({
+          legalName: "Empresa Cache Inventory",
+          externalCode: "empresa-cache-inventory"
+        });
+        const apiKey = "b2b_cached_inventory_123";
+
+        controlPlane.seedApiKey({
+          companyId: company.id,
+          keyPrefix: deriveApiKeyPrefix(apiKey),
+          keyHash: hashApiKey(apiKey, env.API_KEY_PEPPER),
+          rateLimitPerMinute: 10
+        });
+
+        await productCache.set(buildProductsCacheKey(), {
+          cachedAt: new Date().toISOString(),
+          data: productGateway.products
+        });
+
+        await controlPlane.replaceMasterProducts([
+          {
+            id: "prod-1",
+            sku: "SKU-001",
+            name: "Produto 1",
+            masterStock: 10,
+            updatedAt: new Date("2026-03-23T00:00:00.000Z"),
+            variants: [
+              {
+                id: "variant-1",
+                productId: "prod-1",
+                sku: "SKU-001-ARO-16",
+                individualWeight: 10.5,
+                individualStock: 4,
+                createdAt: new Date("2026-03-23T00:00:00.000Z"),
+                updatedAt: new Date("2026-03-23T00:00:00.000Z")
+              }
+            ]
+          }
+        ]);
+
+        await controlPlane.upsertCompanyInventory(company.id, "prod-1", 7);
+        await controlPlane.upsertCompanyVariantInventory(company.id, "variant-1", 4);
+        productGateway.error = new Error("Upstream unavailable");
+
+        const response = await app.inject({
+          method: "GET",
+          url: "/api/v1/my-inventory",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          }
+        });
+
+        assert.equal(response.statusCode, 200);
+        assert.equal(response.json().data.length, 1);
+        assert.equal(response.json().data[0].productId, "prod-1");
+        assert.equal(response.json().data[0].variants[0].cost > 0, true);
+      } finally {
+        await app.close();
+      }
     }
   },
   {

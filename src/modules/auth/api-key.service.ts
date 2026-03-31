@@ -9,6 +9,10 @@ export class ApiKeyService {
     private readonly pepper: string
   ) {}
 
+  private recordApiKeyUsage(apiKeyId: string) {
+    void this.controlPlane.touchApiKeyUsage(apiKeyId, new Date()).catch(() => undefined);
+  }
+
   async authenticatePresentedKey(apiKey: string): Promise<AuthContext> {
     const keyHash = hashApiKey(apiKey, this.pepper);
     const apiKeyRecord = await this.controlPlane.findApiKeyByHash(keyHash);
@@ -29,7 +33,7 @@ export class ApiKeyService {
       throw new AppError(403, "API_KEY_REVOKED", "API key has been revoked");
     }
 
-    await this.controlPlane.touchApiKeyUsage(apiKeyRecord.id, new Date());
+    this.recordApiKeyUsage(apiKeyRecord.id);
 
     return {
       apiKeyId: apiKeyRecord.id,
