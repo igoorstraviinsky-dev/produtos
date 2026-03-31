@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "ver-estoque": "node scripts/ver-estoque.mjs",
+    "benchmark:api": "node scripts/benchmark-api.mjs",
     "test": "npm run build && node tests/run.cjs",
     "test:watch": "npm run test",
     "lint": "tsc --noEmit",
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.1",
+    "autocannon": "^8.0.0",
     "prisma": "^6.8.2",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",

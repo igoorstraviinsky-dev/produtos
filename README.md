@@ -26,6 +26,7 @@ Supabase e estoque isolado por parceiro.
 - Frontend em desenvolvimento: `cd frontend && npm.cmd run dev -- --host 127.0.0.1 --port 5173`
 - Build: `npm.cmd run build`
 - Testes: `npm.cmd run test`
+- Benchmark de carga: `npm.cmd run benchmark:api -- --base-url https://seu-dominio --api-key SUA_API_KEY`
 
 ## Endpoints principais
 
@@ -84,3 +85,44 @@ Comandos principais do gerenciador:
 Se a porta `3000` da VPS ja estiver ocupada por outra aplicacao, use o instalador com `--app-port 3100` e o Nginx sera configurado automaticamente para essa porta.
 
 Se o shell da VPS estiver com `NODE_ENV=production`, instale dependencias com `npm install --include=dev` no backend e no `frontend` para garantir `vite`, `typescript` e plugins de build.
+
+## Benchmark de carga
+
+O projeto inclui um benchmark real para medir:
+
+- `GET /api/v1/products`
+- `GET /api/v1/companyid`
+- `GET /api/v1/my-inventory`
+
+Critério padrao de etapa segura:
+
+- `p95 <= 800ms`
+- erro total `<= 1%`
+- sem timeout
+- sem respostas nao-2xx
+
+Exemplo em PowerShell:
+
+```powershell
+$env:API_BASE_URL='https://estoque2.straviinsky.online'
+$env:API_KEY='SUA_API_KEY'
+npm.cmd run benchmark:api
+```
+
+Opcoes uteis:
+
+- `--connections 5,10,25,50,100`
+- `--duration 15`
+- `--warmup 5`
+- `--safe-p95-ms 800`
+- `--safe-error-rate 0.01`
+
+Relatorios gerados:
+
+- JSON: `.logs/benchmarks/api-benchmark-<timestamp>.json`
+- Markdown: `.logs/benchmarks/api-benchmark-<timestamp>.md`
+
+Importante:
+
+- use uma API key com limite alto o suficiente para o teste, senao o benchmark vai medir o rate limit em vez da capacidade real do backend
+- rode preferencialmente na VPS ou em uma maquina proxima dela para reduzir distorcao de rede

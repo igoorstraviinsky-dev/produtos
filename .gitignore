@@ -8,6 +8,7 @@ coverage/
 .DS_Store
 Thumbs.db
 *.log
+.logs/
 .idea/
 .vscode/
 .prisma/
