@@ -1309,18 +1309,23 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                             </td>
                                             <td className="px-3 py-3">
                                               <div className="flex min-w-[11rem] items-center gap-2">
-                                                <input
-                                                  type="number"
-                                                  min="0"
-                                                  value={variantStockDraft}
-                                                  onChange={(event) =>
-                                                    onInventoryVariantDraftChange(
-                                                      variantId,
-                                                      event.target.value
-                                                    )
-                                                  }
-                                                  className="surface-input w-24 rounded-[0.9rem] px-3 py-2 text-sm outline-none transition"
-                                                />
+                                                <div className="relative">
+                                                  <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={variantStockDraft}
+                                                    onChange={(event) =>
+                                                      onInventoryVariantDraftChange(
+                                                        variantId,
+                                                        event.target.value
+                                                      )
+                                                    }
+                                                    className="surface-input w-24 rounded-[0.9rem] px-3 py-2 pr-8 text-sm outline-none transition"
+                                                  />
+                                                  <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-xs font-semibold text-slate-400">
+                                                    g
+                                                  </span>
+                                                </div>
                                                 <button
                                                   type="button"
                                                   disabled={savingInventoryVariantId === variantId}
