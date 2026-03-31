@@ -537,6 +537,17 @@ function getVariantUnitsStock(item: AdminInventoryItem, variant: ProductVariant)
   return stock / weight;
 }
 
+function getVariantUnitsTotal(item: AdminInventoryItem, variants: ProductVariant[]) {
+  return variants.reduce((sum, variant) => {
+    const units = getVariantUnitsStock(item, variant);
+    if (units === null || !Number.isFinite(units)) {
+      return sum;
+    }
+
+    return sum + Math.floor(units);
+  }, 0);
+}
+
 function getVariantCost(product: Product | null, variant: ProductVariant) {
   const variantWeight = toNumber(variant.individual_weight ?? variant.individualWeight);
   const productCost = typeof product?.costFinal === "number" ? product.costFinal : null;
@@ -1118,6 +1129,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                 const displayedVariants =
                   matchingVariants.length > 0 ? matchingVariants : variants;
                 const currentDisplayStock = getCurrentDisplayStock(item, product);
+                const totalVariantUnits = getVariantUnitsTotal(item, variants);
                 const isCardOpen = openInventoryProductId === item.productId;
                 const productCost = formatCurrency(product?.costFinal);
                 const variantCountLabel =
@@ -1216,8 +1228,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                 </p>
                                 {item.hasVariantInventory ? (
                                   <p className="mt-2 text-sm font-medium text-cyan-200">
-                                    Total atual pelas variantes:{" "}
-                                    {item.variantStockQuantityTotal ?? item.effectiveStockQuantity}
+                                    Total atual pelas variantes: {formatUnits(totalVariantUnits)} UN
                                   </p>
                                 ) : null}
                                 {item.customStockQuantity !== null && item.hasVariantInventory ? (
