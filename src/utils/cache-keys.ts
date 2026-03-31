@@ -2,6 +2,10 @@ export function buildProductsCacheKey() {
   return "products:list:v1";
 }
 
+export function buildProductsMetaCacheKey() {
+  return "products:meta:v1";
+}
+
 export function buildRateLimitKey(companyId: string, apiKeyId: string, now = new Date()) {
   const year = now.getUTCFullYear();
   const month = `${now.getUTCMonth() + 1}`.padStart(2, "0");

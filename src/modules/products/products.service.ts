@@ -9,7 +9,7 @@ import {
 import { ProductGateway, ProductRecord } from "../../lib/supabase";
 import { ProductCacheStore } from "../../lib/redis";
 import { AppError } from "../../middleware/error-handler";
-import { buildProductsCacheKey } from "../../utils/cache-keys";
+import { buildProductsCacheKey, buildProductsMetaCacheKey } from "../../utils/cache-keys";
 import { AuthContext } from "../auth/auth.types";
 import {
   ProductMediaAssetRecord,
@@ -22,6 +22,12 @@ import { attachVariantMetrics, buildVariantMetrics } from "./variant-metrics";
 type ProductCacheEntry = {
   cachedAt: string;
   data: ProductRecord[];
+};
+
+type CatalogMetaCacheEntry = {
+  cachedAt: string;
+  laborRateTables: Awaited<ReturnType<ProductGateway["listLaborRateTables"]>>;
+  productTypes: Awaited<ReturnType<ProductGateway["listProductTypes"]>>;
 };
 
 type ProductListMeta = {
@@ -45,16 +51,20 @@ type ProductsServiceOptions = {
 };
 
 export class ProductsService {
+  private rawProductsInFlight: Promise<{ products: ProductRecord[]; meta: ProductListMeta }> | null =
+    null;
+  private catalogMetaInFlight: Promise<CatalogMetaCacheEntry> | null = null;
+
   constructor(private readonly options: ProductsServiceOptions) {}
 
   async listProducts(filters: ProductFilters = {}): Promise<ProductsResponse> {
-    const [{ products, meta }, costSettings, laborRateTables, productTypes] = await Promise.all([
+    const [{ products, meta }, costSettings, catalogMeta] = await Promise.all([
       this.listRawProducts(),
       this.options.controlPlane.getCostSettings(),
-      this.options.productGateway.listLaborRateTables(),
-      this.options.productGateway.listProductTypes()
+      this.loadCatalogMeta()
     ]);
     const filteredProducts = this.applyFilters(products, filters);
+    const { laborRateTables, productTypes } = catalogMeta;
 
     return {
       data: filteredProducts.map((product) => this.enrichProduct(product, costSettings)),
@@ -71,26 +81,19 @@ export class ProductsService {
     companyContext: CompanyCatalogContext,
     filters: ProductFilters = {}
   ): Promise<CompanyCatalogResponse> {
-    const [
-      { products, meta },
-      costSettings,
-      effectiveInventory,
-      companyRecord,
-      laborRateTables,
-      productTypes
-    ] =
+    const [{ products, meta }, costSettings, effectiveInventory, companyRecord, catalogMeta] =
       await Promise.all([
         this.listRawProducts(),
         this.options.controlPlane.getCostSettings(companyContext.companyId),
         this.options.controlPlane.listEffectiveInventoryByCompany(companyContext.companyId),
         this.options.controlPlane.findCompanyById(companyContext.companyId),
-        this.options.productGateway.listLaborRateTables(),
-        this.options.productGateway.listProductTypes()
+        this.loadCatalogMeta()
       ]);
     const filteredProducts = this.applyFilters(products, filters);
     const inventoryByProductId = new Map(
       effectiveInventory.map((item) => [item.productId, item] as const)
     );
+    const { laborRateTables, productTypes } = catalogMeta;
 
     return {
       company: this.buildCompanyPayload(companyContext, companyRecord),
@@ -170,68 +173,148 @@ export class ProductsService {
       };
     }
 
-    try {
-      const products = await this.options.productGateway.listProducts();
-      await this.options.cacheStore.set<ProductCacheEntry>(
-        cacheKey,
-        {
-          cachedAt: new Date(now).toISOString(),
-          data: products
-        },
-        this.options.env.PRODUCTS_CACHE_TTL_SECONDS + this.options.env.PRODUCTS_CACHE_STALE_SECONDS
-      );
-      this.options.logger?.info(
-        {
-          cacheKey,
-          count: products.length
-        },
-        "fetched products from upstream and refreshed cache"
-      );
-
-      return {
-        products,
-        meta: {
-          source: "upstream",
-          count: products.length
-        }
-      };
-    } catch (error) {
-      if (cachedEntry && this.isServeableStale(cachedEntry, now)) {
-        this.options.logger?.warn(
-          {
+    if (!this.rawProductsInFlight) {
+      this.rawProductsInFlight = (async () => {
+        try {
+          const products = await this.options.productGateway.listProducts();
+          await this.options.cacheStore.set<ProductCacheEntry>(
             cacheKey,
-            cause: error instanceof Error ? error.message : "unknown"
-          },
-          "serving stale products cache after upstream failure"
-        );
-        return {
-          products: cachedEntry.data,
-          meta: {
-            source: "cache",
-            stale: true,
-            count: cachedEntry.data.length
-          }
-        };
-      }
+            {
+              cachedAt: new Date(now).toISOString(),
+              data: products
+            },
+            this.options.env.PRODUCTS_CACHE_TTL_SECONDS + this.options.env.PRODUCTS_CACHE_STALE_SECONDS
+          );
+          this.options.logger?.info(
+            {
+              cacheKey,
+              count: products.length
+            },
+            "fetched products from upstream and refreshed cache"
+          );
 
-      this.options.logger?.error(
-        {
-          cacheKey,
-          cause: error instanceof Error ? error.message : "unknown"
-        },
-        "products upstream unavailable and no cache could be served"
-      );
-      throw new AppError(503, "PRODUCTS_SOURCE_UNAVAILABLE", "Product catalog is unavailable", {
-        cause: error instanceof Error ? error.message : "unknown"
-      });
+          return {
+            products,
+            meta: {
+              source: "upstream" as const,
+              count: products.length
+            }
+          };
+        } catch (error) {
+          if (cachedEntry && this.isServeableStale(cachedEntry, now)) {
+            this.options.logger?.warn(
+              {
+                cacheKey,
+                cause: error instanceof Error ? error.message : "unknown"
+              },
+              "serving stale products cache after upstream failure"
+            );
+            return {
+              products: cachedEntry.data,
+              meta: {
+                source: "cache" as const,
+                stale: true,
+                count: cachedEntry.data.length
+              }
+            };
+          }
+
+          this.options.logger?.error(
+            {
+              cacheKey,
+              cause: error instanceof Error ? error.message : "unknown"
+            },
+            "products upstream unavailable and no cache could be served"
+          );
+          throw new AppError(503, "PRODUCTS_SOURCE_UNAVAILABLE", "Product catalog is unavailable", {
+            cause: error instanceof Error ? error.message : "unknown"
+          });
+        } finally {
+          this.rawProductsInFlight = null;
+        }
+      })();
     }
+
+    return this.rawProductsInFlight;
   }
 
-  private isFresh(entry: ProductCacheEntry, now: number) {
+  private async loadCatalogMeta(): Promise<CatalogMetaCacheEntry> {
+    const cacheKey = buildProductsMetaCacheKey();
+    const now = Date.now();
+    const cachedEntry = await this.options.cacheStore.get<CatalogMetaCacheEntry>(cacheKey);
+
+    if (cachedEntry && this.isFresh(cachedEntry, now)) {
+      this.options.logger?.info(
+        {
+          cacheKey
+        },
+        "serving catalog metadata from fresh cache"
+      );
+      return cachedEntry;
+    }
+
+    if (!this.catalogMetaInFlight) {
+      this.catalogMetaInFlight = (async () => {
+        try {
+          const [laborRateTables, productTypes] = await Promise.all([
+            this.options.productGateway.listLaborRateTables(),
+            this.options.productGateway.listProductTypes()
+          ]);
+          const entry = {
+            cachedAt: new Date(now).toISOString(),
+            laborRateTables,
+            productTypes
+          };
+          await this.options.cacheStore.set<CatalogMetaCacheEntry>(
+            cacheKey,
+            entry,
+            this.options.env.PRODUCTS_CACHE_TTL_SECONDS + this.options.env.PRODUCTS_CACHE_STALE_SECONDS
+          );
+          this.options.logger?.info(
+            {
+              cacheKey,
+              laborRateTables: laborRateTables.length,
+              productTypes: productTypes.length
+            },
+            "fetched catalog metadata from upstream and refreshed cache"
+          );
+          return entry;
+        } catch (error) {
+          if (cachedEntry && this.isServeableStale(cachedEntry, now)) {
+            this.options.logger?.warn(
+              {
+                cacheKey,
+                cause: error instanceof Error ? error.message : "unknown"
+              },
+              "serving stale catalog metadata cache after upstream failure"
+            );
+            return cachedEntry;
+          }
+
+          this.options.logger?.error(
+            {
+              cacheKey,
+              cause: error instanceof Error ? error.message : "unknown"
+            },
+            "catalog metadata upstream unavailable and no cache could be served"
+          );
+          throw new AppError(503, "PRODUCTS_SOURCE_UNAVAILABLE", "Product metadata is unavailable", {
+            cause: error instanceof Error ? error.message : "unknown"
+          });
+        } finally {
+          this.catalogMetaInFlight = null;
+        }
+      })();
+    }
+
+    return this.catalogMetaInFlight;
+  }
+
+  private isFresh(entry: { cachedAt: string }, now: number) {
     return now - Date.parse(entry.cachedAt) <= this.options.env.PRODUCTS_CACHE_TTL_SECONDS * 1000;
   }
 
-  private isServeableStale(entry: ProductCacheEntry, now: number) {
+  private isServeableStale(entry: { cachedAt: string }, now: number) {
     return (
       now - Date.parse(entry.cachedAt) <=
       (this.options.env.PRODUCTS_CACHE_TTL_SECONDS +
