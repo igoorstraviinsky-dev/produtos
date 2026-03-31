@@ -339,6 +339,7 @@ class FakeControlPlaneRepository {
       .sort((left, right) => left.name.localeCompare(right.name))
       .map((product) => {
         const companyInventory = this.companyInventory.get(`${companyId}:${product.id}`) ?? null;
+        const productCustomStockQuantity = companyInventory?.customStockQuantity ?? null;
         const variants = (product.variants ?? []).map((variant) => {
           const variantInventory =
             this.companyVariantInventory.get(`${companyId}:${variant.id}`) ?? null;
@@ -374,15 +375,15 @@ class FakeControlPlaneRepository {
           sku: product.sku,
           name: product.name,
           masterStock: masterStockFromVariants,
-          customStockQuantity: companyInventory?.customStockQuantity ?? null,
+          customStockQuantity: productCustomStockQuantity,
           variantStockQuantityTotal: hasVariantInventory ? effectiveStockFromVariants : null,
           hasVariantInventory,
-          effectiveStockQuantity: hasVariantInventory
-            ? effectiveStockFromVariants
-            : companyInventory?.customStockQuantity ?? masterStockFromVariants,
-          updatedAt: hasVariantInventory
-            ? latestVariantUpdate ?? companyInventory?.updatedAt ?? product.updatedAt
-            : companyInventory?.updatedAt ?? product.updatedAt,
+          effectiveStockQuantity:
+            productCustomStockQuantity ??
+            (hasVariantInventory ? effectiveStockFromVariants : masterStockFromVariants),
+          updatedAt:
+            companyInventory?.updatedAt ??
+            (hasVariantInventory ? latestVariantUpdate ?? product.updatedAt : product.updatedAt),
           variants
         };
       });
@@ -404,32 +405,42 @@ class FakeControlPlaneRepository {
 
     this.companyInventory.set(`${companyId}:${productId}`, record);
 
+    const variants = (product.variants ?? []).map((variant) => {
+      const variantInventory =
+        this.companyVariantInventory.get(`${companyId}:${variant.id}`) ?? null;
+
+      return {
+        variantId: variant.id,
+        productId: variant.productId,
+        sku: variant.sku,
+        individualWeight: variant.individualWeight ?? null,
+        masterStock: variant.individualStock ?? 0,
+        customStockQuantity: variantInventory?.customStockQuantity ?? null,
+        effectiveStockQuantity:
+          variantInventory?.customStockQuantity ?? variant.individualStock ?? 0,
+        updatedAt: variantInventory?.updatedAt ?? variant.updatedAt
+      };
+    });
+    const hasVariantInventory = variants.some((variant) => variant.customStockQuantity !== null);
+    const variantStockQuantityTotal = hasVariantInventory
+      ? variants.reduce((sum, variant) => sum + variant.effectiveStockQuantity, 0)
+      : null;
+    const masterStock =
+      variants.length > 0
+        ? variants.reduce((sum, variant) => sum + variant.masterStock, 0)
+        : product.masterStock;
+
     return {
       productId: product.id,
       sku: product.sku,
       name: product.name,
-      masterStock: product.masterStock,
+      masterStock,
       customStockQuantity: record.customStockQuantity,
-      variantStockQuantityTotal: null,
-      hasVariantInventory: false,
+      variantStockQuantityTotal,
+      hasVariantInventory,
       effectiveStockQuantity: record.customStockQuantity,
       updatedAt: record.updatedAt,
-      variants: (product.variants ?? []).map((variant) => {
-        const variantInventory =
-          this.companyVariantInventory.get(`${companyId}:${variant.id}`) ?? null;
-
-        return {
-          variantId: variant.id,
-          productId: variant.productId,
-          sku: variant.sku,
-          individualWeight: variant.individualWeight ?? null,
-          masterStock: variant.individualStock ?? 0,
-          customStockQuantity: variantInventory?.customStockQuantity ?? null,
-          effectiveStockQuantity:
-            variantInventory?.customStockQuantity ?? variant.individualStock ?? 0,
-          updatedAt: variantInventory?.updatedAt ?? variant.updatedAt
-        };
-      })
+      variants
     };
   }
 
@@ -2039,6 +2050,81 @@ const cases = [
         assert.equal(response.json().data[0].variants[0].stockWeightGrams, 21);
         assert.equal(response.json().data[0].variants[0].stockUnits, 2);
         assert.equal(response.json().data[0].variants[0].cost, 105);
+      } finally {
+        await app.close();
+      }
+    }
+  },
+  {
+    name: "Company inventory manual stock override wins over variant totals when present",
+    fn: async () => {
+      const { app, controlPlane, env } = await createTestApp();
+      try {
+        const company = controlPlane.seedCompany({
+          legalName: "Empresa Override Manual",
+          externalCode: "empresa-override-manual"
+        });
+        const apiKey = "b2b_company_inventory_manual_override";
+
+        controlPlane.seedApiKey({
+          companyId: company.id,
+          keyPrefix: deriveApiKeyPrefix(apiKey),
+          keyHash: hashApiKey(apiKey, env.API_KEY_PEPPER),
+          rateLimitPerMinute: 10
+        });
+
+        await controlPlane.replaceMasterProducts([
+          {
+            id: "prod-1",
+            sku: "SKU-001",
+            name: "Produto Override",
+            masterStock: 4,
+            updatedAt: new Date("2026-03-23T00:00:00.000Z"),
+            variants: [
+              {
+                id: "variant-1",
+                productId: "prod-1",
+                sku: "SKU-001-ARO-16",
+                individualWeight: 10.5,
+                individualStock: 4,
+                createdAt: new Date("2026-03-23T00:00:00.000Z"),
+                updatedAt: new Date("2026-03-23T00:00:00.000Z")
+              }
+            ]
+          }
+        ]);
+
+        await controlPlane.upsertCompanyVariantInventory(company.id, "variant-1", 21);
+        await controlPlane.upsertCompanyInventory(company.id, "prod-1", 8);
+
+        const companyCatalogResponse = await app.inject({
+          method: "GET",
+          url: "/api/v1/companyid",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          }
+        });
+
+        assert.equal(companyCatalogResponse.statusCode, 200);
+        assert.equal(companyCatalogResponse.json().data[0].customStockQuantity, 8);
+        assert.equal(companyCatalogResponse.json().data[0].variantStockQuantityTotal, 21);
+        assert.equal(companyCatalogResponse.json().data[0].hasVariantInventory, true);
+        assert.equal(companyCatalogResponse.json().data[0].effectiveStockQuantity, 8);
+        assert.equal(companyCatalogResponse.json().data[0].availableQuantity, 8);
+        assert.equal(companyCatalogResponse.json().data[0].variants[0].effectiveStockQuantity, 21);
+
+        const myInventoryResponse = await app.inject({
+          method: "GET",
+          url: "/api/v1/my-inventory",
+          headers: {
+            authorization: `Bearer ${apiKey}`
+          }
+        });
+
+        assert.equal(myInventoryResponse.statusCode, 200);
+        assert.equal(myInventoryResponse.json().data[0].customStockQuantity, 8);
+        assert.equal(myInventoryResponse.json().data[0].variantStockQuantityTotal, 21);
+        assert.equal(myInventoryResponse.json().data[0].effectiveStockQuantity, 8);
       } finally {
         await app.close();
       }

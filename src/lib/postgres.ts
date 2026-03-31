@@ -376,6 +376,7 @@ function mapEffectiveInventory(product: {
   }>;
 }): EffectiveInventoryRecord {
   const companyInventory = product.companyInventories[0] ?? null;
+  const productCustomStockQuantity = companyInventory?.customStockQuantity ?? null;
   const mappedVariants = product.variants.map((variant) => {
     const companyVariantInventory = variant.companyVariantInventories[0] ?? null;
 
@@ -414,15 +415,16 @@ function mapEffectiveInventory(product: {
     sku: product.sku,
     name: product.name,
     masterStock: fallbackMasterStock,
-    customStockQuantity: companyInventory?.customStockQuantity ?? null,
+    customStockQuantity: productCustomStockQuantity,
     variantStockQuantityTotal: hasCustomVariantInventory ? variantEffectiveStock : null,
     hasVariantInventory: hasCustomVariantInventory,
-    effectiveStockQuantity: hasCustomVariantInventory
-      ? variantEffectiveStock
-      : companyInventory?.customStockQuantity ?? fallbackMasterStock,
-    updatedAt: hasCustomVariantInventory
-      ? latestVariantUpdate ?? companyInventory?.updatedAt ?? product.updatedAt
-      : companyInventory?.updatedAt ?? product.updatedAt,
+    // A manual store override should win over the summed variant stock.
+    effectiveStockQuantity:
+      productCustomStockQuantity ??
+      (hasCustomVariantInventory ? variantEffectiveStock : fallbackMasterStock),
+    updatedAt:
+      companyInventory?.updatedAt ??
+      (hasCustomVariantInventory ? latestVariantUpdate ?? product.updatedAt : product.updatedAt),
     variants: mappedVariants
   };
 }

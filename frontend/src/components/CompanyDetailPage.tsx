@@ -112,6 +112,10 @@ function getVariantStockTotal(product: Product | null) {
 }
 
 function getCurrentDisplayStock(item: AdminInventoryItem, product: Product | null) {
+  if (item.customStockQuantity !== null) {
+    return item.customStockQuantity;
+  }
+
   if (item.hasVariantInventory) {
     return item.variantStockQuantityTotal ?? item.effectiveStockQuantity;
   }
@@ -120,11 +124,11 @@ function getCurrentDisplayStock(item: AdminInventoryItem, product: Product | nul
 }
 
 function getManualInventoryValue(item: AdminInventoryItem, draftValue: string | undefined) {
-  if (item.hasVariantInventory) {
-    return draftValue ?? "";
+  if (draftValue !== undefined) {
+    return draftValue;
   }
 
-  return draftValue ?? String(item.customStockQuantity ?? item.effectiveStockQuantity);
+  return String(item.customStockQuantity ?? item.effectiveStockQuantity);
 }
 
 function normalizeSearchTerm(value: string | null | undefined) {
@@ -1212,11 +1216,17 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                                   Estoque isolado da empresa
                                 </p>
                                 <p className="mt-1 text-sm text-slate-400">
-                                  O valor salvo aqui substitui o estoque mestre desse produto para a empresa selecionada.
+                                  O valor salvo aqui substitui o estoque exibido da loja para a empresa selecionada.
                                 </p>
                                 {item.hasVariantInventory ? (
                                   <p className="mt-2 text-sm font-medium text-cyan-200">
-                                    Total atual pelas variantes: {currentDisplayStock}
+                                    Total atual pelas variantes:{" "}
+                                    {item.variantStockQuantityTotal ?? item.effectiveStockQuantity}
+                                  </p>
+                                ) : null}
+                                {item.customStockQuantity !== null && item.hasVariantInventory ? (
+                                  <p className="mt-2 text-sm font-medium text-amber-200">
+                                    Estoque manual da loja ativo: {item.customStockQuantity}
                                   </p>
                                 ) : null}
                               </div>

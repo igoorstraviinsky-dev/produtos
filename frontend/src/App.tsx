@@ -58,11 +58,9 @@ function createInventoryDrafts(items: AdminInventoryItem[]) {
   return Object.fromEntries(
     items.map((item) => [
       item.productId,
-      item.hasVariantInventory
-        ? ""
-        : item.customStockQuantity !== null
-          ? String(item.customStockQuantity)
-          : String(item.effectiveStockQuantity)
+      item.customStockQuantity !== null
+        ? String(item.customStockQuantity)
+        : String(item.effectiveStockQuantity)
     ])
   );
 }
