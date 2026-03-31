@@ -5,6 +5,12 @@ export type AuthContext = {
   companyId: string;
   companyExternalCode: string;
   companyName: string;
+  companyIsActive: boolean;
+  companySyncStoreInventory: boolean;
+  companyApiKeyCount: number;
+  companyActiveKeyCount: number;
+  companyCreatedAt: string;
+  companyUpdatedAt: string;
   keyPrefix: string;
   rateLimitPerMinute: number;
 };

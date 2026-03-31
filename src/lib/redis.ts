@@ -4,6 +4,7 @@ export interface ProductCacheStore {
   get<T>(key: string): Promise<T | null>;
   set<T>(key: string, value: T, ttlSeconds: number): Promise<void>;
   delete(key: string): Promise<void>;
+  deleteByPrefix(prefix: string): Promise<void>;
 }
 
 export interface RateLimitCounterStore {
@@ -30,6 +31,19 @@ export class RedisProductCacheStore implements ProductCacheStore {
 
   async delete(key: string) {
     await this.redis.del(key);
+  }
+
+  async deleteByPrefix(prefix: string) {
+    let cursor = "0";
+
+    do {
+      const [nextCursor, keys] = await this.redis.scan(cursor, "MATCH", `${prefix}*`, "COUNT", 100);
+      cursor = nextCursor;
+
+      if (keys.length > 0) {
+        await this.redis.del(...keys);
+      }
+    } while (cursor !== "0");
   }
 }
 

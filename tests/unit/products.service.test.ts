@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 
 import { ProductsService } from "../../src/modules/products/products.service";
 import {
+  FakeControlPlaneRepository,
+  FakeCostSettingsCache,
   FakeProductCacheStore,
   FakeProductGateway,
   createTestEnv
@@ -13,6 +15,7 @@ describe("ProductsService", () => {
   it("caches successful upstream responses", async () => {
     const env = createTestEnv();
     const cacheStore = new FakeProductCacheStore();
+    const costSettingsCache = new FakeCostSettingsCache(new FakeControlPlaneRepository());
     const productGateway = new FakeProductGateway([
       {
         variants: [
@@ -132,7 +135,8 @@ describe("ProductsService", () => {
     const service = new ProductsService({
       env,
       cacheStore,
-      productGateway
+      productGateway,
+      costSettingsCache
     });
 
     const firstResponse = await service.listProducts();
@@ -150,6 +154,7 @@ describe("ProductsService", () => {
       PRODUCTS_CACHE_STALE_SECONDS: 300
     });
     const cacheStore = new FakeProductCacheStore();
+    const costSettingsCache = new FakeCostSettingsCache(new FakeControlPlaneRepository());
     const productGateway = new FakeProductGateway([]);
     const cacheKey = buildProductsCacheKey();
 
@@ -245,7 +250,8 @@ describe("ProductsService", () => {
     const service = new ProductsService({
       env,
       cacheStore,
-      productGateway
+      productGateway,
+      costSettingsCache
     });
 
     const response = await service.listProducts();

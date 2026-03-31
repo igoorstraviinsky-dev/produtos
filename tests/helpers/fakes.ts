@@ -56,6 +56,16 @@ export function createTestEnv(overrides: Partial<AppEnv> = {}): AppEnv {
   };
 }
 
+export class FakeCostSettingsCache {
+  constructor(private readonly controlPlane: FakeControlPlaneRepository) {}
+
+  async resolve(companyId?: string) {
+    return this.controlPlane.getCostSettings(companyId);
+  }
+
+  invalidate() {}
+}
+
 export class FakeControlPlaneRepository implements ControlPlaneRepository {
   private readonly companies = new Map<string, CompanyRecord>();
   private readonly apiKeys = new Map<string, ApiKeyRecord>();
@@ -523,6 +533,14 @@ export class FakeProductCacheStore implements ProductCacheStore {
 
   async delete(key: string) {
     this.entries.delete(key);
+  }
+
+  async deleteByPrefix(prefix: string) {
+    for (const key of [...this.entries.keys()]) {
+      if (key.startsWith(prefix)) {
+        this.entries.delete(key);
+      }
+    }
   }
 }
 

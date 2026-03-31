@@ -10,7 +10,11 @@ const { ApiKeyService } = require("../dist/modules/auth/api-key.service.js");
 const { SupabaseProductGateway } = require("../dist/lib/supabase.js");
 const { calculateProductCost } = require("../dist/modules/products/cost-calculator.js");
 const { ProductsService } = require("../dist/modules/products/products.service.js");
-const { buildProductsCacheKey } = require("../dist/utils/cache-keys.js");
+const {
+  buildCompanyCatalogCacheKey,
+  buildProductsCacheKey,
+  buildProductsResponseCacheKey
+} = require("../dist/utils/cache-keys.js");
 const { deriveApiKeyPrefix, hashApiKey } = require("../dist/utils/crypto.js");
 
 function createTestEnv(overrides = {}) {
@@ -35,6 +39,13 @@ function createTestEnv(overrides = {}) {
     ADMIN_PASSWORD: undefined,
     ADMIN_SESSION_SECRET: undefined,
     ...overrides
+  };
+}
+
+function createCostSettingsCache(controlPlane) {
+  return {
+    resolve: async (companyId) => controlPlane.getCostSettings(companyId),
+    invalidate: () => undefined
   };
 }
 
@@ -450,6 +461,14 @@ class FakeProductCacheStore {
 
   async delete(key) {
     this.entries.delete(key);
+  }
+
+  async deleteByPrefix(prefix) {
+    for (const key of [...this.entries.keys()]) {
+      if (key.startsWith(prefix)) {
+        this.entries.delete(key);
+      }
+    }
   }
 }
 
@@ -920,6 +939,39 @@ const cases = [
     }
   },
   {
+    name: "ApiKeyService caches authentication lookups briefly",
+    fn: async () => {
+      const env = createTestEnv();
+      const repo = new FakeControlPlaneRepository();
+      const company = repo.seedCompany({
+        legalName: "Empresa Cache Auth",
+        externalCode: "empresa-cache-auth"
+      });
+      const plaintextKey = "b2b_cached_auth_key";
+      let findApiKeyByHashCalls = 0;
+      const originalFindApiKeyByHash = repo.findApiKeyByHash.bind(repo);
+
+      repo.seedApiKey({
+        companyId: company.id,
+        keyPrefix: deriveApiKeyPrefix(plaintextKey),
+        keyHash: hashApiKey(plaintextKey, env.API_KEY_PEPPER),
+        rateLimitPerMinute: 30
+      });
+
+      repo.findApiKeyByHash = async (...args) => {
+        findApiKeyByHashCalls += 1;
+        return originalFindApiKeyByHash(...args);
+      };
+
+      const service = new ApiKeyService(repo, env.API_KEY_PEPPER);
+
+      await service.authenticatePresentedKey(plaintextKey);
+      await service.authenticatePresentedKey(plaintextKey);
+
+      assert.equal(findApiKeyByHashCalls, 1);
+    }
+  },
+  {
     name: "ApiKeyService rejects revoked keys",
     fn: async () => {
       const env = createTestEnv();
@@ -1061,7 +1113,13 @@ const cases = [
         }
       ]);
 
-      const service = new ProductsService({ env, cacheStore, productGateway, controlPlane });
+      const service = new ProductsService({
+        env,
+        cacheStore,
+        productGateway,
+        controlPlane,
+        costSettingsCache: createCostSettingsCache(controlPlane)
+      });
       const firstResponse = await service.listProducts();
       const secondResponse = await service.listProducts();
 
@@ -1078,6 +1136,126 @@ const cases = [
       assert.equal(productGateway.listProductsCalls, 1);
       assert.equal(productGateway.listLaborRateTablesCalls, 1);
       assert.equal(productGateway.listProductTypesCalls, 1);
+    }
+  },
+  {
+    name: "ProductsService caches rendered responses by filter",
+    fn: async () => {
+      const env = createTestEnv();
+      const cacheStore = new FakeProductCacheStore();
+      const controlPlane = new FakeControlPlaneRepository();
+      const productGateway = new FakeProductGateway([
+        {
+          variants: [],
+          id: "prod-1",
+          product_id: "prod-1",
+          code: "SKU-001",
+          sku: "SKU-001",
+          numero_serie: "SKU-001",
+          name: "Produto 1",
+          nome: "Produto 1",
+          serialNumber: "SKU-001",
+          description: null,
+          descricao: null,
+          category: null,
+          categoria: null,
+          subcategory: null,
+          subcategoria: null,
+          material: null,
+          baseMaterial: null,
+          material_base: null,
+          purity: null,
+          pureza: null,
+          weight_grams: "5.5",
+          weightGrams: "5.5",
+          peso_gramas: "5.5",
+          bathType: null,
+          tipo_banho: null,
+          status: null,
+          bronzeImageKey: null,
+          s3_key_bronze: null,
+          silverImageKey: null,
+          s3_key_silver: null,
+          media_assets: [],
+          mediaAssets: [],
+          media_urls: [],
+          mediaUrls: [],
+          main_image_url: null,
+          mainImageUrl: null,
+          supplierCode: null,
+          supplier_code: null,
+          supplierId: null,
+          supplier_id: null,
+          supplierName: null,
+          supplier_name: null,
+          supplierProductSku: null,
+          supplier_product_sku: null,
+          fiscalCode: null,
+          fiscal_code: null,
+          categoryId: null,
+          category_id: null,
+          productType: null,
+          tipo: null,
+          typeId: null,
+          type_id: null,
+          subcategoryId: null,
+          subcategory_id: null,
+          blingProductId: null,
+          bling_product_id: null,
+          blingLastSyncAt: null,
+          bling_last_sync_at: null,
+          laborRateId: "lr-1",
+          labor_rate_id: "lr-1",
+          laborRateLabel: "Peças padrão",
+          labor_rate_label: "Peças padrão",
+          laborCost: "3",
+          labor_cost: 3,
+          sizeOptionId: null,
+          size_option_id: null,
+          sizeLabel: null,
+          size_label: null,
+          colorOptionId: null,
+          color_option_id: null,
+          colorLabel: null,
+          color_label: null,
+          availableQuantity: 2,
+          available_quantity: 2,
+          stock_quantity: 2,
+          ncm: null,
+          laborRateTableId: "lrt-1",
+          labor_rate_table_id: "lrt-1",
+          laborRateTableName: "Peças (padrão)",
+          labor_rate_table_name: "Peças (padrão)",
+          laborRateName: "Peças padrão",
+          labor_rate_name: "Peças padrão",
+          laborRateAmount: 3,
+          labor_rate_amount: 3,
+          laborRateTableMaterialTypeId: "type-prata-925",
+          labor_rate_table_material_type_id: "type-prata-925",
+          laborRateTableMaterialName: "Prata 925",
+          labor_rate_table_material_name: "Prata 925",
+          createdAt: null,
+          created_at: null,
+          price: null,
+          updatedAt: null,
+          updated_at: null
+        }
+      ]);
+      const service = new ProductsService({
+        cacheStore,
+        controlPlane,
+        costSettingsCache: createCostSettingsCache(controlPlane),
+        env,
+        productGateway
+      });
+
+      await service.listProducts({ laborRateTableId: "lrt-1" });
+      await service.listProducts({ laborRateTableId: "lrt-1" });
+
+      assert.equal(productGateway.listProductsCalls, 1);
+      assert.ok(
+        await cacheStore.get(buildProductsResponseCacheKey({ laborRateTableId: "lrt-1" }))
+      );
     }
   },
   {
@@ -1246,7 +1424,13 @@ const cases = [
 
       productGateway.error = new Error("Supabase unavailable");
 
-      const service = new ProductsService({ env, cacheStore, productGateway, controlPlane });
+      const service = new ProductsService({
+        env,
+        cacheStore,
+        productGateway,
+        controlPlane,
+        costSettingsCache: createCostSettingsCache(controlPlane)
+      });
       const response = await service.listProducts();
 
       assert.equal(response.meta.source, "cache");

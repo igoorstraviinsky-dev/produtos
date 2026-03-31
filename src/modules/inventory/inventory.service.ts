@@ -1,9 +1,13 @@
 import { AppEnv } from "../../config/env";
+import { CostSettingsCache } from "../../lib/cost-settings-cache";
 import { ControlPlaneRepository, MasterProductRecord } from "../../lib/postgres";
 import { ProductCacheStore } from "../../lib/redis";
 import { ProductGateway, ProductRecord } from "../../lib/supabase";
 import { AppError } from "../../middleware/error-handler";
-import { buildProductsCacheKey } from "../../utils/cache-keys";
+import {
+  buildCompanyCatalogCachePrefix,
+  buildProductsCacheKey
+} from "../../utils/cache-keys";
 import { calculateProductCost } from "../products/cost-calculator";
 import { attachVariantMetrics, buildVariantMetrics } from "../products/variant-metrics";
 import {
@@ -81,8 +85,13 @@ export class InventoryService {
     private readonly controlPlane: ControlPlaneRepository,
     private readonly productGateway: ProductGateway,
     private readonly productCache: ProductCacheStore,
-    private readonly env: Pick<AppEnv, "PRODUCTS_CACHE_TTL_SECONDS" | "PRODUCTS_CACHE_STALE_SECONDS">
+    private readonly env: Pick<AppEnv, "PRODUCTS_CACHE_TTL_SECONDS" | "PRODUCTS_CACHE_STALE_SECONDS">,
+    private readonly costSettingsCache?: CostSettingsCache
   ) {}
+
+  private async invalidateCompanyCatalogCache(companyId: string) {
+    await this.productCache.deleteByPrefix(buildCompanyCatalogCachePrefix(companyId));
+  }
 
   private isFresh(entry: ProductCacheEntry, now: number) {
     return now - Date.parse(entry.cachedAt) <= this.env.PRODUCTS_CACHE_TTL_SECONDS * 1000;
@@ -128,7 +137,9 @@ export class InventoryService {
     try {
       const [products, costSettings] = await Promise.all([
         this.listCatalogProductsCached(),
-        this.controlPlane.getCostSettings(companyId)
+        this.costSettingsCache
+          ? this.costSettingsCache.resolve(companyId)
+          : this.controlPlane.getCostSettings(companyId)
       ]);
 
       return new Map(
@@ -236,6 +247,7 @@ export class InventoryService {
       );
     }
 
+    await this.invalidateCompanyCatalogCache(companyId);
     const productCostById = await this.buildProductCostById(companyId, new Set([productId]));
 
     return {
@@ -342,6 +354,7 @@ export class InventoryService {
     }
 
     const inventory = await this.controlPlane.listEffectiveInventoryByCompany(companyId);
+    await this.invalidateCompanyCatalogCache(companyId);
     const scopedProductIds =
       touchedProductIds.size > 0
         ? touchedProductIds

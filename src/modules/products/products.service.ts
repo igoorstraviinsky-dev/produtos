@@ -2,14 +2,19 @@ import { FastifyBaseLogger } from "fastify";
 
 import { AppEnv } from "../../config/env";
 import {
-  CompanyRecord,
   ControlPlaneRepository,
   EffectiveInventoryRecord
 } from "../../lib/postgres";
 import { ProductGateway, ProductRecord } from "../../lib/supabase";
 import { ProductCacheStore } from "../../lib/redis";
+import { CostSettingsCache } from "../../lib/cost-settings-cache";
 import { AppError } from "../../middleware/error-handler";
-import { buildProductsCacheKey, buildProductsMetaCacheKey } from "../../utils/cache-keys";
+import {
+  buildCompanyCatalogCacheKey,
+  buildProductsCacheKey,
+  buildProductsMetaCacheKey,
+  buildProductsResponseCacheKey
+} from "../../utils/cache-keys";
 import { AuthContext } from "../auth/auth.types";
 import {
   ProductMediaAssetRecord,
@@ -28,6 +33,11 @@ type CatalogMetaCacheEntry = {
   cachedAt: string;
   laborRateTables: Awaited<ReturnType<ProductGateway["listLaborRateTables"]>>;
   productTypes: Awaited<ReturnType<ProductGateway["listProductTypes"]>>;
+  materialTypes: Array<
+    Awaited<ReturnType<ProductGateway["listProductTypes"]>>[number] & {
+      laborRateTables: Awaited<ReturnType<ProductGateway["listLaborRateTables"]>>;
+    }
+  >;
 };
 
 type ProductListMeta = {
@@ -36,7 +46,18 @@ type ProductListMeta = {
   count: number;
 };
 
-type CompanyCatalogContext = Pick<AuthContext, "companyId" | "companyExternalCode" | "companyName">;
+type CompanyCatalogContext = Pick<
+  AuthContext,
+  | "companyId"
+  | "companyExternalCode"
+  | "companyName"
+  | "companyIsActive"
+  | "companySyncStoreInventory"
+  | "companyApiKeyCount"
+  | "companyActiveKeyCount"
+  | "companyCreatedAt"
+  | "companyUpdatedAt"
+>;
 type ProductFilters = {
   laborRateTableId?: string;
   laborRateId?: string;
@@ -47,6 +68,7 @@ type ProductsServiceOptions = {
   cacheStore: ProductCacheStore;
   productGateway: ProductGateway;
   controlPlane: ControlPlaneRepository;
+  costSettingsCache?: CostSettingsCache;
   logger?: FastifyBaseLogger;
 };
 
@@ -58,45 +80,84 @@ export class ProductsService {
   constructor(private readonly options: ProductsServiceOptions) {}
 
   async listProducts(filters: ProductFilters = {}): Promise<ProductsResponse> {
+    const responseCacheKey = buildProductsResponseCacheKey(filters);
+    const cachedResponse = await this.options.cacheStore.get<ProductsResponse>(responseCacheKey);
+    if (cachedResponse) {
+      this.options.logger?.debug({ responseCacheKey }, "serving products response from cache");
+      return {
+        ...cachedResponse,
+        meta: {
+          ...cachedResponse.meta,
+          source: "cache"
+        }
+      };
+    }
+
     const [{ products, meta }, costSettings, catalogMeta] = await Promise.all([
       this.listRawProducts(),
-      this.options.controlPlane.getCostSettings(),
+      this.options.costSettingsCache
+        ? this.options.costSettingsCache.resolve()
+        : this.options.controlPlane.getCostSettings(),
       this.loadCatalogMeta()
     ]);
     const filteredProducts = this.applyFilters(products, filters);
-    const { laborRateTables, productTypes } = catalogMeta;
 
-    return {
+    const response = {
       data: filteredProducts.map((product) => this.enrichProduct(product, costSettings)),
       meta: {
         ...meta,
         count: filteredProducts.length,
-        laborRateTables,
-        materialTypes: this.buildMaterialTypes(productTypes, laborRateTables)
+        laborRateTables: catalogMeta.laborRateTables,
+        materialTypes: catalogMeta.materialTypes
       }
     };
+
+    await this.options.cacheStore.set(
+      responseCacheKey,
+      response,
+      this.buildResponseCacheTtlSeconds(15)
+    );
+
+    return response;
   }
 
   async listCompanyCatalog(
     companyContext: CompanyCatalogContext,
     filters: ProductFilters = {}
   ): Promise<CompanyCatalogResponse> {
-    const [{ products, meta }, costSettings, effectiveInventory, companyRecord, catalogMeta] =
-      await Promise.all([
-        this.listRawProducts(),
-        this.options.controlPlane.getCostSettings(companyContext.companyId),
-        this.options.controlPlane.listEffectiveInventoryByCompany(companyContext.companyId),
-        this.options.controlPlane.findCompanyById(companyContext.companyId),
-        this.loadCatalogMeta()
-      ]);
+    const responseCacheKey = buildCompanyCatalogCacheKey(companyContext.companyId, filters);
+    const cachedResponse = await this.options.cacheStore.get<CompanyCatalogResponse>(
+      responseCacheKey
+    );
+    if (cachedResponse) {
+      this.options.logger?.debug(
+        { responseCacheKey, companyId: companyContext.companyId },
+        "serving company catalog response from cache"
+      );
+      return {
+        ...cachedResponse,
+        meta: {
+          ...cachedResponse.meta,
+          source: "cache"
+        }
+      };
+    }
+
+    const [{ products, meta }, costSettings, effectiveInventory, catalogMeta] = await Promise.all([
+      this.listRawProducts(),
+      this.options.costSettingsCache
+        ? this.options.costSettingsCache.resolve(companyContext.companyId)
+        : this.options.controlPlane.getCostSettings(companyContext.companyId),
+      this.options.controlPlane.listEffectiveInventoryByCompany(companyContext.companyId),
+      this.loadCatalogMeta()
+    ]);
     const filteredProducts = this.applyFilters(products, filters);
     const inventoryByProductId = new Map(
       effectiveInventory.map((item) => [item.productId, item] as const)
     );
-    const { laborRateTables, productTypes } = catalogMeta;
 
-    return {
-      company: this.buildCompanyPayload(companyContext, companyRecord),
+    const response = {
+      company: this.buildCompanyPayload(companyContext),
       data: filteredProducts.map((product) =>
         this.enrichCompanyProduct(
           product,
@@ -110,24 +171,45 @@ export class ProductsService {
         companyId: companyContext.companyId,
         companyExternalCode: companyContext.companyExternalCode,
         companyName: companyContext.companyName,
-        laborRateTables,
-        materialTypes: this.buildMaterialTypes(productTypes, laborRateTables)
+        laborRateTables: catalogMeta.laborRateTables,
+        materialTypes: catalogMeta.materialTypes
       }
     };
+
+    await this.options.cacheStore.set(
+      responseCacheKey,
+      response,
+      this.buildResponseCacheTtlSeconds(5)
+    );
+
+    return response;
+  }
+
+  private buildResponseCacheTtlSeconds(maxTtlSeconds: number) {
+    return Math.max(1, Math.min(this.options.env.PRODUCTS_CACHE_TTL_SECONDS, maxTtlSeconds));
   }
 
   private buildMaterialTypes(
     productTypes: Awaited<ReturnType<ProductGateway["listProductTypes"]>>,
     laborRateTables: Awaited<ReturnType<ProductGateway["listLaborRateTables"]>>
   ) {
+    const laborRateTablesByMaterialTypeId = new Map<string, typeof laborRateTables>();
+
+    for (const laborRateTable of laborRateTables) {
+      const materialTypeId = laborRateTable.materialTypeId ?? laborRateTable.material_type_id;
+      if (!materialTypeId) {
+        continue;
+      }
+
+      const existing = laborRateTablesByMaterialTypeId.get(materialTypeId) ?? [];
+      existing.push(laborRateTable);
+      laborRateTablesByMaterialTypeId.set(materialTypeId, existing);
+    }
+
     return productTypes.map((productType) => ({
       ...productType,
-      laborRateTables: laborRateTables.filter(
-        (laborRateTable) =>
-          laborRateTable.materialTypeId === productType.id ||
-          laborRateTable.material_type_id === productType.id
-      ).sort(
-        (left, right) => left.name.localeCompare(right.name, "pt-BR", { sensitivity: "base" })
+      laborRateTables: (laborRateTablesByMaterialTypeId.get(productType.id) ?? []).sort((left, right) =>
+        left.name.localeCompare(right.name, "pt-BR", { sensitivity: "base" })
       )
     }));
   }
@@ -158,7 +240,7 @@ export class ProductsService {
     const cachedEntry = await this.options.cacheStore.get<ProductCacheEntry>(cacheKey);
 
     if (cachedEntry && this.isFresh(cachedEntry, now)) {
-      this.options.logger?.info(
+      this.options.logger?.debug(
         {
           cacheKey
         },
@@ -244,13 +326,18 @@ export class ProductsService {
     const cachedEntry = await this.options.cacheStore.get<CatalogMetaCacheEntry>(cacheKey);
 
     if (cachedEntry && this.isFresh(cachedEntry, now)) {
-      this.options.logger?.info(
+      this.options.logger?.debug(
         {
           cacheKey
         },
         "serving catalog metadata from fresh cache"
       );
-      return cachedEntry;
+      return {
+        ...cachedEntry,
+        materialTypes:
+          cachedEntry.materialTypes ??
+          this.buildMaterialTypes(cachedEntry.productTypes, cachedEntry.laborRateTables)
+      };
     }
 
     if (!this.catalogMetaInFlight) {
@@ -263,7 +350,8 @@ export class ProductsService {
           const entry = {
             cachedAt: new Date(now).toISOString(),
             laborRateTables,
-            productTypes
+            productTypes,
+            materialTypes: this.buildMaterialTypes(productTypes, laborRateTables)
           };
           await this.options.cacheStore.set<CatalogMetaCacheEntry>(
             cacheKey,
@@ -444,13 +532,10 @@ export class ProductsService {
   }
 
   private buildCompanyPayload(
-    companyContext: CompanyCatalogContext,
-    companyRecord: CompanyRecord | null
+    companyContext: CompanyCatalogContext
   ) {
-    const legalName = companyRecord?.legalName ?? companyContext.companyName;
-    const externalCode = companyRecord?.externalCode ?? companyContext.companyExternalCode;
-    const createdAt = companyRecord?.createdAt.toISOString() ?? null;
-    const updatedAt = companyRecord?.updatedAt.toISOString() ?? null;
+    const legalName = companyContext.companyName;
+    const externalCode = companyContext.companyExternalCode;
 
     return {
       id: companyContext.companyId,
@@ -462,18 +547,18 @@ export class ProductsService {
       externalCode,
       company_name: legalName,
       companyName: legalName,
-      is_active: companyRecord?.isActive ?? true,
-      isActive: companyRecord?.isActive ?? true,
-      sync_store_inventory: companyRecord?.syncStoreInventory ?? false,
-      syncStoreInventory: companyRecord?.syncStoreInventory ?? false,
-      api_key_count: companyRecord?.apiKeyCount ?? 0,
-      apiKeyCount: companyRecord?.apiKeyCount ?? 0,
-      active_key_count: companyRecord?.activeKeyCount ?? 0,
-      activeKeyCount: companyRecord?.activeKeyCount ?? 0,
-      created_at: createdAt,
-      createdAt,
-      updated_at: updatedAt,
-      updatedAt
+      is_active: companyContext.companyIsActive,
+      isActive: companyContext.companyIsActive,
+      sync_store_inventory: companyContext.companySyncStoreInventory,
+      syncStoreInventory: companyContext.companySyncStoreInventory,
+      api_key_count: companyContext.companyApiKeyCount,
+      apiKeyCount: companyContext.companyApiKeyCount,
+      active_key_count: companyContext.companyActiveKeyCount,
+      activeKeyCount: companyContext.companyActiveKeyCount,
+      created_at: companyContext.companyCreatedAt,
+      createdAt: companyContext.companyCreatedAt,
+      updated_at: companyContext.companyUpdatedAt,
+      updatedAt: companyContext.companyUpdatedAt
     };
   }
 

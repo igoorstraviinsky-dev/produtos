@@ -2,7 +2,12 @@ import { AppEnv } from "../../config/env";
 import { ControlPlaneRepository } from "../../lib/postgres";
 import { ProductGateway, ProductRecord } from "../../lib/supabase";
 import { ProductCacheStore } from "../../lib/redis";
-import { buildProductsCacheKey } from "../../utils/cache-keys";
+import {
+  buildCompanyCatalogCachePrefix,
+  buildProductsCacheKey,
+  buildProductsMetaCacheKey,
+  buildProductsResponseCachePrefix
+} from "../../utils/cache-keys";
 import { calculateProductCost } from "./cost-calculator";
 import {
   ProductMediaAssetRecord,
@@ -39,6 +44,13 @@ export class ProductsAdminService {
     private readonly controlPlane: ControlPlaneRepository
   ) {}
 
+  private async invalidatePublicCatalogCaches() {
+    await this.productCache.delete(buildProductsCacheKey());
+    await this.productCache.delete(buildProductsMetaCacheKey());
+    await this.productCache.deleteByPrefix(buildProductsResponseCachePrefix());
+    await this.productCache.deleteByPrefix(buildCompanyCatalogCachePrefix());
+  }
+
   private async syncMasterCatalogFromUpstream(products: Awaited<ReturnType<ProductGateway["listProducts"]>>) {
     const syncedProducts = await this.controlPlane.replaceMasterProducts(
       products.map((product) => ({
@@ -59,7 +71,7 @@ export class ProductsAdminService {
       }))
     );
 
-    await this.productCache.delete(buildProductsCacheKey());
+    await this.invalidatePublicCatalogCaches();
     return syncedProducts;
   }
 

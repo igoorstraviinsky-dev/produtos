@@ -4,8 +4,14 @@ import {
   UpdateCostSettingsInput,
   UpdateCompanyInput
 } from "../../lib/postgres";
+import { CostSettingsCache } from "../../lib/cost-settings-cache";
 import { ProductGateway } from "../../lib/supabase";
+import { ProductCacheStore } from "../../lib/redis";
 import { AppError } from "../../middleware/error-handler";
+import {
+  buildCompanyCatalogCachePrefix,
+  buildProductsResponseCachePrefix
+} from "../../utils/cache-keys";
 import { calculateProductCost } from "../products/cost-calculator";
 import { attachVariantMetrics, buildVariantMetrics } from "../products/variant-metrics";
 import { deriveApiKeyPrefix, generateApiKey, hashApiKey } from "../../utils/crypto";
@@ -70,14 +76,35 @@ export class AdminService {
   constructor(
     private readonly controlPlane: ControlPlaneRepository,
     private readonly productGateway: ProductGateway,
-    private readonly pepper: string
+    private readonly pepper: string,
+    private readonly productCache?: ProductCacheStore,
+    private readonly costSettingsCache?: CostSettingsCache
   ) {}
+
+  private async invalidateCompanyCatalogCache(companyId: string) {
+    if (!this.productCache) {
+      return;
+    }
+
+    await this.productCache.deleteByPrefix(buildCompanyCatalogCachePrefix(companyId));
+  }
+
+  private async invalidateAllProductResponses() {
+    if (!this.productCache) {
+      return;
+    }
+
+    await this.productCache.deleteByPrefix(buildProductsResponseCachePrefix());
+    await this.productCache.deleteByPrefix(buildCompanyCatalogCachePrefix());
+  }
 
   private async buildProductCostById(companyId?: string) {
     try {
       const [products, costSettings] = await Promise.all([
         this.productGateway.listProducts(),
-        this.controlPlane.getCostSettings(companyId)
+        this.costSettingsCache
+          ? this.costSettingsCache.resolve(companyId)
+          : this.controlPlane.getCostSettings(companyId)
       ]);
 
       return new Map(
@@ -105,6 +132,7 @@ export class AdminService {
       throw new AppError(404, "COMPANY_NOT_FOUND", "Company was not found");
     }
 
+    await this.invalidateCompanyCatalogCache(companyId);
     return company;
   }
 
@@ -113,6 +141,8 @@ export class AdminService {
     if (!company) {
       throw new AppError(404, "COMPANY_NOT_FOUND", "Company was not found");
     }
+
+    await this.invalidateCompanyCatalogCache(companyId);
 
     return {
       data: {
@@ -168,6 +198,8 @@ export class AdminService {
       rateLimitPerMinute
     });
 
+    await this.invalidateCompanyCatalogCache(companyId);
+
     return {
       apiKeyId: apiKey.id,
       companyId: apiKey.companyId,
@@ -183,6 +215,8 @@ export class AdminService {
     if (!apiKey) {
       throw new AppError(404, "API_KEY_NOT_FOUND", "API key was not found");
     }
+
+    await this.invalidateCompanyCatalogCache(apiKey.companyId);
 
     return {
       id: apiKey.id,
@@ -238,6 +272,8 @@ export class AdminService {
       throw new AppError(404, "PRODUCT_NOT_FOUND", "Product was not found in the master catalog");
     }
 
+    await this.invalidateCompanyCatalogCache(companyId);
+
     return {
       data: mapInventoryItem(updatedInventory, productCostById),
       meta: {
@@ -278,6 +314,12 @@ export class AdminService {
     }
 
     const settings = await this.controlPlane.updateCostSettings(input, companyId);
+    this.costSettingsCache?.invalidate(companyId);
+    if (companyId) {
+      await this.invalidateCompanyCatalogCache(companyId);
+    } else {
+      await this.invalidateAllProductResponses();
+    }
 
     return {
       data: {

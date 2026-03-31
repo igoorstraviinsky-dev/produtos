@@ -822,15 +822,19 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
 
   async getCostSettings(companyId?: string) {
     if (companyId) {
-      const settings = await this.prisma.companyCostSettings.upsert({
+      const existingSettings = await this.prisma.companyCostSettings.findUnique({
         where: {
-          companyId
-        },
-        update: {},
-        create: {
           companyId
         }
       });
+
+      const settings =
+        existingSettings ??
+        (await this.prisma.companyCostSettings.create({
+          data: {
+            companyId
+          }
+        }));
 
       return mapCostSettings({
         companyId: settings.companyId,
@@ -1069,7 +1073,12 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
   async listEffectiveInventoryByCompany(companyId: string) {
     const products = await this.prisma.masterProduct.findMany({
       orderBy: [{ name: "asc" }, { id: "asc" }],
-      include: {
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        masterStock: true,
+        updatedAt: true,
         companyInventories: {
           where: {
             companyId
@@ -1077,11 +1086,21 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
           orderBy: {
             updatedAt: "desc"
           },
-          take: 1
+          take: 1,
+          select: {
+            customStockQuantity: true,
+            updatedAt: true
+          }
         },
         variants: {
           orderBy: [{ createdAt: "asc" }, { sku: "asc" }],
-          include: {
+          select: {
+            id: true,
+            productId: true,
+            sku: true,
+            individualWeight: true,
+            individualStock: true,
+            updatedAt: true,
             companyVariantInventories: {
               where: {
                 companyId
@@ -1089,7 +1108,11 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
               orderBy: {
                 updatedAt: "desc"
               },
-              take: 1
+              take: 1,
+              select: {
+                customStockQuantity: true,
+                updatedAt: true
+              }
             }
           }
         }
@@ -1136,7 +1159,12 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
         where: {
           id: productId
         },
-        include: {
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          masterStock: true,
+          updatedAt: true,
           companyInventories: {
             where: {
               companyId
@@ -1144,11 +1172,21 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
             orderBy: {
               updatedAt: "desc"
             },
-            take: 1
+            take: 1,
+            select: {
+              customStockQuantity: true,
+              updatedAt: true
+            }
           },
           variants: {
             orderBy: [{ createdAt: "asc" }, { sku: "asc" }],
-            include: {
+            select: {
+              id: true,
+              productId: true,
+              sku: true,
+              individualWeight: true,
+              individualStock: true,
+              updatedAt: true,
               companyVariantInventories: {
                 where: {
                   companyId
@@ -1156,7 +1194,11 @@ export class PrismaControlPlaneRepository implements ControlPlaneRepository {
                 orderBy: {
                   updatedAt: "desc"
                 },
-                take: 1
+                take: 1,
+                select: {
+                  customStockQuantity: true,
+                  updatedAt: true
+                }
               }
             }
           }

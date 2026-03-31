@@ -3,7 +3,15 @@ import { AppError } from "../../middleware/error-handler";
 import { deriveApiKeyPrefix, hashApiKey } from "../../utils/crypto";
 import { AuthContext } from "./auth.types";
 
+type CachedAuthRecord = {
+  expiresAt: number;
+  authContext: AuthContext;
+};
+
 export class ApiKeyService {
+  private readonly authCache = new Map<string, CachedAuthRecord>();
+  private readonly authCacheTtlMs = 15_000;
+
   constructor(
     private readonly controlPlane: ControlPlaneRepository,
     private readonly pepper: string
@@ -15,6 +23,13 @@ export class ApiKeyService {
 
   async authenticatePresentedKey(apiKey: string): Promise<AuthContext> {
     const keyHash = hashApiKey(apiKey, this.pepper);
+    const now = Date.now();
+    const cached = this.authCache.get(keyHash);
+
+    if (cached && cached.expiresAt > now) {
+      return cached.authContext;
+    }
+
     const apiKeyRecord = await this.controlPlane.findApiKeyByHash(keyHash);
 
     if (!apiKeyRecord) {
@@ -35,13 +50,26 @@ export class ApiKeyService {
 
     this.recordApiKeyUsage(apiKeyRecord.id);
 
-    return {
+    const authContext = {
       apiKeyId: apiKeyRecord.id,
       companyId: apiKeyRecord.companyId,
       companyExternalCode: apiKeyRecord.company.externalCode,
       companyName: apiKeyRecord.company.legalName,
+      companyIsActive: apiKeyRecord.company.isActive,
+      companySyncStoreInventory: apiKeyRecord.company.syncStoreInventory,
+      companyApiKeyCount: apiKeyRecord.company.apiKeyCount,
+      companyActiveKeyCount: apiKeyRecord.company.activeKeyCount,
+      companyCreatedAt: apiKeyRecord.company.createdAt.toISOString(),
+      companyUpdatedAt: apiKeyRecord.company.updatedAt.toISOString(),
       keyPrefix: apiKeyRecord.keyPrefix,
       rateLimitPerMinute: apiKeyRecord.rateLimitPerMinute
-    };
+    } satisfies AuthContext;
+
+    this.authCache.set(keyHash, {
+      expiresAt: now + this.authCacheTtlMs,
+      authContext
+    });
+
+    return authContext;
   }
 }

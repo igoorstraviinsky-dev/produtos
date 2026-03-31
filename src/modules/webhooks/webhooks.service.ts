@@ -1,7 +1,12 @@
 import { ControlPlaneRepository } from "../../lib/postgres";
 import { ProductCacheStore } from "../../lib/redis";
 import { ProductGateway } from "../../lib/supabase";
-import { buildProductsCacheKey } from "../../utils/cache-keys";
+import {
+  buildCompanyCatalogCachePrefix,
+  buildProductsCacheKey,
+  buildProductsMetaCacheKey,
+  buildProductsResponseCachePrefix
+} from "../../utils/cache-keys";
 import { RealtimeHub } from "../realtime/realtime-hub";
 
 function toNullableNumber(value: string | number | null | undefined) {
@@ -48,6 +53,9 @@ export class WebhooksService {
     );
 
     await this.productCache.delete(buildProductsCacheKey());
+    await this.productCache.delete(buildProductsMetaCacheKey());
+    await this.productCache.deleteByPrefix(buildProductsResponseCachePrefix());
+    await this.productCache.deleteByPrefix(buildCompanyCatalogCachePrefix());
     this.realtimeHub.broadcastProductUpdated({
       productCount: syncedProducts.length,
       updatedAt: new Date().toISOString()

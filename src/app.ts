@@ -14,6 +14,7 @@ import {
   RedisRateLimitCounterStore,
   createRedisClient
 } from "./lib/redis";
+import { CostSettingsCache } from "./lib/cost-settings-cache";
 import {
   ProductGateway,
   SupabaseProductGateway,
@@ -121,10 +122,17 @@ export async function buildApp(overrides?: Partial<AppDependencies>): Promise<Fa
     apiKeyService,
     authTimeoutMs: env.WEBSOCKET_AUTH_TIMEOUT_MS
   });
+  const costSettingsCache = new CostSettingsCache(
+    dependencies.controlPlane,
+    env.PRODUCTS_CACHE_TTL_SECONDS,
+    env.PRODUCTS_CACHE_STALE_SECONDS,
+    app.log
+  );
 
   const productsService = new ProductsService({
     cacheStore: dependencies.productCache,
     controlPlane: dependencies.controlPlane,
+    costSettingsCache,
     env,
     productGateway: dependencies.productGateway,
     logger: app.log
@@ -138,13 +146,16 @@ export async function buildApp(overrides?: Partial<AppDependencies>): Promise<Fa
   const adminService = new AdminService(
     dependencies.controlPlane,
     dependencies.productGateway,
-    env.API_KEY_PEPPER
+    env.API_KEY_PEPPER,
+    dependencies.productCache,
+    costSettingsCache
   );
   const inventoryService = new InventoryService(
     dependencies.controlPlane,
     dependencies.productGateway,
     dependencies.productCache,
-    env
+    env,
+    costSettingsCache
   );
   const webhooksService = new WebhooksService(
     dependencies.controlPlane,
