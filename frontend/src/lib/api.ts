@@ -32,6 +32,7 @@ type ApiErrorPayload = {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_TOKEN ?? "";
 const ADMIN_SESSION_STORAGE_KEY = "parceiros.admin.session";
+const inflightRequests = new Map<string, Promise<unknown>>();
 
 function getStoredAdminSessionToken() {
   if (typeof window === "undefined") {
@@ -71,33 +72,65 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options: RequestOptions = {}) {
   const adminSessionToken = options.admin ? getStoredAdminSessionToken() : "";
+  const method = options.method ?? "GET";
+  const requestKey =
+    method === "GET"
+      ? JSON.stringify([
+          method,
+          path,
+          options.admin ? adminSessionToken || `admin-token:${Boolean(ADMIN_TOKEN)}` : "",
+          options.apiKey ?? ""
+        ])
+      : null;
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method ?? "GET",
-    headers: {
-      ...(options.body ? { "content-type": "application/json" } : {}),
-      ...(options.admin && adminSessionToken
-        ? { authorization: `Bearer ${adminSessionToken}` }
-        : {}),
-      ...(options.admin && !adminSessionToken && ADMIN_TOKEN ? { "x-admin-token": ADMIN_TOKEN } : {}),
-      ...(options.apiKey ? { authorization: `Bearer ${options.apiKey}` } : {})
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
-
-  const rawBody = await response.text();
-  const parsedBody = rawBody ? (JSON.parse(rawBody) as T | ApiErrorPayload) : null;
-
-  if (!response.ok) {
-    const errorPayload = parsedBody as ApiErrorPayload | null;
-    throw new ApiError(
-      errorPayload?.message ?? `Request failed with status ${response.status}`,
-      response.status,
-      errorPayload?.error
-    );
+  if (requestKey) {
+    const inflightRequest = inflightRequests.get(requestKey);
+    if (inflightRequest) {
+      return inflightRequest as Promise<T>;
+    }
   }
 
-  return parsedBody as T;
+  const executeRequest = async () => {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: {
+        ...(options.body ? { "content-type": "application/json" } : {}),
+        ...(options.admin && adminSessionToken
+          ? { authorization: `Bearer ${adminSessionToken}` }
+          : {}),
+        ...(options.admin && !adminSessionToken && ADMIN_TOKEN
+          ? { "x-admin-token": ADMIN_TOKEN }
+          : {}),
+        ...(options.apiKey ? { authorization: `Bearer ${options.apiKey}` } : {})
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined
+    });
+
+    const rawBody = await response.text();
+    const parsedBody = rawBody ? (JSON.parse(rawBody) as T | ApiErrorPayload) : null;
+
+    if (!response.ok) {
+      const errorPayload = parsedBody as ApiErrorPayload | null;
+      throw new ApiError(
+        errorPayload?.message ?? `Request failed with status ${response.status}`,
+        response.status,
+        errorPayload?.error
+      );
+    }
+
+    return parsedBody as T;
+  };
+
+  if (!requestKey) {
+    return executeRequest();
+  }
+
+  const inflightRequest = executeRequest().finally(() => {
+    inflightRequests.delete(requestKey);
+  });
+
+  inflightRequests.set(requestKey, inflightRequest);
+  return inflightRequest;
 }
 
 export const api = {

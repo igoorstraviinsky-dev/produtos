@@ -1,11 +1,17 @@
-import { startTransition, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  startTransition,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 
 import { CompanyCardsDashboard } from "./components/CompanyCardsDashboard";
-import { CompanyDetailPage } from "./components/CompanyDetailPage";
-import { CostCalculatorPage } from "./components/CostCalculatorPage";
 import { LoginPage } from "./components/LoginPage";
 import { Modal } from "./components/Modal";
-import { PublicInventoryApiDocsPage } from "./components/PublicInventoryApiDocsPage";
 import { Field, StatCard } from "./components/ui";
 import { ApiError, api } from "./lib/api";
 import type {
@@ -23,6 +29,22 @@ type AsyncState = "idle" | "loading" | "success" | "error";
 type AppPage = "dashboard" | "company" | "costs" | "docs";
 type CompanyTab = "profile" | "keys" | "inventory" | "costs";
 type AuthState = "checking" | "authenticated" | "unauthenticated";
+
+const loadCompanyDetailPage = () => import("./components/CompanyDetailPage");
+const loadCostCalculatorPage = () => import("./components/CostCalculatorPage");
+const loadPublicInventoryApiDocsPage = () => import("./components/PublicInventoryApiDocsPage");
+
+const CompanyDetailPage = lazy(() =>
+  loadCompanyDetailPage().then((module) => ({ default: module.CompanyDetailPage }))
+);
+const CostCalculatorPage = lazy(() =>
+  loadCostCalculatorPage().then((module) => ({ default: module.CostCalculatorPage }))
+);
+const PublicInventoryApiDocsPage = lazy(() =>
+  loadPublicInventoryApiDocsPage().then((module) => ({
+    default: module.PublicInventoryApiDocsPage
+  }))
+);
 
 function getRouteState(pathname: string) {
   if (pathname === "/docs" || pathname === "/docs/api-estoque") {
@@ -73,6 +95,21 @@ function createVariantInventoryDrafts(items: AdminInventoryItem[]) {
         String(variant.customStockQuantity ?? variant.effectiveStockQuantity)
       ])
     )
+  );
+}
+
+function PanelFallback(props: { title: string; description: string }) {
+  const { title, description } = props;
+
+  return (
+    <div className="surface-panel rounded-[2rem] p-6">
+      <div className="animate-pulse">
+        <p className="surface-kicker">{title}</p>
+        <p className="mt-4 text-sm text-slate-400">{description}</p>
+        <div className="mt-6 h-16 rounded-[1.5rem] border border-white/8 bg-white/[0.03]" />
+        <div className="mt-4 h-44 rounded-[1.75rem] border border-white/8 bg-white/[0.03]" />
+      </div>
+    </div>
   );
 }
 
@@ -132,6 +169,11 @@ function App() {
   });
   const lastPersistedCostVariablesRef = useRef("");
   const lastAutoInventorySyncKeyRef = useRef("");
+  const loadedApiKeysCompanyIdRef = useRef("");
+  const loadedInventoryCompanyIdRef = useRef("");
+  const loadedProductsCompanyIdRef = useRef("");
+  const loadedCostSettingsCompanyIdRef = useRef("");
+  const loadedCostHistoryCompanyIdRef = useRef("");
 
   const selectedCompany =
     companies.find((company) => company.id === selectedCompanyId) ?? null;
@@ -151,6 +193,36 @@ function App() {
       isActive: company?.isActive ?? true,
       syncStoreInventory: company?.syncStoreInventory ?? false
     });
+  }
+
+  function getCompanyCacheKey(companyId?: string) {
+    return companyId ?? "__global__";
+  }
+
+  function resetCompanyViewState() {
+    setApiKeys([]);
+    setInventory([]);
+    setProducts([]);
+    setInventoryDrafts({});
+    setInventoryVariantDrafts({});
+    setCostHistoryEntries([]);
+    setCostVariables({
+      silverPricePerGram: "1.00",
+      zonaFrancaRatePercent: "6",
+      transportFee: "0.10",
+      dollarRate: "5.00"
+    });
+    setApiKeysState("idle");
+    setInventoryState("idle");
+    setProductsState("idle");
+    setCostSettingsState("idle");
+    setCostSettingsSaveState("idle");
+    setCostHistoryState("idle");
+    loadedApiKeysCompanyIdRef.current = "";
+    loadedInventoryCompanyIdRef.current = "";
+    loadedProductsCompanyIdRef.current = "";
+    loadedCostSettingsCompanyIdRef.current = "";
+    loadedCostHistoryCompanyIdRef.current = "";
   }
 
   async function bootstrapAdminSession() {
@@ -251,30 +323,35 @@ function App() {
     setAdminSession(null);
     setAuthState(sessionConfig?.requiresAuth ? "unauthenticated" : "authenticated");
     setCompanies([]);
-    setApiKeys([]);
-    setInventory([]);
-    setProducts([]);
+    resetCompanyViewState();
     setFeedback("");
   }
 
-  async function refreshCompanyDetail(companyId: string) {
+  async function refreshCompanyApiKeys(companyId: string) {
     setApiKeysState("loading");
+
+    try {
+      const nextApiKeys = await api.listCompanyApiKeys(companyId);
+      setApiKeys(nextApiKeys);
+      setApiKeysState("success");
+      loadedApiKeysCompanyIdRef.current = companyId;
+    } catch (error) {
+      setApiKeysState("error");
+      setFeedback(formatApiError(error));
+    }
+  }
+
+  async function refreshCompanyInventory(companyId: string) {
     setInventoryState("loading");
 
     try {
-      const [nextApiKeys, nextInventory] = await Promise.all([
-        api.listCompanyApiKeys(companyId),
-        api.listCompanyInventory(companyId)
-      ]);
-
-        setApiKeys(nextApiKeys);
-        setInventory(nextInventory.data);
-        setInventoryDrafts(createInventoryDrafts(nextInventory.data));
-        setInventoryVariantDrafts(createVariantInventoryDrafts(nextInventory.data));
-        setApiKeysState("success");
-        setInventoryState("success");
+      const nextInventory = await api.listCompanyInventory(companyId);
+      setInventory(nextInventory.data);
+      setInventoryDrafts(createInventoryDrafts(nextInventory.data));
+      setInventoryVariantDrafts(createVariantInventoryDrafts(nextInventory.data));
+      setInventoryState("success");
+      loadedInventoryCompanyIdRef.current = companyId;
     } catch (error) {
-      setApiKeysState("error");
       setInventoryState("error");
       setFeedback(formatApiError(error));
     }
@@ -287,6 +364,7 @@ function App() {
       const nextProducts = await api.listInventoryProducts(companyId);
       setProducts(nextProducts);
       setProductsState("success");
+      loadedProductsCompanyIdRef.current = getCompanyCacheKey(companyId);
     } catch (error) {
       setProductsState("error");
       setFeedback(formatApiError(error));
@@ -300,7 +378,7 @@ function App() {
       const syncResult = await api.syncMasterCatalog();
 
       if (options?.companyId) {
-        await refreshCompanyDetail(options.companyId);
+        await refreshCompanyInventory(options.companyId);
       }
 
       if (currentPage === "company") {
@@ -334,6 +412,7 @@ function App() {
       lastPersistedCostVariablesRef.current = JSON.stringify(nextVariables);
       setCostSettingsState("success");
       setCostSettingsSaveState("idle");
+      loadedCostSettingsCompanyIdRef.current = getCompanyCacheKey(companyId);
     } catch (error) {
       setCostSettingsState("error");
       setFeedback(formatApiError(error));
@@ -347,6 +426,7 @@ function App() {
       const history = await api.listCostSettingsHistory(companyId);
       setCostHistoryEntries(history);
       setCostHistoryState("success");
+      loadedCostHistoryCompanyIdRef.current = getCompanyCacheKey(companyId);
     } catch (error) {
       setCostHistoryState("error");
       setFeedback(formatApiError(error));
@@ -357,13 +437,12 @@ function App() {
     window.history.pushState({}, "", "/");
     setCurrentPage("dashboard");
     setSelectedCompanyId("");
-      setApiKeys([]);
-      setInventory([]);
-      setInventoryDrafts({});
-      setInventoryVariantDrafts({});
-    }
+    resetCompanyViewState();
+  }
 
   function openCosts(companyId: string) {
+    void loadCompanyDetailPage();
+    void loadCostCalculatorPage();
     window.history.pushState({}, "", `/empresas/${encodeURIComponent(companyId)}`);
     setCurrentPage("company");
     setSelectedCompanyId(companyId);
@@ -371,6 +450,7 @@ function App() {
   }
 
   function openDocs() {
+    void loadPublicInventoryApiDocsPage();
     window.history.pushState({}, "", "/docs/api-estoque");
     setCurrentPage("docs");
     setSelectedCompanyId("");
@@ -397,8 +477,7 @@ function App() {
   }
 
   const autoRefreshCompanyInventory = useEffectEvent(async (companyId: string) => {
-    await refreshCompanyDetail(companyId);
-    await refreshProducts(companyId);
+    await refreshCompanyInventory(companyId);
   });
 
   const autoSyncCompanyCatalog = useEffectEvent(async (companyId: string) => {
@@ -408,7 +487,43 @@ function App() {
     });
   });
 
+  const loadCompaniesForSession = useEffectEvent(async (preferredCompanyId?: string) => {
+    await refreshCompanies(preferredCompanyId);
+  });
+
+  const loadCompanyTabData = useEffectEvent(async (companyId: string, tab: CompanyTab) => {
+    if (tab === "inventory") {
+      if (loadedInventoryCompanyIdRef.current !== companyId) {
+        await refreshCompanyInventory(companyId);
+      }
+      if (loadedProductsCompanyIdRef.current !== companyId) {
+        await refreshProducts(companyId);
+      }
+      return;
+    }
+
+    if (tab === "keys") {
+      if (loadedApiKeysCompanyIdRef.current !== companyId) {
+        await refreshCompanyApiKeys(companyId);
+      }
+      return;
+    }
+
+    if (tab === "costs") {
+      if (loadedProductsCompanyIdRef.current !== companyId) {
+        await refreshProducts(companyId);
+      }
+      if (loadedCostSettingsCompanyIdRef.current !== companyId) {
+        await refreshCostSettings(companyId);
+      }
+      if (loadedCostHistoryCompanyIdRef.current !== companyId) {
+        await refreshCostSettingsHistory(companyId);
+      }
+    }
+  });
+
   function openCompany(companyId: string) {
+    void loadCompanyDetailPage();
     window.history.pushState({}, "", `/empresas/${encodeURIComponent(companyId)}`);
     setCurrentPage("company");
     setSelectedCompanyId(companyId);
@@ -446,27 +561,29 @@ function App() {
 
   useEffect(() => {
     if (authState === "authenticated") {
-      void refreshCompanies(initialRoute.companyId || undefined);
+      void loadCompaniesForSession(initialRoute.companyId || undefined);
     }
-  }, [authState]);
+  }, [authState, initialRoute.companyId]);
+
+  useEffect(() => {
+    if (currentPage !== "company") {
+      return;
+    }
+
+    resetCompanyViewState();
+  }, [currentPage, selectedCompanyId]);
 
   useEffect(() => {
     if (authState !== "authenticated") {
       return;
     }
 
-    if (currentPage === "company" && selectedCompanyId) {
-      void refreshCompanyDetail(selectedCompanyId);
+    if (currentPage !== "company" || !selectedCompanyId) {
+      return;
     }
-    if (currentPage === "company" && activeTab === "inventory") {
-      void refreshProducts(selectedCompanyId || undefined);
-    }
-    if (currentPage === "company" && activeTab === "costs" && selectedCompanyId) {
-      void refreshCostSettings(selectedCompanyId);
-      void refreshCostSettingsHistory(selectedCompanyId);
-      void refreshProducts(selectedCompanyId);
-    }
-  }, [activeTab, currentPage, selectedCompanyId]);
+
+    void loadCompanyTabData(selectedCompanyId, activeTab);
+  }, [activeTab, authState, currentPage, selectedCompanyId]);
 
   useEffect(() => {
     if (
@@ -501,8 +618,6 @@ function App() {
   }, [
     activeTab,
     authState,
-    autoRefreshCompanyInventory,
-    autoSyncCompanyCatalog,
     currentPage,
     selectedCompany?.syncStoreInventory,
     selectedCompanyId
@@ -526,7 +641,6 @@ function App() {
   }, [
     activeTab,
     authState,
-    autoSyncCompanyCatalog,
     currentPage,
     inventory.length,
     inventoryState,
@@ -616,7 +730,7 @@ function App() {
     }, 700);
 
     return () => window.clearTimeout(timeoutId);
-  }, [autoSaveCostSettings, costSettingsState, costVariables, currentPage]);
+  }, [activeTab, authState, costSettingsState, costVariables, currentPage]);
 
   async function handleCreateCompany(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -707,7 +821,7 @@ function App() {
       setCreatedKey(issuedKey);
       setFeedback("Nova chave gerada com sucesso.");
       await refreshCompanies(selectedCompanyId);
-      await refreshCompanyDetail(selectedCompanyId);
+      await refreshCompanyApiKeys(selectedCompanyId);
     } catch (error) {
       setFeedback(formatApiError(error));
     }
@@ -724,7 +838,7 @@ function App() {
       await api.revokeApiKey(apiKeyId);
       setFeedback("Chave revogada imediatamente.");
       await refreshCompanies(selectedCompanyId);
-      await refreshCompanyDetail(selectedCompanyId);
+      await refreshCompanyApiKeys(selectedCompanyId);
     } catch (error) {
       setFeedback(formatApiError(error));
     } finally {
@@ -827,7 +941,22 @@ function App() {
   }
 
   if (currentPage === "docs") {
-    return <PublicInventoryApiDocsPage />;
+    return (
+      <Suspense
+        fallback={
+          <div className="relative overflow-hidden">
+            <div className="mx-auto flex min-h-screen max-w-[1320px] flex-col gap-8 px-4 py-8 sm:px-6 lg:px-10">
+              <PanelFallback
+                title="Documentacao Publica"
+                description="Carregando a documentacao da API e os exemplos de integracao."
+              />
+            </div>
+          </div>
+        }
+      >
+        <PublicInventoryApiDocsPage />
+      </Suspense>
+    );
   }
 
   if (authState === "checking") {
@@ -996,14 +1125,22 @@ function App() {
 
         {currentPage === "company" && selectedCompany ? (
           <>
-            <CompanyDetailPage
-              company={selectedCompany}
-              activeTab={activeTab}
-              apiKeys={apiKeys}
-              inventory={inventory}
-              products={products}
-              apiKeysState={apiKeysState}
-              inventoryState={inventoryState}
+            <Suspense
+              fallback={
+                <PanelFallback
+                  title="Visao da Empresa"
+                  description="Carregando estrutura da empresa, estoque e credenciais."
+                />
+              }
+            >
+              <CompanyDetailPage
+                company={selectedCompany}
+                activeTab={activeTab}
+                apiKeys={apiKeys}
+                inventory={inventory}
+                products={products}
+                apiKeysState={apiKeysState}
+                inventoryState={inventoryState}
                 productsState={productsState}
                 keyActionId={keyActionId}
                 savingInventoryId={savingInventoryId}
@@ -1013,38 +1150,38 @@ function App() {
                 inventoryDrafts={inventoryDrafts}
                 inventoryVariantDrafts={inventoryVariantDrafts}
                 onBack={openDashboard}
-              onChangeTab={(tab) => {
-                setActiveTab(tab);
-                if (tab === "costs") {
-                  openCosts(selectedCompany.id);
+                onChangeTab={(tab) => {
+                  setActiveTab(tab);
+                  if (tab === "costs") {
+                    openCosts(selectedCompany.id);
+                  }
+                }}
+                onCompanyFormChange={(patch) =>
+                  setCompanyForm((current) => ({
+                    ...current,
+                    ...patch
+                  }))
                 }
-              }}
-              onCompanyFormChange={(patch) =>
-                setCompanyForm((current) => ({
-                  ...current,
-                  ...patch
-                }))
-              }
-              onSaveCompany={() => {
-                if (!companyActionId) {
-                  void handleSaveCompany();
-                }
-              }}
-              onDeleteCompany={() => {
-                if (!deletingCompanyId) {
-                  void handleDeleteCompany();
-                }
-              }}
-              deletingCompany={deletingCompanyId === selectedCompany.id}
-              onOpenIssueKey={() => setIssueKeyOpen(true)}
-              onRevokeKey={(apiKeyId) => {
-                void handleRevokeKey(apiKeyId);
-              }}
-              onSyncCatalog={() => {
-                void handleSyncMasterCatalog({
-                  companyId: selectedCompany.id
-                });
-              }}
+                onSaveCompany={() => {
+                  if (!companyActionId) {
+                    void handleSaveCompany();
+                  }
+                }}
+                onDeleteCompany={() => {
+                  if (!deletingCompanyId) {
+                    void handleDeleteCompany();
+                  }
+                }}
+                deletingCompany={deletingCompanyId === selectedCompany.id}
+                onOpenIssueKey={() => setIssueKeyOpen(true)}
+                onRevokeKey={(apiKeyId) => {
+                  void handleRevokeKey(apiKeyId);
+                }}
+                onSyncCatalog={() => {
+                  void handleSyncMasterCatalog({
+                    companyId: selectedCompany.id
+                  });
+                }}
                 onInventoryDraftChange={(productId, value) =>
                   setInventoryDrafts((currentDrafts) => ({
                     ...currentDrafts,
@@ -1064,30 +1201,40 @@ function App() {
                   void handleSaveInventoryVariant(productId, variantId);
                 }}
               />
+            </Suspense>
 
             {activeTab === "costs" ? (
-              <CostCalculatorPage
-                companyName={selectedCompany.legalName}
-                products={products}
-                productsState={productsState}
-                costSettingsState={costSettingsState}
-                costSettingsSaveState={costSettingsSaveState}
-                costHistoryEntries={costHistoryEntries}
-                costHistoryState={costHistoryState}
-                variables={costVariables}
-                onVariableChange={(field, value) =>
-                  setCostVariables((current) => ({
-                    ...current,
-                    [field]: value
-                  }))
+              <Suspense
+                fallback={
+                  <PanelFallback
+                    title="Custos"
+                    description="Carregando calculadora e historico da empresa."
+                  />
                 }
-                onOpenHistory={() => {
-                  openCostHistory();
-                }}
-                onRefresh={() => {
-                  void refreshProducts(selectedCompany.id);
-                }}
-              />
+              >
+                <CostCalculatorPage
+                  companyName={selectedCompany.legalName}
+                  products={products}
+                  productsState={productsState}
+                  costSettingsState={costSettingsState}
+                  costSettingsSaveState={costSettingsSaveState}
+                  costHistoryEntries={costHistoryEntries}
+                  costHistoryState={costHistoryState}
+                  variables={costVariables}
+                  onVariableChange={(field, value) =>
+                    setCostVariables((current) => ({
+                      ...current,
+                      [field]: value
+                    }))
+                  }
+                  onOpenHistory={() => {
+                    openCostHistory();
+                  }}
+                  onRefresh={() => {
+                    void refreshProducts(selectedCompany.id);
+                  }}
+                />
+              </Suspense>
             ) : null}
           </>
         ) : null}

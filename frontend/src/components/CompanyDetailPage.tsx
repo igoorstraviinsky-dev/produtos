@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useDeferredValue, useMemo, useState, type ReactNode } from "react";
 
 import { Toggle } from "./Toggle";
 import { EmptyState, StatusChip } from "./ui";
@@ -550,6 +550,10 @@ function getVariantUnitsTotal(item: AdminInventoryItem, variants: ProductVariant
 }
 
 function getVariantCost(product: Product | null, variant: ProductVariant) {
+  if (typeof variant.cost === "number" && Number.isFinite(variant.cost)) {
+    return variant.cost;
+  }
+
   const variantWeight = toNumber(variant.individual_weight ?? variant.individualWeight);
   const productCost = typeof product?.costFinal === "number" ? product.costFinal : null;
 
@@ -560,17 +564,15 @@ function getVariantCost(product: Product | null, variant: ProductVariant) {
   return variantWeight * productCost;
 }
 
-function ProductImage(props: { product: Product | null; alt: string; mode?: "line" | "card" }) {
-  const { product, alt, mode = "card" } = props;
-  const candidates = buildPrimaryImageCandidates(product);
+function ProductImageContent(props: {
+  candidates: string[];
+  alt: string;
+  mode: "line" | "card";
+}) {
+  const { candidates, alt, mode } = props;
   const [candidateIndex, setCandidateIndex] = useState(0);
   const [exhausted, setExhausted] = useState(false);
   const isCompact = mode === "line";
-
-  useEffect(() => {
-    setCandidateIndex(0);
-    setExhausted(false);
-  }, [product?.id, candidates.join("|")]);
 
   if (candidates.length === 0 || exhausted) {
     return (
@@ -622,6 +624,21 @@ function ProductImage(props: { product: Product | null; alt: string; mode?: "lin
   );
 }
 
+function ProductImage(props: { product: Product | null; alt: string; mode?: "line" | "card" }) {
+  const { product, alt, mode = "card" } = props;
+  const candidates = buildPrimaryImageCandidates(product);
+  const imageStateKey = `${product?.id ?? "unknown"}:${candidates.join("|")}`;
+
+  return (
+    <ProductImageContent
+      key={imageStateKey}
+      candidates={candidates}
+      alt={alt}
+      mode={mode}
+    />
+  );
+}
+
 function InventorySummaryBox(props: {
   label: string;
   value: string | number;
@@ -638,6 +655,25 @@ function InventorySummaryBox(props: {
     </div>
   );
 }
+
+const InventoryCardShell = memo(function InventoryCardShell(props: {
+  children: ReactNode;
+  className: string;
+}) {
+  const { children, className } = props;
+
+  return (
+    <article
+      className={className}
+      style={{
+        contentVisibility: "auto",
+        containIntrinsicSize: "420px"
+      }}
+    >
+      {children}
+    </article>
+  );
+});
 
 type CompanyDetailPageProps = {
   company: Company;
@@ -708,11 +744,15 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
     onSaveInventoryVariant
   } = props;
 
-  const productsById = new Map(products.map((product) => [product.id, product]));
+  const productsById = useMemo(
+    () => new Map(products.map((product) => [product.id, product])),
+    [products]
+  );
   const [openInventoryProductId, setOpenInventoryProductId] = useState<string | null>(null);
   const [inventorySearch, setInventorySearch] = useState("");
   const [inventorySectionIndex, setInventorySectionIndex] = useState(0);
-  const normalizedInventorySearch = normalizeSearchTerm(inventorySearch);
+  const deferredInventorySearch = useDeferredValue(inventorySearch);
+  const normalizedInventorySearch = normalizeSearchTerm(deferredInventorySearch);
   const filteredInventory = useMemo(
     () =>
       inventory.filter((item) =>
@@ -722,37 +762,32 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
           normalizedInventorySearch
         )
       ),
-    [inventory, normalizedInventorySearch, products]
+    [inventory, normalizedInventorySearch, productsById]
   );
-  const totalInventorySections = Math.max(
-    1,
-    Math.ceil(filteredInventory.length / INVENTORY_SECTION_SIZE)
+  const totalInventorySections = useMemo(
+    () => Math.max(1, Math.ceil(filteredInventory.length / INVENTORY_SECTION_SIZE)),
+    [filteredInventory.length]
   );
-  const visibleInventory = filteredInventory.slice(
-    inventorySectionIndex * INVENTORY_SECTION_SIZE,
-    (inventorySectionIndex + 1) * INVENTORY_SECTION_SIZE
+  const visibleInventory = useMemo(
+    () =>
+      filteredInventory.slice(
+        Math.min(inventorySectionIndex, totalInventorySections - 1) * INVENTORY_SECTION_SIZE,
+        (Math.min(inventorySectionIndex, totalInventorySections - 1) + 1) *
+          INVENTORY_SECTION_SIZE
+      ),
+    [filteredInventory, inventorySectionIndex, totalInventorySections]
+  );
+  const effectiveInventorySectionIndex = Math.min(
+    inventorySectionIndex,
+    totalInventorySections - 1
   );
   const currentInventorySectionLabel =
-    filteredInventory.length === 0 ? 0 : inventorySectionIndex + 1;
-
-  useEffect(() => {
-    if (!openInventoryProductId) {
-      return;
-    }
-
-    const stillExists = inventory.some((item) => item.productId === openInventoryProductId);
-    if (!stillExists) {
-      setOpenInventoryProductId(null);
-    }
-  }, [inventory, openInventoryProductId]);
-
-  useEffect(() => {
-    setInventorySectionIndex(0);
-  }, [normalizedInventorySearch]);
-
-  useEffect(() => {
-    setInventorySectionIndex((current) => Math.min(current, totalInventorySections - 1));
-  }, [totalInventorySections]);
+    filteredInventory.length === 0 ? 0 : effectiveInventorySectionIndex + 1;
+  const safeOpenInventoryProductId = inventory.some(
+    (item) => item.productId === openInventoryProductId
+  )
+    ? openInventoryProductId
+    : null;
 
   function toggleInventoryCard(productId: string) {
     setOpenInventoryProductId((current) => (current === productId ? null : productId));
@@ -1075,7 +1110,10 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                 <input
                   type="search"
                   value={inventorySearch}
-                  onChange={(event) => setInventorySearch(event.target.value)}
+                  onChange={(event) => {
+                    setInventorySearch(event.target.value);
+                    setInventorySectionIndex(0);
+                  }}
                   placeholder="Busque por sku, descricao comercial, cod fornecedor, variante ou tamanho"
                   className="surface-input mt-2 w-full rounded-[1.2rem] px-4 py-3 text-sm outline-none transition"
                 />
@@ -1104,7 +1142,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     </button>
                     <button
                       type="button"
-                      disabled={inventorySectionIndex >= totalInventorySections - 1}
+                      disabled={effectiveInventorySectionIndex >= totalInventorySections - 1}
                       onClick={() =>
                         setInventorySectionIndex((current) =>
                           Math.min(totalInventorySections - 1, current + 1)
@@ -1181,7 +1219,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                   matchingVariants.length > 0 ? matchingVariants : variants;
                 const currentDisplayStock = getCurrentDisplayStock(item, product);
                 const totalVariantUnits = getVariantUnitsTotal(item, variants);
-                const isCardOpen = openInventoryProductId === item.productId;
+                const isCardOpen = safeOpenInventoryProductId === item.productId;
                 const productCost = formatCurrency(product?.costFinal);
                 const variantCountLabel =
                   normalizedInventorySearch &&
@@ -1191,7 +1229,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                     : `${variants.length} variacoes`;
 
                 return (
-                  <article
+                  <InventoryCardShell
                     key={item.productId}
                     className={[
                       "overflow-hidden rounded-[1.75rem] border transition",
@@ -1426,7 +1464,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
                         </div>
                       </div>
                     ) : null}
-                  </article>
+                  </InventoryCardShell>
                 );
               })}
             </div>

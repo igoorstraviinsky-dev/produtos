@@ -89,39 +89,32 @@ export function CompanyCardsDashboard(props: CompanyCardsDashboardProps) {
   }
 
   const workspaceItems = [
-    {
-      id: "inbox",
-      label: "Inbox de operacoes",
-      action: () => {
-        setActiveWorkspaceItem("Inbox de operacoes");
-        scrollToSection("hero");
-      }
-    },
-    {
-      id: "companies",
-      label: "Empresas ativas",
-      action: () => {
-        setActiveWorkspaceItem("Empresas ativas");
-        scrollToSection("companies");
-      }
-    },
-    {
-      id: "costs",
-      label: "Custos por parceiro",
-      action: () => {
-        setActiveWorkspaceItem("Custos por parceiro");
-        onOpenPartnerCosts();
-      }
-    },
-    {
-      id: "docs",
-      label: "Documentacao publica",
-      action: () => {
-        setActiveWorkspaceItem("Documentacao publica");
-        onOpenDocs();
-      }
-    }
+    { id: "inbox", label: "Inbox de operacoes" },
+    { id: "companies", label: "Empresas ativas" },
+    { id: "costs", label: "Custos por parceiro" },
+    { id: "docs", label: "Documentacao publica" }
   ];
+
+  function handleWorkspaceItemClick(itemId: string, label: string) {
+    setActiveWorkspaceItem(label);
+
+    if (itemId === "inbox") {
+      scrollToSection("hero");
+      return;
+    }
+
+    if (itemId === "companies") {
+      scrollToSection("companies");
+      return;
+    }
+
+    if (itemId === "costs") {
+      onOpenPartnerCosts();
+      return;
+    }
+
+    onOpenDocs();
+  }
 
   return (
     <section className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
@@ -135,7 +128,7 @@ export function CompanyCardsDashboard(props: CompanyCardsDashboardProps) {
             <button
               type="button"
               key={item.id}
-              onClick={item.action}
+              onClick={() => handleWorkspaceItemClick(item.id, item.label)}
               className={[
                 "surface-card flex w-full items-center gap-3 rounded-[1.35rem] px-4 py-3 text-left transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.08]",
                 activeWorkspaceItem === item.label ? "border-cyan-400/20 bg-cyan-400/[0.08]" : ""
