@@ -17,6 +17,7 @@ const PRODUCT_IMAGE_BASE_URL = (
   import.meta.env.VITE_PRODUCT_IMAGE_BASE_URL ?? DEFAULT_PRODUCT_IMAGE_BASE_URL
 ).replace(/\/$/, "");
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const INVENTORY_SECTION_SIZE = 12;
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -710,6 +711,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
   const productsById = new Map(products.map((product) => [product.id, product]));
   const [openInventoryProductId, setOpenInventoryProductId] = useState<string | null>(null);
   const [inventorySearch, setInventorySearch] = useState("");
+  const [inventorySectionIndex, setInventorySectionIndex] = useState(0);
   const normalizedInventorySearch = normalizeSearchTerm(inventorySearch);
   const filteredInventory = useMemo(
     () =>
@@ -722,6 +724,16 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
       ),
     [inventory, normalizedInventorySearch, products]
   );
+  const totalInventorySections = Math.max(
+    1,
+    Math.ceil(filteredInventory.length / INVENTORY_SECTION_SIZE)
+  );
+  const visibleInventory = filteredInventory.slice(
+    inventorySectionIndex * INVENTORY_SECTION_SIZE,
+    (inventorySectionIndex + 1) * INVENTORY_SECTION_SIZE
+  );
+  const currentInventorySectionLabel =
+    filteredInventory.length === 0 ? 0 : inventorySectionIndex + 1;
 
   useEffect(() => {
     if (!openInventoryProductId) {
@@ -733,6 +745,14 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
       setOpenInventoryProductId(null);
     }
   }, [inventory, openInventoryProductId]);
+
+  useEffect(() => {
+    setInventorySectionIndex(0);
+  }, [normalizedInventorySearch]);
+
+  useEffect(() => {
+    setInventorySectionIndex((current) => Math.min(current, totalInventorySections - 1));
+  }, [totalInventorySections]);
 
   function toggleInventoryCard(productId: string) {
     setOpenInventoryProductId((current) => (current === productId ? null : productId));
@@ -1066,6 +1086,37 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
               <span className="surface-chip rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
                 {filteredInventory.length} de {inventory.length} produto(s)
               </span>
+              {filteredInventory.length > INVENTORY_SECTION_SIZE ? (
+                <>
+                  <span className="surface-chip rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-100">
+                    Sessao {currentInventorySectionLabel} de {totalInventorySections}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={inventorySectionIndex === 0}
+                      onClick={() =>
+                        setInventorySectionIndex((current) => Math.max(0, current - 1))
+                      }
+                      className="surface-button-secondary inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Sessao anterior
+                    </button>
+                    <button
+                      type="button"
+                      disabled={inventorySectionIndex >= totalInventorySections - 1}
+                      onClick={() =>
+                        setInventorySectionIndex((current) =>
+                          Math.min(totalInventorySections - 1, current + 1)
+                        )
+                      }
+                      className="surface-button-secondary inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Proxima sessao
+                    </button>
+                  </div>
+                </>
+              ) : null}
               {inventorySearch ? (
                 <button
                   type="button"
@@ -1118,7 +1169,7 @@ export function CompanyDetailPage(props: CompanyDetailPageProps) {
 
           {filteredInventory.length > 0 ? (
             <div className="mt-6 space-y-3">
-              {filteredInventory.map((item) => {
+              {visibleInventory.map((item) => {
                 const product = productsById.get(item.productId) ?? null;
                 const variants = product?.variants ?? [];
                 const matchingVariants = normalizedInventorySearch
